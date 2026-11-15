@@ -17,7 +17,7 @@
   // ---------------------------------------------------------------- Asset raporu
   function report(result) {
     const missingRequired = VH.map.REQUIRED.filter((k) => !VH.assets.has(k));
-    const missingPlaced = VH.map.OBJECTS.filter((o) => !o.k.startsWith('proc:') && !VH.assets.has(o.k)).map((o) => o.k);
+    const missingPlaced = VH.map.allObjects().filter((o) => !o.k.startsWith('proc:') && !VH.assets.has(o.k)).map((o) => o.k);
     const summary = {
       ok: result.failed.length === 0 && missingRequired.length === 0 && missingPlaced.length === 0,
       loaded: result.loaded,
@@ -158,6 +158,7 @@
         case '-': case '_': cam().zoomAt(1 / 1.2, vw / 2, vh / 2, vw, vh); break;
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
+        case 'p': VH.hospital.openPanel(); break;
         default: break;
       }
     });
@@ -183,7 +184,8 @@
     VH.ui.setChip('chip-patients', `Hastalar: ${E.patients.length} · Bekleyen: ${waiting}`);
     VH.ui.setChip('chip-served', `Taburcu: ${E.stats.served}`);
     const room = VH.map.roomAt(E.player.x, E.player.y);
-    VH.ui.setChip('chip-where', '📍 ' + (room ? room.name : 'Hastane bahçesi'));
+    const fl = VH.map.floor ? VH.map.floorName().split(' · ')[0] + ' · ' : '';
+    VH.ui.setChip('chip-where', '📍 ' + fl + (room ? room.name : 'Hastane bahçesi'));
   }
 
   function frame(now) {
@@ -192,12 +194,14 @@
     readMoveInput();
     VH.entities.update(dt);
     VH.cases.update(dt);
+    VH.hospital.update(dt);
     cam().update(dt);
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map));
+    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map)));
     VH.entities.drawOverlay(ctx, vw, vh, targets[0], VH.ui.isTouch());
+    VH.hospital.drawOverlay(ctx, vw, vh);
     hudTimer -= dt;
     if (hudTimer <= 0) { hudTimer = 0.25; updateHud(); }
     requestAnimationFrame(frame);
@@ -216,6 +220,7 @@
 
     VH.map.init();
     VH.entities.init();
+    VH.hospital.init();
     const c = cam();
     c.target = VH.entities.player;
 
@@ -246,6 +251,7 @@
       zoomOut: () => c.zoomAt(1 / 1.25, vw / 2, vh / 2, vw, vh),
       follow: () => setFollow(!c.follow),
       labels: toggleLabels,
+      panel: () => VH.hospital.openPanel(),
     });
     VH.ui.buildGameControls((i) => doInteract(targets[i]));
     VH.ui.setToggle('btn-follow', c.follow);

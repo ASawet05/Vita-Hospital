@@ -11,7 +11,7 @@
   const A = (k) => VH.assets.get(k);
 
   const HW = 32, HH = 16;            // yarım karo genişliği / yüksekliği
-  const W = 35, H = 26;              // harita boyutu (hücre)
+  let W = 35, H = 26;                // geçerli katın boyutu (hücre)
   const WALL_FULL = 66, WALL_CUT = 14; // tam duvar / kesit (cutaway) duvar yüksekliği
 
   const ARCH = 'core/Architecture/hospital_architecture_';
@@ -41,11 +41,12 @@
     core_straight: { kind: 'core', tex: ARCH + 'wall_ward_straight_01', door: ARCH + 'door_double_swing_01' },
     core_handrail: { kind: 'core', tex: ARCH + 'wall_corridor_handrail_01', door: ARCH + 'door_double_swing_01' },
     core_window:   { kind: 'core', tex: ARCH + 'wall_observation_window_01', door: ARCH + 'door_ward_single_01' },
+    or:            { kind: 'ta', plainL: 'lab/wall_plain_left', plainR: 'lab/wall_plain_right', doorL: 'lab/wall_or_doors_left', doorR: 'lab/wall_or_doors_right' },
   };
 
   // ---------------------------------------------------------------- Yerleşim planı
   // r: [x0, y0, x1, y1] (dahil)
-  const ROOMS = {
+  const ROOMS0 = {
     office:    { num: 7, name: 'Başhekim & Doktor Odası', r: [1, 1, 6, 8], floor: 'vinyl', wall: 'core_straight' },
     exam1:     { num: 3, name: 'Muayene Odası 1', r: [7, 1, 11, 8], floor: 'vinyl', wall: 'ward' },
     exam2:     { num: 3, name: 'Muayene Odası 2', r: [12, 1, 16, 8], floor: 'vinyl', wall: 'ward' },
@@ -58,7 +59,7 @@
   };
 
   // Kapılar: 2 hücre uzunluğunda. e:'N' → (x,y)-(x+1,y) kenarı x yönünde; e:'W' → y yönünde.
-  const DOORS = [
+  const DOORS0 = [
     { e: 'N', x: 3, y: 9 },  { e: 'N', x: 8, y: 9 },  { e: 'N', x: 13, y: 9 },
     { e: 'N', x: 20, y: 9 }, { e: 'N', x: 27, y: 9 },
     { e: 'N', x: 4, y: 11 }, { e: 'N', x: 14, y: 11 }, { e: 'N', x: 24, y: 11 },
@@ -66,12 +67,12 @@
     { e: 'W', x: 31, y: 16, name: 'Ambulans Girişi' },
   ];
   // Duvarsız geçişler (resepsiyon ↔ bekleme salonu geniş kemer)
-  const OPEN = [{ e: 'W', x: 10, y0: 12, y1: 21 }];
+  const OPEN0 = [{ e: 'W', x: 10, y0: 12, y1: 21 }];
 
   // Nesneler: k=görsel anahtarı | proc=prosedürel; x,y,w,h=ayak izi; s=ölçek;
   // z=yerden yükseklik (masa üstü eşyalar); flat=zemine yatık; block=çarpışma.
   const O = (k, x, y, extra) => Object.assign({ k, x, y }, extra || {});
-  const OBJECTS = [
+  const OBJECTS0 = [
     // 1 — Resepsiyon ve Hasta Kayıt
     O(FURN + 'desk_reception_01', 2, 14, { w: 2, s: 0.5, tag: 'reception_desk' }),
     O(DEC + 'queue_display_blank_01', 1, 12, { s: 0.42, tag: 'queue_display' }),
@@ -125,13 +126,13 @@
     // 5 — Acil Servis ve Ambulans Girişi
     O(FURN + 'gurney_stretcher_01', 21, 13, { w: 2, s: 0.42, tag: 'gurney' }),
     O(EQ + 'monitor_patient_01', 20, 12, { s: 0.4, tag: 'monitor' }),
-    O(FURN + 'iv_stand_01', 23, 13, { s: 0.4 }),
+    O(FURN + 'iv_stand_01', 23, 13, { s: 0.4, tag: 'iv' }),
     O(FURN + 'gurney_stretcher_01', 21, 16, { w: 2, s: 0.42, tag: 'gurney' }),
     O(EQ + 'monitor_patient_01', 20, 15, { s: 0.4, tag: 'monitor' }),
-    O('ward/iv_drip_stand', 23, 16),
+    O('ward/iv_drip_stand', 23, 16, { tag: 'iv' }),
     O(FURN + 'gurney_stretcher_01', 21, 19, { w: 2, s: 0.42, tag: 'gurney' }),
     O(EQ + 'ventilator_01', 20, 18, { s: 0.4, tag: 'ventilator' }),
-    O('ward/iv_drip_stand', 23, 19),
+    O('ward/iv_drip_stand', 23, 19, { tag: 'iv' }),
     O(EQ + 'defibrillator_01', 27, 12, { s: 0.4, tag: 'defibrillator' }),
     O(EQ + 'oxygen_tanks_pair_01', 28, 12, { s: 0.4, tag: 'oxygen' }),
     O(ARCH + 'wall_nurse_station_low_01', 26, 18, { w: 2, s: 0.42, tag: 'triage' }),
@@ -163,56 +164,178 @@
     O(DEC + 'locker_staff_narrow_01', 6, 3, { s: 0.42 }),
     O('proc:terminal', 1, 5, { tag: 'archive_terminal' }),
     O('proc:archive', 1, 6), O('proc:archive', 1, 7),
+
+    // Asansör (koridorun doğu ucu)
+    O('proc:elevator', 30, 9, { tag: 'elevator' }),
   ];
 
-  // ---------------------------------------------------------------- Izgara
-  const grid = [];      // grid[y][x] = oda kimliği | null (dış alan)
-  const floorType = []; // floorType[y][x]
-  const blocked = [];   // blocked[y][x] = true → yürünemez (Aşama 3 çarpışma)
-  const edgeMap = new Map();
-  const walls = [];
+  // ---------------------------------------------------------------- Üst katlar (Aşama 5)
+  // Her kat ayrı bir harita: kendi odaları, kapıları ve nesneleri. Asansör (1,7) hücresinde.
+  const LAB_ = 'lab/', WARD_ = 'ward/';
+  const UPPER_CORRIDOR = { num: 0, name: 'Koridor', r: [1, 7, 22, 8], floor: 'corridor', wall: 'core_handrail', noLabel: true };
+
+  const FLOOR_SURGERY = {
+    id: 'surgery', name: '1. Kat · Cerrahi & Ameliyathane', W: 24, H: 15, arrive: [2.5, 7.9],
+    rooms: {
+      or1:       { name: 'Ameliyathane', r: [1, 1, 9, 6], floor: 'terrazzo', wall: 'or' },
+      scrub:     { name: 'Cerrahi Hazırlık (Scrub)', r: [10, 1, 14, 6], floor: 'terrazzo', wall: 'lab' },
+      recovery:  { name: 'Uyandırma Odası', r: [15, 1, 22, 6], floor: 'vinyl', wall: 'ward' },
+      corridor:  UPPER_CORRIDOR,
+      surgclin:  { name: 'Cerrahi Poliklinik', r: [1, 9, 11, 13], floor: 'white', wall: 'core_straight' },
+      sterile:   { name: 'Steril Malzeme Deposu', r: [12, 9, 22, 13], floor: 'green', wall: 'lab' },
+    },
+    doors: [{ e: 'N', x: 4, y: 7 }, { e: 'N', x: 11, y: 7 }, { e: 'N', x: 18, y: 7 }, { e: 'N', x: 5, y: 9 }, { e: 'N', x: 16, y: 9 }, { e: 'W', x: 10, y: 3 }],
+    open: [],
+    objects: [
+      O(LAB_ + 'operating_table', 5, 3, { tag: 'operating_table' }),
+      O(EQ + 'lamp_surgical_01', 6, 2, { s: 0.42, tag: 'surgical_lamp' }),
+      O(LAB_ + 'anesthesia_machine', 3, 2, { tag: 'anesthesia' }),
+      O(EQ + 'monitor_patient_01', 3, 4, { s: 0.4 }),
+      O(FURN + 'cart_instrument_01', 7, 3, { s: 0.32 }),
+      O(PROP + 'forceps_scissors_tray_01', 7, 3, { s: 0.12, z: 22, block: false }),
+      O(LAB_ + 'gauze_roll_stack', 7, 5),
+      O(LAB_ + 'biohazard_waste_bin', 8, 1),
+      O(LAB_ + 'scrub_trough_station', 11, 1, { tag: 'scrub' }),
+      O(LAB_ + 'scrub_trough_station', 13, 1, { tag: 'scrub' }),
+      O(PROP + 'sink_medical_small_01', 14, 3, { s: 0.36 }),
+      O(DEC + 'uv_sterilizer_cart_01', 12, 5, { s: 0.38 }),
+      O(WARD_ + 'hospital_bed', 16, 2), O(WARD_ + 'bedside_cabinet', 17, 2),
+      O(WARD_ + 'hospital_bed', 19, 2), O(WARD_ + 'bedside_cabinet', 20, 2),
+      O(EQ + 'monitor_patient_01', 21, 2, { s: 0.38 }),
+      O(WARD_ + 'iv_drip_stand', 18, 4),
+      O(FURN + 'desk_doctor_01', 2, 10, { w: 2, s: 0.42 }),
+      O(FURN + 'chair_visitor_01', 2, 12, { s: 0.36 }), O(FURN + 'chair_visitor_01', 3, 12, { s: 0.36 }),
+      O(FURN + 'bed_examination_01', 8, 11, { w: 2, s: 0.42 }),
+      O(FURN + 'curtain_privacy_screen_01', 10, 10, { s: 0.4 }),
+      O(EQ + 'autoclave_sterilizer_01', 13, 10, { s: 0.42 }),
+      O(FURN + 'cart_instrument_01', 15, 12, { s: 0.32 }),
+      O(DEC + 'uv_sterilizer_cart_01', 18, 11, { s: 0.38 }),
+      O(PROP + 'pillow_blanket_stack_01', 20, 10, { s: 0.3 }),
+      O(PROP + 'gown_patient_folded_01', 21, 10, { s: 0.3 }),
+      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+    ],
+  };
+
+  const FLOOR_WARD = {
+    id: 'ward', name: '2. Kat · Yatan Hasta & Pediatri', W: 24, H: 15, arrive: [2.5, 7.9],
+    rooms: {
+      ward1:    { name: 'Yatan Hasta Servisi', r: [1, 1, 11, 6], floor: 'vinyl', wall: 'ward' },
+      peds:     { name: 'Pediatri Servisi', r: [12, 1, 22, 6], floor: 'vinyl', wall: 'ward' },
+      corridor: UPPER_CORRIDOR,
+      nurse:    { name: 'Hemşire İstasyonu', r: [1, 9, 8, 13], floor: 'white', wall: 'core_straight' },
+      ward2:    { name: 'Yatan Hasta Odaları', r: [9, 9, 22, 13], floor: 'vinyl', wall: 'ward' },
+    },
+    doors: [{ e: 'N', x: 4, y: 7 }, { e: 'N', x: 16, y: 7 }, { e: 'N', x: 4, y: 9 }, { e: 'N', x: 14, y: 9 }],
+    open: [],
+    objects: [
+      O(WARD_ + 'hospital_bed', 2, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 3, 2),
+      O(WARD_ + 'hospital_bed', 5, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 6, 2),
+      O(WARD_ + 'hospital_bed', 8, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 9, 2),
+      O(WARD_ + 'iv_drip_stand', 4, 4), O(WARD_ + 'iv_drip_stand', 10, 4),
+      O(FURN + 'incubator_infant_01', 13, 2, { s: 0.38, tag: 'incubator' }),
+      O(FURN + 'incubator_infant_01', 15, 2, { s: 0.38, tag: 'incubator' }),
+      O(WARD_ + 'hospital_bed', 19, 2, { tag: 'ward_bed' }), O(WARD_ + 'hospital_bed', 21, 2, { tag: 'ward_bed' }),
+      O(WARD_ + 'teddy_bear', 14, 4), O(WARD_ + 'teddy_bear', 18, 5),
+      O(DEC + 'play_mat_children_01', 17, 4, { w: 2, h: 2, s: 0.42, flat: true }),
+      O(ARCH + 'wall_nurse_station_low_01', 2, 11, { w: 2, s: 0.42, tag: 'nurse_station' }),
+      O(SUP + 'medicine_bottles_group_01', 2, 11, { s: 0.13, z: 18, block: false }),
+      O(FURN + 'cabinet_medicine_01', 1, 9, { s: 0.42 }),
+      O(SUP + 'sanitizer_dispenser_stand_01', 7, 10, { s: 0.4 }),
+      O(WARD_ + 'hospital_bed', 10, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 11, 10),
+      O(WARD_ + 'hospital_bed', 13, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 14, 10),
+      O(WARD_ + 'hospital_bed', 16, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 17, 10),
+      O(WARD_ + 'hospital_bed', 19, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 20, 10),
+      O(FURN + 'table_overbed_01', 10, 12, { s: 0.34 }),
+      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+    ],
+  };
+
+  const FLOOR_RADIOLOGY = {
+    id: 'radiology', name: '3. Kat · Radyoloji & İleri Tanı', W: 24, H: 15, arrive: [2.5, 7.9],
+    rooms: {
+      xray:     { name: 'Röntgen', r: [1, 1, 7, 6], floor: 'white', wall: 'core_window' },
+      us:       { name: 'Ultrason', r: [8, 1, 13, 6], floor: 'vinyl', wall: 'ward' },
+      ecg:      { name: 'EKG & Kardiyak Tanı', r: [14, 1, 22, 6], floor: 'white', wall: 'core_straight' },
+      corridor: UPPER_CORRIDOR,
+      dialysis: { name: 'Diyaliz Ünitesi', r: [1, 9, 14, 13], floor: 'green', wall: 'lab' },
+      report:   { name: 'Görüntüleme Raporlama', r: [15, 9, 22, 13], floor: 'vinyl', wall: 'core_straight' },
+    },
+    doors: [{ e: 'N', x: 3, y: 7 }, { e: 'N', x: 10, y: 7 }, { e: 'N', x: 17, y: 7 }, { e: 'N', x: 6, y: 9 }, { e: 'N', x: 18, y: 9 }],
+    open: [],
+    objects: [
+      O(EQ + 'xray_machine_01', 3, 3, { w: 2, s: 0.5, tag: 'xray' }),
+      O(DEC + 'lightbox_cross_plain_01', 6, 1, { s: 0.3 }),
+      O(PROP + 'neck_collar_01', 7, 4, { s: 0.2 }),
+      O(EQ + 'ultrasound_cart_01', 10, 2, { s: 0.4, tag: 'ultrasound' }),
+      O(FURN + 'bed_examination_01', 11, 4, { w: 2, s: 0.42 }),
+      O(FURN + 'stool_medical_round_01', 9, 4, { s: 0.34 }),
+      O(EQ + 'ecg_machine_01', 16, 2, { s: 0.4, tag: 'ecg' }),
+      O(FURN + 'bed_examination_01', 18, 3, { w: 2, s: 0.42 }),
+      O(EQ + 'monitor_patient_01', 21, 2, { s: 0.4 }),
+      O(EQ + 'defibrillator_01', 21, 4, { s: 0.38 }),
+      O(EQ + 'dialysis_machine_01', 2, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 3, 10),
+      O(EQ + 'dialysis_machine_01', 5, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 6, 10),
+      O(EQ + 'dialysis_machine_01', 8, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 9, 10),
+      O(EQ + 'dialysis_machine_01', 11, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 12, 10),
+      O(FURN + 'desk_doctor_01', 16, 10, { w: 2, s: 0.42 }),
+      O(FURN + 'desk_doctor_01', 19, 10, { w: 2, s: 0.42 }),
+      O('proc:terminal', 21, 12, { tag: 'pacs' }),
+      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+    ],
+  };
+
+  const FLOOR_DEFS = [
+    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true },
+    FLOOR_SURGERY, FLOOR_WARD, FLOOR_RADIOLOGY,
+  ];
+
+  // ---------------------------------------------------------------- Izgara (kat başına)
   const ek = (e, x, y) => e + ':' + x + ':' + y;
 
-  function outdoorFloor(x, y) {
+  function outdoorFloor(def, x, y) {
+    if (!def.outdoor) return null;
     if (y === 23 && (x === 4 || x === 5)) return 'ramp';
     if (x >= 31) return 'asphalt';
     if (y >= 23) return 'pavement';
     return 'grass';
   }
 
-  function buildGrid() {
+  function buildFloor(def) {
+    const { W, H, rooms } = def;
+    const grid = [], floorType = [], blocked = [];
     for (let y = 0; y < H; y++) {
       grid[y] = new Array(W).fill(null);
       blocked[y] = new Array(W).fill(false);
       floorType[y] = [];
     }
-    for (const id in ROOMS) {
-      const [x0, y0, x1, y1] = ROOMS[id].r;
+    for (const id in rooms) {
+      const [x0, y0, x1, y1] = rooms[id].r;
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y][x] = id;
     }
     for (let y = 0; y < H; y++)
       for (let x = 0; x < W; x++)
-        floorType[y][x] = grid[y][x] ? ROOMS[grid[y][x]].floor : outdoorFloor(x, y);
+        floorType[y][x] = grid[y][x] ? rooms[grid[y][x]].floor : outdoorFloor(def, x, y);
+    // Dış alanı olmayan katlarda boş hücreler yürünemez
+    if (!def.outdoor) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!grid[y][x]) blocked[y][x] = true;
 
-    OBJECTS.forEach((o) => {
+    def.objects.forEach((o) => {
       o.w = o.w || 1; o.h = o.h || 1;
       const solid = o.block !== undefined ? o.block : !o.flat && !o.z;
       if (!solid) return;
       for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) blocked[y][x] = true;
     });
-  }
 
-  function buildWalls() {
     const special = new Map();
-    DOORS.forEach((d, i) => {
+    def.doors.forEach((d, i) => {
       for (let p = 0; p < 2; p++) {
         const x = d.e === 'N' ? d.x + p : d.x;
         const y = d.e === 'N' ? d.y : d.y + p;
         special.set(ek(d.e, x, y), { type: 'door', door: i });
       }
     });
-    OPEN.forEach((o) => { for (let y = o.y0; y <= o.y1; y++) special.set(ek(o.e, o.x, y), { type: 'open' }); });
+    def.open.forEach((o) => { for (let y = o.y0; y <= o.y1; y++) special.set(ek(o.e, o.x, y), { type: 'open' }); });
 
+    const edgeMap = new Map(), walls = [];
     const consider = (e, x, y, a, b) => {
       if (a === b) return;
       const sp = special.get(ek(e, x, y));
@@ -225,6 +348,18 @@
         if (y > 0) consider('N', x, y, grid[y - 1][x], grid[y][x]);
         if (x > 0) consider('W', x, y, grid[y][x - 1], grid[y][x]);
       }
+    return { def, W, H, grid, floorType, blocked, edgeMap, walls };
+  }
+
+  const floors = [];
+  let fi = 0;        // geçerli kat
+  let ROOMS = ROOMS0, OBJECTS = OBJECTS0;
+  let grid = null, floorType = null, blocked = null, edgeMap = null, walls = null;
+  function useFloor(i) {
+    fi = i;
+    const F = floors[i];
+    W = F.W; H = F.H; ROOMS = F.def.rooms; OBJECTS = F.def.objects;
+    grid = F.grid; floorType = F.floorType; blocked = F.blocked; edgeMap = F.edgeMap; walls = F.walls;
   }
 
   // ---------------------------------------------------------------- Döndürme & izo
@@ -314,7 +449,7 @@
         const [rx, ry] = rotPt(x + 0.5, y + 0.5);
         const cx = Math.floor(rx), cy = Math.floor(ry);
         const [sx, sy] = iso(cx, cy);
-        floors.push({ sx, sy, t: floorType[y][x], v: (x * 7 + y * 13) & 3 });
+        if (floorType[y][x]) floors.push({ sx, sy, t: floorType[y][x], v: (x * 7 + y * 13) & 3 });
       }
 
     const items = []; // derinlik sıralı nesne/duvar listesi
@@ -496,6 +631,20 @@
           ctx.fillRect(x, y, 2.6, 9);
         }
     },
+    elevator(ctx, it) {
+      const { cx, cy } = it;
+      isoBox(ctx, cx, cy, 30, 15, 64, '#aab6bd', '#7d8a93', '#94a2ab');
+      // kapılar (her iki görünen yüzde)
+      ctx.fillStyle = '#c9d3d9';
+      ctx.beginPath(); ctx.moveTo(cx - 24, cy - 3); ctx.lineTo(cx - 6, cy + 6); ctx.lineTo(cx - 6, cy - 40); ctx.lineTo(cx - 24, cy - 49); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx + 24, cy - 3); ctx.lineTo(cx + 6, cy + 6); ctx.lineTo(cx + 6, cy - 40); ctx.lineTo(cx + 24, cy - 49); ctx.fill();
+      ctx.strokeStyle = '#6b7880'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx - 15, cy + 1.5); ctx.lineTo(cx - 15, cy - 44.5); ctx.moveTo(cx + 15, cy + 1.5); ctx.lineTo(cx + 15, cy - 44.5); ctx.stroke();
+      // kat göstergesi
+      ctx.fillStyle = '#16323f'; ctx.fillRect(cx - 7, cy - 60, 14, 8);
+      ctx.fillStyle = '#2ec4b6'; ctx.font = '700 7px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(fi === 0 ? 'Z' : String(fi), cx, cy - 55.5);
+    },
   };
 
   function drawObject(ctx, it) {
@@ -621,7 +770,7 @@
       const [ix, iy] = iso(Math.max(a[0], b[0]) - inset, Math.max(a[1], b[1]) - inset);
       const [sx, sy] = camera.toScreen(ix, iy, vw, vh);
       if (sx < -100 || sx > vw + 100 || sy < -20 || sy > vh + 20) continue;
-      const text = room.num + ' · ' + room.name;
+      const text = room.num ? room.num + ' · ' + room.name : room.name;
       const tw = ctx.measureText(text).width + 16;
       ctx.fillStyle = 'rgba(12,32,46,0.78)';
       ctx.beginPath();
@@ -632,18 +781,43 @@
     }
   }
 
-  // ---------------------------------------------------------------- Çarpışma yardımcıları (Aşama 3)
-  function edgeBetween(x, y, nx, ny) {
-    if (ny === y - 1) return edgeMap.get(ek('N', x, y));
-    if (ny === y + 1) return edgeMap.get(ek('N', x, ny));
-    if (nx === x - 1) return edgeMap.get(ek('W', x, y));
-    if (nx === x + 1) return edgeMap.get(ek('W', nx, y));
+
+  // ---------------------------------------------------------------- Çarpışma yardımcıları (kat parametreli)
+  const FL = (f) => (f === undefined || f === fi ? floors[fi] : floors[f]);
+  function edgeBetween(x, y, nx, ny, f) {
+    const E = FL(f).edgeMap;
+    if (ny === y - 1) return E.get(ek('N', x, y));
+    if (ny === y + 1) return E.get(ek('N', x, ny));
+    if (nx === x - 1) return E.get(ek('W', x, y));
+    if (nx === x + 1) return E.get(ek('W', nx, y));
     return undefined;
   }
-  function canStep(x, y, nx, ny) {
-    if (!inBounds(nx, ny) || blocked[ny][nx]) return false;
-    const w = edgeBetween(x, y, nx, ny);
+  function canStep(x, y, nx, ny, f) {
+    const F = FL(f);
+    if (nx < 0 || ny < 0 || nx >= F.W || ny >= F.H || F.blocked[ny][nx]) return false;
+    const w = edgeBetween(x, y, nx, ny, f);
     return !w || w.type !== 'wall';
+  }
+  function isBlockedF(x, y, f) {
+    const F = FL(f);
+    return x < 0 || y < 0 || x >= F.W || y >= F.H || F.blocked[y][x];
+  }
+
+  /** Kat değiştir (rotasyon korunur). */
+  function setFloor(i) {
+    if (i === fi && cache) return;
+    useFloor(i);
+    buildCache();
+  }
+
+  /** Dünya yön vektörünü döndürülmüş uzaya çevirir (unrotVec'in tersi). */
+  function rotVec(vx, vy, r = rot) {
+    switch (r & 3) {
+      case 0: return [vx, vy];
+      case 1: return [-vy, vx];
+      case 2: return [-vx, -vy];
+      default: return [vy, -vx];
+    }
   }
 
   // Tasarım belgesinde adı geçen ve haritada kullanılacak görseller.
@@ -667,7 +841,18 @@
   ];
 
   VH.map = {
-    REQUIRED, W, H, ROOMS, OBJECTS, DOORS,
+    REQUIRED,
+    get W() { return W; },
+    get H() { return H; },
+    get ROOMS() { return ROOMS; },
+    get OBJECTS() { return OBJECTS; },
+    get floor() { return fi; },
+    FLOOR_DEFS,
+    floorName(f) { return FLOOR_DEFS[f === undefined ? fi : f].name; },
+    floorArrive(f) { return FLOOR_DEFS[f].arrive; },
+    floorObjects(f) { return FLOOR_DEFS[f].objects; },
+    allObjects() { return FLOOR_DEFS.reduce((a, d) => a.concat(d.objects), []); },
+    dims(f) { const F = FL(f); return [F.W, F.H]; },
     TILE_W: 64, TILE_H: 32,
     camera,
     get rot() { return rot; },
@@ -675,19 +860,26 @@
     set labels(v) { labels = !!v; },
     set hover(c) { hover = c; },
     init() {
-      buildGrid();
-      buildWalls();
+      FLOOR_DEFS.forEach((d, i) => { floors[i] = buildFloor(d); });
+      useFloor(0);
       buildFloorTiles();
       buildCache();
     },
+    setFloor,
     rotate,
     setRotation(r) { while (rot !== (r & 3)) rotate(1); },
     draw,
-    worldToIso, isoToWorld, depthAt, rotPt, unrotVec,
-    roomAt(x, y) { x = Math.floor(x); y = Math.floor(y); return inBounds(x, y) && grid[y][x] ? ROOMS[grid[y][x]] : null; },
-    roomIdAt(x, y) { x = Math.floor(x); y = Math.floor(y); return inBounds(x, y) ? grid[y][x] : null; },
-    isBlocked(x, y) { return !inBounds(x, y) || blocked[y][x]; },
+    worldToIso, isoToWorld, depthAt, rotPt, unrotVec, rotVec,
+    roomAt(x, y, f) {
+      const F = FL(f); x = Math.floor(x); y = Math.floor(y);
+      return x >= 0 && y >= 0 && x < F.W && y < F.H && F.grid[y][x] ? F.def.rooms[F.grid[y][x]] : null;
+    },
+    roomIdAt(x, y, f) {
+      const F = FL(f); x = Math.floor(x); y = Math.floor(y);
+      return x >= 0 && y >= 0 && x < F.W && y < F.H ? F.grid[y][x] : null;
+    },
+    isBlocked: isBlockedF,
     canStep, edgeBetween,
-    stats() { return { walls: walls.length, objects: OBJECTS.length, cells: W * H }; },
+    stats() { return { walls: floors.reduce((s, F) => s + F.walls.length, 0), objects: FLOOR_DEFS.reduce((s, d) => s + d.objects.length, 0), floors: floors.length }; },
   };
 })();

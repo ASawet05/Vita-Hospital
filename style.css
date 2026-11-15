@@ -341,3 +341,35 @@ body.touch #dialog.wide { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 
 .intro p { font-size: 14px; line-height: 1.6; margin: 0 0 10px; }
 #dialog { background: rgba(12, 32, 46, 0.98); }
 @media (max-width: 640px) { #toast { top: 96px; max-width: calc(100vw - 32px); white-space: normal; text-align: center; border-radius: 14px; } }
+
+/* ---------------- Aşama 5: acil, panel, eczane ---------------- */
+.alert-chip {
+  background: rgba(229, 72, 77, 0.92);
+  color: #fff;
+  font-weight: 700;
+  animation: alertPulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes alertPulse { from { box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.6); } to { box-shadow: 0 0 0 6px rgba(229, 72, 77, 0); } }
+@media (prefers-reduced-motion: reduce) { .alert-chip { animation: none; } }
+.er-timer { display: inline-block; margin-bottom: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(229, 72, 77, 0.2); color: #ffd0d1; font-weight: 700; }
+.vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 8px 0; }
+.vital { padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); display: grid; gap: 2px; }
+.vital.bad { background: rgba(229, 72, 77, 0.16); }
+.v-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.v-val { font-weight: 700; font-size: 14px; }
+.vital.bad .v-val { color: #ff8a8d; }
+.opt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 8px; }
+.tab { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.04); color: var(--text); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.tab.on { background: var(--accent); color: #062026; border-color: var(--accent); font-weight: 700; }
+.shop { display: grid; gap: 8px; }
+.shop-card { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+.shop-card.owned { border-color: rgba(70, 167, 88, 0.6); }
+.shop-icon { font-size: 26px; width: 40px; text-align: center; }
+.shop-body { display: grid; gap: 2px; min-width: 0; }
+.shop-meta { font-size: 12px; color: #ffe7a8; }
+.shop-card .dlg-btn { white-space: nowrap; }
+@media (max-width: 560px) {
+  .shop-card { grid-template-columns: auto 1fr; }
+  .shop-card .dlg-btn { grid-column: 1 / -1; }
+}

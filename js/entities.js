@@ -11,6 +11,7 @@
   const M = () => VH.map;
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const mod = (k) => (VH.hospital && VH.hospital.mod ? VH.hospital.mod(k) : 1);
 
   // ================================================================ Görünüm
   const SKINS = ['#f3cfb1', '#e8b48f', '#c98d62', '#9c6b47', '#f6dcc7', '#b9825a'];
@@ -145,7 +146,7 @@
   let uid = 1;
   function makeEntity(kind, props) {
     return Object.assign({
-      id: uid++, kind, x: 0, y: 0, path: [], speed: 2.1, anim: 0, moving: false,
+      id: uid++, kind, floor: 0, x: 0, y: 0, path: [], speed: 2.1, anim: 0, moving: false,
       flip: false, back: false, sitting: false, lift: 0, bubble: null, onArrive: null,
     }, props);
   }
@@ -165,9 +166,9 @@
   }
 
   // ---------------------------------------------------------------- A* yol bulma
-  function findPath(sx, sy, tx, ty) {
+  function findPath(sx, sy, tx, ty, f) {
     const map = M();
-    const W = map.W, H = map.H;
+    const [W, H] = map.dims(f);
     const idx = (x, y) => y * W + x;
     if (sx === tx && sy === ty) return [];
     const g = new Float32Array(W * H).fill(Infinity);
@@ -193,9 +194,9 @@
           const nx = cx + dx, ny = cy + dy;
           let ok;
           if (dx && dy) {
-            ok = map.canStep(cx, cy, nx, cy) && map.canStep(nx, cy, nx, ny) &&
-                 map.canStep(cx, cy, cx, ny) && map.canStep(cx, ny, nx, ny);
-          } else ok = map.canStep(cx, cy, nx, ny) || (nx === tx && ny === ty && !map.edgeBetween(cx, cy, nx, ny));
+            ok = map.canStep(cx, cy, nx, cy, f) && map.canStep(nx, cy, nx, ny, f) &&
+                 map.canStep(cx, cy, cx, ny, f) && map.canStep(cx, ny, nx, ny, f);
+          } else ok = map.canStep(cx, cy, nx, ny, f) || (nx === tx && ny === ty && !map.edgeBetween(cx, cy, nx, ny, f));
           if (!ok) continue;
           const ni = idx(nx, ny);
           if (closed[ni]) continue;
@@ -216,7 +217,7 @@
   function goTo(e, tx, ty, onArrive, via) {
     e.sitting = false; e.lift = 0;
     const vx = via ? via[0] : Math.floor(tx), vy = via ? via[1] : Math.floor(ty);
-    const p = findPath(Math.floor(e.x), Math.floor(e.y), vx, vy);
+    const p = findPath(Math.floor(e.x), Math.floor(e.y), vx, vy, e.floor);
     if (p === null) { e.x = tx; e.y = ty; e.path = []; e.onArrive = null; if (onArrive) onArrive(e); return; }
     if (p.length) p.pop();
     p.push([vx + 0.5, vy + 0.5]);
@@ -319,7 +320,7 @@
   function updateStaff(s, dt) {
     stepPath(s, dt);
     // Oyuncu yaklaşınca selam
-    const near = Math.hypot(player.x - s.x, player.y - s.y) < 2.2;
+    const near = s.floor === player.floor && Math.hypot(player.x - s.x, player.y - s.y) < 2.2;
     if (near && !s.greeted) { s.greeted = true; say(s, pick(s.def.greet)); if (!s.path.length) faceToward(s, player.x, player.y); }
     if (!near && Math.hypot(player.x - s.x, player.y - s.y) > 3.5) s.greeted = false;
     if (s.busy || s.path.length) return;
@@ -463,10 +464,18 @@
         if (p.timer <= 0) finishLab(p);
         break;
       case 'pharmacy':
+        // Sıranın başındaki hasta Başhekimin "İlaç Onayla" bilgilendirmesini bekler;
+        // süre dolarsa eczacı kendisi teslim eder (bonus yok).
         if (pharmacyQueue[0] === p && p.arrivedSlot) {
-          if (p.timer > 90) p.timer = rand(3, 5);
+          if (p.timer > 90) {
+            p.timer = 14 * mod('pharmacyWait');
+            p.awaitingRx = true;
+            say(p, 'Reçetem hazır mı? Nasıl kullanacağım?', 2600);
+          }
           if (p.timer <= 0) {
+            p.awaitingRx = false;
             say(staffById('pharmacist'), 'Geçmiş olsun, kullanım bilgilerini anlattım.', 2600);
+            if (VH.hospital) VH.hospital.onPharmacyAuto(p);
             leaveQueue(pharmacyQueue, p, PHARMACY_SLOTS);
             leave(p);
           }
@@ -499,7 +508,7 @@
       if (!p) break;
       ch.patient = p; p.state = 'toLab'; p.labRef = ch;
       goTo(p, ch.seat[0], ch.seat[1], (e) => {
-        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8);
+        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8) * mod("labTime");
         const tech = staffById('laborant');
         tech.busy = true;
         goTo(tech, ch.tech[0], ch.tech[1], (t) => { faceToward(t, ch.seat[0], ch.seat[1]); say(t, 'Küçük bir iğne batması hissedeceksiniz.', 2400); });
@@ -515,7 +524,7 @@
     goTo(p, ex.bed[0], ex.bed[1], (e) => {
       sitAt(e, ex.bed, 13); e.state = 'exam';
       // Vaka hastası, Başhekim karar verene kadar odada kalır
-      e.timer = e.caseRef ? Infinity : rand(7, 11);
+      e.timer = e.caseRef ? Infinity : rand(7, 11) * mod("examTime");
       const doc = staffById(ex.doctor);
       doc.busy = true;
       goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
@@ -589,13 +598,14 @@
   function leave(p) {
     p.state = 'leaving';
     stats.served++;
+    if (VH.hospital) VH.hospital.onServed(p);
     goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
   }
 
   function updatePatients(dt) {
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
-      spawnTimer = rand(7, 13);
+      spawnTimer = rand(7, 13) * mod("spawnInterval");
       const busySeats = SEATS.filter((s) => s.occ).length;
       if (patients.length < MAX_PATIENTS && busySeats < SEATS.length - 1) spawnPatient();
     }
@@ -621,14 +631,30 @@
     pharmacy_counter: { name: 'Eczane Bankosu', action: 'İlaç Onayla', icon: '💊' },
     chief_desk:       { name: 'Başhekim Masası', action: 'Yönetim Masası', icon: '🏥' },
     archive_terminal: { name: 'Vaka Arşiv Terminali', action: 'Vaka Arşivi', icon: '🗂️' },
+    iv:               { name: 'Serum (IV) Askısı', action: 'Acil Müdahale', icon: '💧' },
+    elevator:         { name: 'Asansör', action: 'Asansör', icon: '🛗' },
+    // Üst katlar
+    operating_table:  { name: 'Ameliyat Masası', action: 'İncele', icon: '🩻', info: 'Ameliyathane hazır. Travma hastaları stabilize edildikten sonra cerrahi değerlendirmeye alınabiliyor (acil travma ödülü +%50).' },
+    surgical_lamp:    { name: 'Ameliyat Lambası', action: 'İncele', icon: '💡', info: 'Gölgesiz ameliyat lambası kalibre edildi.' },
+    anesthesia:       { name: 'Anestezi Cihazı', action: 'İncele', icon: '😷', info: 'Anestezi cihazı günlük kontrolden geçti.' },
+    scrub:            { name: 'Cerrahi El Yıkama İstasyonu', action: 'İncele', icon: '🧼', info: 'Cerrahi el antisepsisi en az 2-3 dakika sürer. Enfeksiyon önlemenin temel adımıdır.' },
+    ward_bed:         { name: 'Servis Yatağı', action: 'İncele', icon: '🛏️', info: 'Yatan hasta servisi: acil serviste stabilize edilen hastalar buraya yatırılıyor (+₺500 yatış geliri).' },
+    incubator:        { name: 'Küvöz', action: 'İncele', icon: '👶', info: 'Pediatri servisi: çocuk vakalarında doğru uzman yönlendirmesi ek ödül getirir.' },
+    nurse_station:    { name: 'Hemşire İstasyonu', action: 'İncele', icon: '📋', info: 'Hemşire istasyonu: ilaç saatleri ve hasta takip çizelgeleri burada tutuluyor.' },
+    xray:             { name: 'Röntgen Cihazı', action: 'İncele', icon: '🩻', info: 'Radyoloji katı açık: "Daha fazla tetkik" kararları hastane içinde yapılıyor (+₺1.000).' },
+    ultrasound:       { name: 'Ultrason', action: 'İncele', icon: '📡', info: 'Ultrason cihazı radyasyon kullanmaz; birçok tetkikte ilk basamaktır.' },
+    ecg:              { name: 'EKG Cihazı', action: 'İncele', icon: '💓', info: 'EKG kalbin elektriksel aktivitesini kaydeder; çarpıntı ve göğüs ağrısında temel tetkiktir.' },
+    dialysis:         { name: 'Diyaliz Makinesi', action: 'İncele', icon: '🩸', info: 'Diyaliz ünitesi böbrek hastalarına haftada birkaç seans hizmet verir.' },
+    pacs:             { name: 'Görüntüleme Arşivi (PACS)', action: 'İncele', icon: '🖥️', info: 'Tüm görüntüleme raporları dijital arşivde saklanıyor.' },
   };
   let devices = [];
   function buildDevices() {
-    devices = M().OBJECTS.filter((o) => DEVICES[o.tag]).map((o) => Object.assign({
-      type: 'device', tag: o.tag, obj: o,
+    devices = [];
+    M().FLOOR_DEFS.forEach((def, f) => def.objects.filter((o) => DEVICES[o.tag]).forEach((o) => devices.push(Object.assign({
+      type: 'device', tag: o.tag, obj: o, floor: f,
       x0: o.x, y0: o.y, x1: o.x + (o.w || 1), y1: o.y + (o.h || 1),
       x: o.x + (o.w || 1) / 2, y: o.y + (o.h || 1) / 2,
-    }, DEVICES[o.tag]));
+    }, DEVICES[o.tag]))));
   }
 
   const RANGE_ENT = 1.7, RANGE_DEV = 1.15;
@@ -640,6 +666,7 @@
 
   function targetOfEntity(e) {
     if (e.kind === 'staff') return { type: 'staff', ref: e, name: e.name, action: e.def.action, x: e.x, y: e.y };
+    if (e.erRef) return { type: 'patient', ref: e, name: e.name, action: 'Acil Müdahale', x: e.x, y: e.y };
     return { type: 'patient', ref: e, name: e.name, action: 'Hastayı Muayene Et', x: e.x, y: e.y };
   }
 
@@ -647,14 +674,17 @@
   function nearbyTargets() {
     const out = [];
     for (const e of staff.concat(patients)) {
-      if (e.state === 'leaving') continue;
+      if (e.state === 'leaving' || e.floor !== player.floor || e.gone) continue;
       const d = Math.hypot(e.x - player.x, e.y - player.y);
       if (d <= RANGE_ENT) out.push(Object.assign(targetOfEntity(e), { dist: d }));
     }
     for (const dv of devices) {
+      if (dv.floor !== player.floor) continue;
       const d = rectDist(player.x, player.y, dv);
       if (d <= RANGE_DEV) out.push({ type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y, dist: d + 0.3 });
     }
+    // Aktif acil vakada ihtiyaç duyulan cihaz/hasta öne alınır
+    if (VH.hospital && VH.hospital.priority) out.forEach((t) => { t.dist -= VH.hospital.priority(t); });
     out.sort((a, b) => a.dist - b.dist);
     const seen = new Set();
     return out.filter((t) => { if (seen.has(t.action)) return false; seen.add(t.action); return true; });
@@ -686,6 +716,8 @@
         case 'pharmacist':
           text = `Teslim bekleyen ${pharmacyQueue.length} hasta var. Her hastaya ilacın nasıl kullanılacağını anlatıyoruz.`;
           break;
+        default:
+          text = (s.def.info ? s.def.info + ' ' : '') + pick(s.def.greet);
       }
       return { icon: '👩‍⚕️', title: s.name, subtitle: s.role, text };
     }
@@ -712,7 +744,7 @@
       case 'pharmacy_counter': text = `Onay bekleyen reçete/bilgilendirme: ${pharmacyQueue.length}.`; break;
       case 'chief_desk': text = 'Başhekim Yönetim & İnşa Paneli: bütçe ve itibar biriktikçe yeni servisler açabileceksiniz.'; break;
       case 'archive_terminal': text = 'Vaka arşivi: henüz çözülmüş vaka yok.'; break;
-      default: text = 'Acil serviste şu an kritik hasta yok. Ambulans geldiğinde siren duyacaksınız.';
+      default: text = dv.info || 'Acil serviste şu an kritik hasta yok. Ambulans geldiğinde siren duyacaksınız.';
     }
     return { icon: dv.icon, title: dv.name, subtitle: dv.action, text };
   }
@@ -720,6 +752,7 @@
   function interact(t) {
     if (!t) return;
     if (VH.ui.isDialogOpen()) { VH.ui.closeDialog(); return; }
+    if (VH.hospital && VH.hospital.handleInteract(t)) return;
     if (VH.cases && VH.cases.handleInteract(t)) return;
     const spec = describe(t);
     VH.ui.openDialog(spec);
@@ -730,6 +763,7 @@
     const cam = M().camera;
     let best = null, bestD = Infinity;
     for (const e of staff.concat(patients)) {
+      if (e.floor !== player.floor) continue;
       const [ix, iy] = M().worldToIso(e.x, e.y);
       const [sx, sy] = cam.toScreen(ix, iy - (e.lift || 0), vw, vh);
       const z = cam.zoom;
@@ -741,7 +775,7 @@
     if (best) return best;
     const [ix, iy] = cam.toIso(px, py, vw, vh);
     const [wx, wy] = M().isoToWorld(ix, iy);
-    for (const dv of devices) if (rectDist(wx, wy, dv) < 0.35) return { type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y };
+    for (const dv of devices) if (dv.floor === player.floor && rectDist(wx, wy, dv) < 0.35) return { type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y };
     return null;
   }
 
@@ -752,7 +786,7 @@
 
   // ================================================================ Çizim
   function drawables(map) {
-    const all = [player].concat(staff, patients);
+    const all = [player].concat(staff, patients).filter((e) => e.floor === map.floor && !e.gone);
     return all.map((e) => {
       const [sx, sy] = map.worldToIso(e.x, e.y);
       return {
@@ -798,7 +832,7 @@
       return cam.toScreen(ix, iy - (e.lift || 0) - 50, vw, vh);
     };
     for (const e of staff.concat(patients, [player])) {
-      if (!e.bubble) continue;
+      if (!e.bubble || e.floor !== player.floor) continue;
       if (now > e.bubble.until) { e.bubble = null; continue; }
       const [sx, sy] = head(e);
       if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
@@ -806,7 +840,7 @@
     }
     // Vaka hastası işareti (altın yıldız)
     for (const p of patients) {
-      if (!p.caseRef || p.caseDone || p.bubble || (focus && focus.ref === p)) continue;
+      if (!p.caseRef || p.caseDone || p.bubble || p.floor !== player.floor || (focus && focus.ref === p)) continue;
       const [sx, sy] = head(p);
       if (sx < -40 || sx > vw + 40 || sy < -40 || sy > vh + 40) continue;
       const bob = Math.sin(now / 300) * 3;
@@ -885,5 +919,40 @@
     discharge,
     staffById,
     faceToward,
+    // Aşama 5 API'si (hospital.js)
+    makeEntity, goTo, sitAt, randomPatientLook, rectDist,
+    get devices() { return devices; },
+    get pharmacyFront() {
+      const p = pharmacyQueue[0];
+      return p && p.arrivedSlot && p.awaitingRx ? p : null;
+    },
+    /** Eczanede Başhekim onayı verildi: hasta hemen ayrılır. */
+    approvePharmacy(p) {
+      p.awaitingRx = false;
+      leaveQueue(pharmacyQueue, p, PHARMACY_SLOTS);
+      leave(p);
+    },
+    addStaff(def, floor) {
+      const s = makeEntity('staff', {
+        def, id: def.id, name: def.name, role: def.role, look: def.look, floor: floor || 0,
+        x: def.points[0][0], y: def.points[0][1], speed: 1.6, timer: rand(1, 4), busy: false, greeted: false,
+      });
+      staff.push(s);
+      return s;
+    },
+    /** Yatan/serviste oturan statik hasta (üst katlar). */
+    addResident(props) {
+      const p = makeEntity('patient', Object.assign({
+        name: pick(FIRST) + ' ' + pick(LAST), age: Math.floor(rand(20, 80)), complaint: 'Serviste takip ediliyor',
+        look: randomPatientLook(), state: 'resident', timer: 0,
+      }, props));
+      p.sitting = true;
+      patients.push(p);
+      return p;
+    },
+    spawnPatientNow: spawnPatient,
+    randomName: () => pick(FIRST) + ' ' + pick(LAST),
   };
+  STATUS.resident = 'Serviste yatıyor';
+  STATUS.er = 'Acil hasta';
 })();

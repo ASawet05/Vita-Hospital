@@ -67,6 +67,7 @@
       btn('btn-zoom-out', '－', 'Uzaklaştır (−)', h.zoomOut);
       btn('btn-follow', '◎', 'Başhekimi takip et (F)', h.follow);
       btn('btn-labels', 'Aa', 'Oda etiketleri (L)', h.labels);
+      if (h.panel) btn('btn-panel', '🏗️', 'Yönetim & İnşa Paneli (P)', h.panel);
       $('ui-root').appendChild(box);
       $('ui-root').appendChild(el('div', { id: 'help-hint' },
         'WASD / Oklar: yürü · Shift: koş · E: etkileşim · Sürükle: kaydır · Tekerlek: yakınlaştır · Q/R: döndür · F: takip'));
@@ -194,6 +195,17 @@
     },
 
     el,
+
+    /** Acil durum çipi (boş metin → gizli). */
+    setAlert(text) {
+      let c = $('chip-er');
+      if (!c) {
+        c = el('span', { id: 'chip-er', className: 'hud-chip alert-chip' });
+        $('hud').insertBefore(c, $('hud').firstChild);
+      }
+      c.hidden = !text;
+      if (c.textContent !== text) c.textContent = text || '';
+    },
 
     /** HUD'daki vaka hedefi çipi (tıklanınca vaka dosyası açılır). */
     setObjective(text, onClick) {

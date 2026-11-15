@@ -326,7 +326,8 @@
 
   // ================================================================ Durum
   const state = {
-    budget: 50000, reputation: 50, safety: 80,
+    budget: 20000, reputation: 50, safety: 80,
+    upgrades: {}, hires: {}, services: {},
     solved: [],          // [{id, title, name, grade, choice, score, keyFound, keyTotal, labs, hasty, t}]
     order: [], idx: 0,
   };
@@ -362,7 +363,8 @@
     active = {
       c, questions, keyTotal,
       step: 1, asked: new Set(), clues: [], log: [],
-      patience: keyTotal + 3,
+      patience: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0),
+      patienceMax: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0),
       labsOrdered: false, labsReady: false, labsReviewed: false,
       inExam: false, consulted: false, patient: null,
     };
@@ -419,7 +421,7 @@
     if (newClue) node.appendChild(el('div', { className: 'new-clue' + (newClue.flag ? ' flag' : '') }, (newClue.flag ? '🚩 Kırmızı bayrak: ' : '🔎 Yeni ipucu: ') + newClue.clue));
 
     const meta = el('div', { className: 'exam-meta' });
-    meta.appendChild(el('span', {}, `Sabır: ${patienceDots(a.patience, a.keyTotal + 3)}`));
+    meta.appendChild(el('span', {}, `Sabır: ${patienceDots(a.patience, a.patienceMax)}`));
     meta.appendChild(el('span', {}, `Kritik ipucu: ${keyFound()}/${a.keyTotal}`));
     meta.appendChild(el('span', {}, a.labsReviewed ? 'Tahlil: incelendi ✓' : a.labsReady ? 'Tahlil: hazır (laboratuvar)' : a.labsOrdered ? 'Tahlil: bekleniyor' : 'Tahlil: istenmedi'));
     node.appendChild(meta);
@@ -484,6 +486,16 @@
     a.step = Math.max(a.step, 4);
     const node = el('div', { className: 'lab' });
     node.appendChild(el('div', { className: 'lab-head' }, `Hasta: ${c.name} · ${c.age} yaş · Örnek: Venöz kan`));
+    // Gelişmiş Mikroskop yükseltmesi: gözden kaçan bir kritik ipucunu açığa çıkarır (vaka başına bir kez)
+    if (state.upgrades.microscope && !a.microscopeUsed) {
+      a.microscopeUsed = true;
+      const hidden = a.questions.find((q) => q.key && !q.flag && !a.clues.includes(q));
+      if (hidden) {
+        a.clues.push(hidden);
+        a.asked.add(hidden.idx);
+        node.appendChild(el('div', { className: 'new-clue' }, '🔬 Gelişmiş analiz yeni bir ipucu buldu: ' + hidden.clue));
+      }
+    }
     const table = el('div', { className: 'lab-table' });
     c.labs.forEach((l) => {
       const low = l.value < l.lo, high = l.value > l.hi;
@@ -559,7 +571,12 @@
     if (missedFlag && grade !== 'best') safety -= 4;
     state.reputation = clamp(state.reputation + r.rep);
     state.safety = clamp(state.safety + safety);
-    state.budget += r.budget;
+    // Açılan servislerin ek katkıları (Aşama 5)
+    const bonusNotes = [];
+    let bonus = 0;
+    if (choice === 'tests' && state.services.radiology && grade !== 'risky') { bonus += 1000; bonusNotes.push('📡 Tetkikler Radyoloji katında yapıldı: +₺1.000'); }
+    if (c.age < 13 && state.services.ward && grade === 'best') { bonus += 1000; bonusNotes.push('🧸 Pediatri servisi çocuğu hemen devraldı: +₺1.000'); }
+    state.budget += r.budget + bonus;
     const score = Math.max(0, Math.min(100, Math.round(
       ({ best: 60, acceptable: 35, risky: 5 })[grade] + 30 * kf / a.keyTotal + (a.labsReviewed ? 10 : 0) - (hasty ? 15 : 0))));
     state.solved.push({ id: c.id, title: c.title, name: c.name, age: c.age, grade, choice, score, keyFound: kf, keyTotal: a.keyTotal, labs: a.labsReviewed, hasty, t: Date.now() });
@@ -581,9 +598,10 @@
       const s = el('span', { className: 'delta ' + (v > 0 ? 'up' : v < 0 ? 'down' : '') }, `${label} ${v > 0 ? '+' : ''}${fmt ? fmt(v) : v}`);
       deltas.appendChild(s);
     };
-    d('İtibar', r.rep); d('Hasta Güvenliği', safety); d('Bütçe', r.budget, (v) => money(v));
+    d('İtibar', r.rep); d('Hasta Güvenliği', safety); d('Bütçe', r.budget + bonus, (v) => money(v));
     deltas.appendChild(el('span', { className: 'delta' }, `Vaka puanı: ${score}/100`));
     node.appendChild(deltas);
+    bonusNotes.forEach((t) => node.appendChild(el('div', { className: 'new-clue' }, t)));
 
     node.appendChild(el('div', { className: 'sec-title' }, 'Eğitsel değerlendirme'));
     node.appendChild(el('p', { className: 'lesson' }, c.lesson));
@@ -600,6 +618,7 @@
     }
     node.appendChild(el('div', { className: 'disclaimer' }, 'Bu oyun gerçek hayatta tıbbi teşhis koymaz. Sağlık sorunlarınız için mutlaka bir hekime başvurun.'));
 
+    a.patient.caseChoice = choice;
     E().discharge(a.patient);
     E().say(a.patient, choice === 'refer' ? 'Uzmana gideceğim, teşekkürler.' : choice === 'tests' ? 'Tetkikleri yaptıracağım.' : 'Önerileri uygulayacağım, sağ olun!', 3000);
     active = null;

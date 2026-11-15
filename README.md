@@ -38,7 +38,7 @@ assets/ward/           ThirdAngle Hospital Starter
 2. İzometrik harita motoru, kamera, 7 başlangıç bölümü ✔
 3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller ✔
 4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (14 vaka) ✔
-5. Acil servis zaman yönetimi, eczane, hastane büyütme
+5. Acil servis zaman yönetimi, eczane, hastane büyütme ✔
 6. Ses efektleri, kayıt sistemi, son kalite kontrolü
 
 ## Görsel lisansları
@@ -79,3 +79,12 @@ Her vaka 6 adımdan oluşur: **Geliş → Kayıt → Muayene & Sorgulama → Lab
 - Aceleci ya da riskli kararlar İtibar ve Hasta Güvenliği puanını düşürür. Tüm ipuçlarını toplayan oyuncu daha fazla itibar ve bütçe kazanır.
 
 > Vita Hospital gerçek hayatta tıbbi teşhis koymaz. Klinik düşünme, doğru soru sorma ve sağlık okuryazarlığı öğretir. Oyundaki referans aralıkları örnek değerlerdir.
+
+## Acil servis, eczane ve hastane büyütme
+
+- **Acil servis:** Belirli aralıklarla siren çalar ve ambulans gelir. Hastanın yaşamsal bulgularına bakıp doğru üniteyi seçin: Sedye + Monitör, Oksijen ya da Serum (IV). Ardından ilgili cihazın yanında stabilizasyonu tamamlayın. Süre dolarsa hasta sevk edilir ve İtibar ile Hasta Güvenliği düşer.
+- **Eczane:** İşlemi biten hastalar eczane kuyruğuna girer. "İlaç Onayla" ile doğru kullanım bilgisini seçen oyuncu bonus kazanır.
+- **Başhekim Yönetim & İnşa Paneli** (`P` tuşu, 🏗️ düğmesi ya da Başhekim masası):
+  - Yükseltmeler: hızlı tahlil analizörü, gelişmiş mikroskop, konforlu bekleme salonu, acil ekipman paketi, dijital eczane
+  - Personel: acil hemşiresi, acil tıp uzmanı, ek laborant, eczane teknisyeni
+  - Yeni katlar (asansörle): 1. Kat Cerrahi & Ameliyathane, 2. Kat Yatan Hasta & Pediatri, 3. Kat Radyoloji & İleri Tanı. Her kat pasif gelir ve oyun içi avantaj sağlar.
