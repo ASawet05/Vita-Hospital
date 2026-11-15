@@ -63,7 +63,7 @@ html, body {
   position: fixed;
   top: max(8px, env(safe-area-inset-top));
   left: 8px;
-  right: 8px;
+  right: 104px; /* sağ üstteki kamera düğmelerine yer bırak */
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -80,3 +80,44 @@ html, body {
 
 #ui-root { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
 #ui-root > * { pointer-events: auto; }
+
+/* Kamera kontrolleri */
+#cam-controls {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 40px);
+  gap: 6px;
+}
+.cam-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.cam-btn:hover { border-color: var(--accent); }
+.cam-btn.on { background: var(--accent); color: #062026; }
+
+#help-hint {
+  position: fixed;
+  left: 50%;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none !important;
+}
+@media (max-width: 640px), (pointer: coarse) {
+  #help-hint { display: none; }
+}
