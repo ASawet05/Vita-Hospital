@@ -176,6 +176,10 @@
   function updateHud() {
     const E = VH.entities;
     const waiting = E.patients.filter((p) => p.state === 'waiting').length;
+    const S = VH.cases.state;
+    VH.ui.setChip('chip-budget', `💰 ₺${Math.round(S.budget).toLocaleString('tr-TR')}`);
+    VH.ui.setChip('chip-rep', `★ İtibar ${S.reputation}`);
+    VH.ui.setChip('chip-safety', `🛡️ Güvenlik ${S.safety}`);
     VH.ui.setChip('chip-patients', `Hastalar: ${E.patients.length} · Bekleyen: ${waiting}`);
     VH.ui.setChip('chip-served', `Taburcu: ${E.stats.served}`);
     const room = VH.map.roomAt(E.player.x, E.player.y);
@@ -187,6 +191,7 @@
     last = now;
     readMoveInput();
     VH.entities.update(dt);
+    VH.cases.update(dt);
     cam().update(dt);
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
@@ -227,8 +232,9 @@
     VH.ui.hideLoader();
     VH.ui.showHud([
       ['chip-brand', '✚ Vita Hospital'],
-      ['chip-budget', 'Bütçe: ₺50.000'],
-      ['chip-rep', 'İtibar: ★ 50'],
+      ['chip-budget', ''],
+      ['chip-rep', ''],
+      ['chip-safety', ''],
       ['chip-patients', ''],
       ['chip-served', ''],
       ['chip-where', ''],
@@ -246,7 +252,8 @@
     VH.ui.setToggle('btn-labels', VH.map.labels);
     bindInput();
     updateHud();
-    selftest({ map: VH.map.stats(), rot: VH.map.rot, viewport: [vw, vh] });
+    selftest({ map: VH.map.stats(), rot: VH.map.rot, viewport: [vw, vh], cases: VH.cases.CASES.length });
+    if (!params.has('nointro') && !params.has('selftest')) VH.cases.start();
     requestAnimationFrame(frame);
   }
 

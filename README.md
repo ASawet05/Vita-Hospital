@@ -37,7 +37,7 @@ assets/ward/           ThirdAngle Hospital Starter
 1. Depo, görseller ve iskelet ✔
 2. İzometrik harita motoru, kamera, 7 başlangıç bölümü ✔
 3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller ✔
-4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (12+ vaka)
+4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (14 vaka) ✔
 5. Acil servis zaman yönetimi, eczane, hastane büyütme
 6. Ses efektleri, kayıt sistemi, son kalite kontrolü
 
@@ -67,3 +67,15 @@ Test parametreleri: `?rot=0-3&zoom=0.55&x=17&y=12&follow=0&labels=0&selftest`
 | Diyaloğu kapat | `Esc` / `E` | Tamam / ✕ |
 
 Eylem düğmeleri yakındaki hedefe göre değişir: Doktorla Konuş, Hastayı Muayene Et, Tahlil İncele, Acil Müdahale, İlaç Onayla, Kayıtları Gör, Vaka Arşivi.
+
+## Klinik vaka sistemi
+
+Her vaka 6 adımdan oluşur: **Geliş → Kayıt → Muayene & Sorgulama → Laboratuvar Analizi → Klinik Karar → Sonuç ve İtibar**.
+
+- ★ işaretli vaka hastası kapıdan girer, resepsiyonda kayıt olur ve muayene sırasında öncelik alır.
+- Hastalar başta her şeyi anlatmaz. Doğru sorular gizli beslenme, uyku ve yaşam tarzı ipuçlarını açar. Bazı sorular ancak önceki bir ipucundan sonra görünür. Hastanın sabrı sınırlıdır.
+- Kan tahlili istenince hasta kan alma birimine gider. Sonuçlar laboratuvardaki analizörde görsel bir raporla incelenir.
+- Üç karar seçeneği vardır: [1] daha fazla tetkik, [2] uzmana yönlendirme, [3] eksik bilgileri tamamlama (yaşam tarzı ve takip planı).
+- Aceleci ya da riskli kararlar İtibar ve Hasta Güvenliği puanını düşürür. Tüm ipuçlarını toplayan oyuncu daha fazla itibar ve bütçe kazanır.
+
+> Vita Hospital gerçek hayatta tıbbi teşhis koymaz. Klinik düşünme, doğru soru sorma ve sağlık okuryazarlığı öğretir. Oyundaki referans aralıkları örnek değerlerdir.

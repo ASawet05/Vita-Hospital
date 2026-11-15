@@ -157,7 +157,7 @@
     isDialogOpen() { return dialogOpen; },
     openDialog(spec) {
       VH.ui.closeDialog();
-      const box = el('div', { id: 'dialog', role: 'dialog' });
+      const box = el('div', { id: 'dialog', role: 'dialog', className: spec.wide ? 'wide' : '' });
       const head = el('div', { className: 'dlg-head' });
       head.appendChild(el('div', { className: 'dlg-icon' }, spec.icon || '💬'));
       const tt = el('div', { className: 'dlg-titles' });
@@ -168,15 +168,21 @@
       close.addEventListener('click', () => VH.ui.closeDialog());
       head.appendChild(close);
       box.appendChild(head);
-      box.appendChild(el('div', { className: 'dlg-text' }, spec.text || ''));
+      if (spec.node) {
+        const body = el('div', { className: 'dlg-body' });
+        body.appendChild(spec.node);
+        box.appendChild(body);
+      } else box.appendChild(el('div', { className: 'dlg-text' }, spec.text || ''));
       const acts = el('div', { className: 'dlg-actions' });
       (spec.actions || [{ label: 'Tamam' }]).forEach((a) => {
-        const b = el('button', { type: 'button', className: 'dlg-btn' }, a.label);
+        const b = el('button', { type: 'button', className: 'dlg-btn' + (a.ghost ? ' ghost' : '') }, a.label);
+        if (a.disabled) { b.disabled = true; if (a.title) b.title = a.title; }
         b.addEventListener('click', () => { if (a.fn) a.fn(); else VH.ui.closeDialog(); });
         acts.appendChild(b);
       });
       box.appendChild(acts);
       $('ui-root').appendChild(box);
+      if (spec.scrollTop) { const b = box.querySelector('.dlg-body'); if (b) b.scrollTop = spec.scrollTop; }
       dialogOpen = true;
       actionSig = '';
     },
@@ -185,6 +191,20 @@
       if (d) d.remove();
       dialogOpen = false;
       actionSig = '';
+    },
+
+    el,
+
+    /** HUD'daki vaka hedefi çipi (tıklanınca vaka dosyası açılır). */
+    setObjective(text, onClick) {
+      let c = $('chip-case');
+      if (!c) {
+        c = el('button', { id: 'chip-case', type: 'button', className: 'hud-chip case-chip' });
+        c.addEventListener('click', () => { if (c._fn) c._fn(); });
+        $('hud').appendChild(c);
+      }
+      c._fn = onClick;
+      if (c.textContent !== text) c.textContent = text;
     },
 
     toast(text, ms) {

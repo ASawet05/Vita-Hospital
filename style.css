@@ -253,6 +253,91 @@ body.touch #dialog { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 160px
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 @media (max-width: 640px) {
-  #chip-brand, #chip-served, #chip-rep { display: none; }
+  #chip-brand, #chip-served, #chip-patients, #chip-where { display: none; }
   .hud-chip { font-size: 12px; padding: 5px 10px; }
 }
+
+/* ---------------- Vaka sistemi ---------------- */
+.case-chip {
+  pointer-events: auto;
+  border: 1px solid #f5b82e;
+  color: #ffe7a8;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  flex-basis: auto;
+}
+#dialog.wide { width: min(680px, calc(100vw - 32px)); max-height: 82vh; display: flex; flex-direction: column; }
+#dialog.wide .dlg-body { overflow: auto; flex: 1; min-height: 0; margin: 10px 0; padding-right: 4px; }
+body.touch #dialog.wide { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 8px); max-height: 86vh; z-index: 40; }
+.dlg-btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.dlg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.muted { color: var(--muted); font-size: 13px; }
+.sec-title { margin: 14px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.disclaimer { margin-top: 12px; font-size: 11px; color: var(--muted); border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; }
+.warn { margin: 8px 0; padding: 8px 10px; border-radius: 10px; background: rgba(229, 72, 77, 0.14); color: #ffb4b6; font-size: 13px; }
+
+.quote { background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+.quote .who { font-weight: 700; color: var(--accent); }
+.new-clue { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(46, 196, 182, 0.15); font-size: 13px; }
+.new-clue.flag { background: rgba(229, 72, 77, 0.18); color: #ffd0d1; }
+.exam-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.exam-meta span { background: rgba(255, 255, 255, 0.07); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+.q-list { display: grid; gap: 6px; }
+.q-btn {
+  display: flex; align-items: center; gap: 8px; text-align: left; width: 100%;
+  padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04); color: var(--text); font: inherit; font-size: 14px; cursor: pointer;
+}
+.q-btn:hover { border-color: var(--accent); background: rgba(46, 196, 182, 0.08); }
+.q-cat { flex: none; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #30638e; }
+.cat-Beslenme { background: #3a7d44; } .cat-Uyku { background: #5a4fcf; } .cat-Yaşam { background: #00798c; }
+.cat-İlaçTakviye { background: #8e6c8a; } .cat-Aile { background: #b5651d; } .cat-Belirti { background: #30638e; }
+.cat-Kırmızıbayrak { background: #c0392b; } .cat-Diğer { background: #5c6770; }
+.clue-list { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.clue-list li.key { color: #bff0ea; } .clue-list li.flag { color: #ffb4b6; font-weight: 600; }
+
+.lab-head { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.lab-table { display: grid; gap: 6px; }
+.lab-row {
+  display: grid; grid-template-columns: 1.3fr 0.9fr 1.4fr 0.9fr 0.8fr; gap: 8px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); font-size: 13px;
+}
+.lab-row.out { background: rgba(229, 72, 77, 0.1); }
+.lab-name { font-weight: 600; } .lab-val { font-variant-numeric: tabular-nums; } .lab-ref { color: var(--muted); font-size: 12px; }
+.lab-bar { position: relative; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); }
+.lab-band { position: absolute; top: 0; bottom: 0; background: rgba(70, 167, 88, 0.55); border-radius: 4px; }
+.lab-mark { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: #eaf4f8; }
+.lab-mark.bad { background: #ff6b6f; box-shadow: 0 0 6px #ff6b6f; }
+.lab-flag { font-weight: 700; font-size: 12px; } .lab-flag.low { color: #7cc4ff; } .lab-flag.high { color: #ff8a8d; } .lab-flag.ok { color: #8fd19e; }
+.lab-sum { margin-top: 10px; font-size: 13px; color: var(--muted); }
+@media (max-width: 560px) {
+  .lab-row { grid-template-columns: 1fr auto; }
+  .lab-bar { grid-column: 1 / -1; }
+  .lab-ref { grid-column: 1; } .lab-flag { grid-column: 2; text-align: right; }
+}
+
+.opt-btn {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; margin-top: 8px;
+  padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05); color: var(--text); font: inherit; cursor: pointer;
+}
+.opt-btn:hover { border-color: var(--accent); background: rgba(46, 196, 182, 0.1); }
+.opt-n { font-weight: 800; color: var(--accent); }
+.opt-body { display: grid; gap: 2px; } .opt-desc { font-size: 13px; color: var(--muted); }
+
+.grade { border: 2px solid; border-radius: 12px; padding: 10px 12px; font-weight: 700; font-size: 15px; }
+.chosen { margin: 8px 0; font-size: 14px; }
+.deltas { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.delta { padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); font-size: 13px; font-weight: 600; }
+.delta.up { color: #8fd19e; } .delta.down { color: #ff8a8d; }
+.lesson { font-size: 14px; line-height: 1.55; margin: 6px 0; }
+.plan { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; }
+.steps { font-size: 13px; color: var(--muted); margin-bottom: 8px; white-space: pre-wrap; }
+.archive { display: grid; gap: 6px; }
+.arch-row { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); }
+.arch-grade { grid-row: span 2; font-size: 18px; align-self: center; }
+.arch-title { font-weight: 600; font-size: 14px; } .arch-meta { font-size: 12px; color: var(--muted); }
+.intro p { font-size: 14px; line-height: 1.6; margin: 0 0 10px; }
+#dialog { background: rgba(12, 32, 46, 0.98); }
+@media (max-width: 640px) { #toast { top: 96px; max-width: calc(100vw - 32px); white-space: normal; text-align: center; border-radius: 14px; } }

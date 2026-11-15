@@ -61,6 +61,7 @@
       ctx.beginPath(); ctx.ellipse(0, 0, 13, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.translate(0, -(pose.lift || 0) + bob);
+    if (look.scale) ctx.scale(look.scale, look.scale);
     if (pose.flip) ctx.scale(-1, 1);
 
     const hip = sit ? -9 : -12;
@@ -384,6 +385,25 @@
     say(p, 'Merhaba, kayıt yaptırmak istiyorum.', 2500);
   }
 
+  /** cases.js'teki bir senaryo için özel hasta (sabit ad/yaş/şikâyet). */
+  function spawnCasePatient(c) {
+    const female = c.sex === 'K';
+    const look = randomPatientLook();
+    look.hairStyle = female ? pick(['long', 'bun']) : pick(['short', 'short', 'bald']);
+    if (c.age >= 60) look.hair = '#b9b9b9';
+    if (c.age < 13) look.scale = 0.74;
+    const p = makeEntity('patient', {
+      name: c.name, age: c.age, complaint: c.complaint, look, caseRef: c,
+      x: ENTRANCE[0] + rand(-0.2, 0.2), y: ENTRANCE[1], speed: 1.8, state: 'queue', timer: 0,
+      needsLab: false, waitSince: 0,
+    });
+    patients.push(p);
+    receptionQueue.push(p);
+    refreshQueue(receptionQueue, RECEPTION_SLOTS);
+    say(p, c.arrival || 'Merhaba… doktora görünmem lazım.', 3200);
+    return p;
+  }
+
   function refreshQueue(queue, slots) {
     queue.forEach((p, i) => {
       const slot = slots[Math.min(i, slots.length - 1)];
@@ -428,6 +448,7 @@
           p.ticket = 'A-' + String(stats.ticket).padStart(3, '0');
           say(p, `Şikâyetim: ${p.complaint.toLowerCase()}.`, 2600);
           leaveQueue(receptionQueue, p, RECEPTION_SLOTS);
+          if (p.caseRef) hook('onRegistered', p);
           seat.occ = p; p.seatRef = seat; p.state = 'toSeat';
           goTo(p, seat.seat[0], seat.seat[1], (e) => {
             sitAt(e, seat.seat, 7); e.state = 'waiting'; e.waitSince = performance.now();
@@ -460,24 +481,21 @@
     // Boş muayene odası varsa en uzun bekleyen hastayı çağır
     for (const ex of EXAMS) {
       if (ex.patient) continue;
-      const waiting = patients.filter((p) => p.state === 'waiting').sort((a, b) => a.waitSince - b.waitSince);
+      // Vaka hastası her zaman önce çağrılır
+      const waiting = patients.filter((p) => p.state === 'waiting')
+        .sort((a, b) => (b.caseRef ? 1 : 0) - (a.caseRef ? 1 : 0) || a.waitSince - b.waitSince);
       if (!waiting.length) break;
       const p = waiting[0];
       ex.patient = p;
       p.seatRef.occ = null; p.seatRef = null;
       p.state = 'toExam'; p.examRef = ex;
       say(staffById('receptionist'), `${p.ticket} numaralı hasta, ${ex.name}!`, 3000);
-      goTo(p, ex.bed[0], ex.bed[1], (e) => {
-        sitAt(e, ex.bed, 13); e.state = 'exam'; e.timer = rand(7, 11);
-        const doc = staffById(ex.doctor);
-        doc.busy = true;
-        goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
-      }, ex.via);
+      walkToExam(p, ex);
     }
-    // Kan alma koltuğu boşsa bekleyeni al
+    // Kan alma koltuğu boşsa bekleyeni al (vaka hastası öncelikli)
     for (const ch of LAB_CHAIRS) {
       if (ch.patient) continue;
-      const p = patients.find((q) => q.state === 'labWait');
+      const p = patients.find((q) => q.state === 'labWait' && q.caseRef) || patients.find((q) => q.state === 'labWait');
       if (!p) break;
       ch.patient = p; p.state = 'toLab'; p.labRef = ch;
       goTo(p, ch.seat[0], ch.seat[1], (e) => {
@@ -487,6 +505,46 @@
         goTo(tech, ch.tech[0], ch.tech[1], (t) => { faceToward(t, ch.seat[0], ch.seat[1]); say(t, 'Küçük bir iğne batması hissedeceksiniz.', 2400); });
       }, ch.via);
     }
+  }
+
+  function hook(name, p) {
+    if (VH.cases && VH.cases[name]) VH.cases[name](p);
+  }
+
+  function walkToExam(p, ex) {
+    goTo(p, ex.bed[0], ex.bed[1], (e) => {
+      sitAt(e, ex.bed, 13); e.state = 'exam';
+      // Vaka hastası, Başhekim karar verene kadar odada kalır
+      e.timer = e.caseRef ? Infinity : rand(7, 11);
+      const doc = staffById(ex.doctor);
+      doc.busy = true;
+      goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
+      if (e.caseRef) hook('onExamStart', e);
+    }, ex.via);
+  }
+
+  /** Vaka hastasını kan almaya gönder; muayene odası rezerve kalır, sonra odaya döner. */
+  function sendToLab(p) {
+    const ex = p.examRef;
+    const doc = staffById(ex.doctor);
+    doc.busy = false; doc.timer = 0.5;
+    say(doc, 'Kan alma birimine geçelim, sonra burada devam edeceğiz.', 2600);
+    p.returnToExam = true;
+    p.state = 'labWait';
+    const spot = LAB_WAIT[0];
+    goTo(p, spot[0], spot[1]);
+  }
+
+  /** Vaka sonucu verildikten sonra hastayı eczaneye ve çıkışa yönlendir. */
+  function discharge(p) {
+    const ex = p.examRef;
+    if (ex) {
+      ex.patient = null; p.examRef = null;
+      const doc = staffById(ex.doctor);
+      doc.busy = false; doc.timer = 0.5;
+    }
+    p.caseDone = true;
+    toPharmacy(p);
   }
 
   function finishExam(p) {
@@ -512,6 +570,13 @@
     tech.busy = false;
     goTo(tech, 21.5, 2.6, (t) => { t.back = true; });
     p.labDone = true;
+    if (p.returnToExam && p.examRef) {
+      p.returnToExam = false;
+      p.state = 'toExam';
+      walkToExam(p, p.examRef);
+      hook('onLabDone', p);
+      return;
+    }
     toPharmacy(p);
   }
 
@@ -655,6 +720,7 @@
   function interact(t) {
     if (!t) return;
     if (VH.ui.isDialogOpen()) { VH.ui.closeDialog(); return; }
+    if (VH.cases && VH.cases.handleInteract(t)) return;
     const spec = describe(t);
     VH.ui.openDialog(spec);
   }
@@ -738,6 +804,20 @@
       if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
       bubble(ctx, sx, sy + 2 * z, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
     }
+    // Vaka hastası işareti (altın yıldız)
+    for (const p of patients) {
+      if (!p.caseRef || p.caseDone || p.bubble || (focus && focus.ref === p)) continue;
+      const [sx, sy] = head(p);
+      if (sx < -40 || sx > vw + 40 || sy < -40 || sy > vh + 40) continue;
+      const bob = Math.sin(now / 300) * 3;
+      ctx.fillStyle = '#f5b82e';
+      ctx.beginPath(); ctx.arc(sx, sy + bob, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#3a2600';
+      ctx.font = '700 13px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('★', sx, sy + bob + 1);
+    }
     if (focus) {
       let sx, sy;
       if (focus.type === 'device') {
@@ -799,5 +879,11 @@
     // test yardımcıları
     _collides: collides,
     _findPath: findPath,
+    STATUS, EXAMS,
+    spawnCasePatient,
+    sendToLab,
+    discharge,
+    staffById,
+    faceToward,
   };
 })();
