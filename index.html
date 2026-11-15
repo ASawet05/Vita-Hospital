@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0f2a3a">
+  <meta name="description" content="Vita Hospital — 2.5D izometrik hastane yönetimi, acil servis ve klinik dedektiflik oyunu.">
+  <title>Vita Hospital</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game" aria-label="Vita Hospital oyun alanı"></canvas>
+
+  <!-- Yükleme ekranı -->
+  <div id="loader" class="overlay">
+    <div class="loader-card">
+      <div class="logo">✚ Vita Hospital</div>
+      <div class="bar"><div id="loader-fill"></div></div>
+      <div id="loader-text">Görseller yükleniyor…</div>
+      <ul id="loader-errors" hidden></ul>
+    </div>
+  </div>
+
+  <!-- HUD ve paneller (ui.js doldurur) -->
+  <div id="hud" hidden></div>
+  <div id="ui-root"></div>
+
+  <script src="js/asset-manifest.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/cases.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

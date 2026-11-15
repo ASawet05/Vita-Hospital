@@ -1,0 +1,6 @@
+# Orijinal asset paketleri (lisans gereği depoya eklenmez)
+*.zip
+
+# Sistem
+Thumbs.db
+.DS_Store
