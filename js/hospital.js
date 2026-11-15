@@ -15,6 +15,7 @@
   const clamp = (v) => Math.max(0, Math.min(100, v));
   const el = (...a) => UI().el(...a);
   const sound = (n) => { if (VH.audio && VH.audio.play) VH.audio.play(n); };
+  const persist = () => { if (VH.save) VH.save.save(); };
 
   // ================================================================ Katalog
   const UPGRADES = [
@@ -260,6 +261,7 @@
     node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı sadeleştirilmiş senaryodur.'));
     UI().openDialog({ icon: '🚑', title: 'Acil Müdahale Başarılı', subtitle: `${d.name}, ${d.age} yaş`, wide: true, node, actions: [{ label: 'Devam' }] });
     finishEmergency(ward ? 'admit' : 'discharge');
+    persist();
   }
 
   function erFail() {
@@ -271,6 +273,7 @@
       text: `Hasta zamanında stabilize edilemediği için başka bir hastaneye sevk edildi.\nİtibar −8 · Hasta Güvenliği −10\n\nDoğru yaklaşım: ${UNITS[d.need].name}. ${d.why}`,
     });
     finishEmergency('transfer');
+    persist();
   }
 
   function finishEmergency(kind) {
@@ -396,6 +399,7 @@
       text: ok ? `Hasta ilacını doğru kullanacak. Bütçe +${money(bonus)} · İtibar +1` : `Doğrusu: ${correct}\nİtibar −1 · Hasta Güvenliği −1`,
     });
     E().approvePharmacy(p);
+    persist();
   }
 
   // ================================================================ YÖNETİM & İNŞA PANELİ
@@ -417,6 +421,7 @@
     if (group === 'hires') E().addStaff(Object.assign({ id: item.id }, item.staff), 0);
     if (group === 'services') { setupService(item.id); UI().toast(`🏗️ ${item.name} açıldı! Asansörle ${M().floorName(item.floor)}'a çıkabilirsiniz.`, 4200); }
     else UI().toast(`✅ ${item.name} hazır.`, 2600);
+    persist();
     openPanel(panelTab);
   }
 
@@ -463,11 +468,35 @@
       ['Doğru ve güvenli klinik kararlar → itibar ve bütçe', 'Acil vakaları süre bitmeden stabilize edin', 'Eczanede doğru kullanım bilgisini verin', 'Yeni katlar açarak hastaneyi büyütün']
         .forEach((t) => ul.appendChild(el('li', {}, t)));
       list.appendChild(ul);
+      // Kayıt bilgisi ve sıfırlama
+      const sv = VH.save;
+      const when = sv && sv.lastSavedAt ? new Date(sv.lastSavedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '—';
+      list.appendChild(el('p', { className: 'muted' }, sv && sv.enabled
+        ? `💾 Otomatik kayıt açık (her 15 sn ve her önemli olayda). Son kayıt: ${when}`
+        : '💾 Bu tarayıcıda kayıt kullanılamıyor (gizli mod ya da depolama kapalı). İlerleme oturum sonunda kaybolur.'));
+      const row = el('div', { className: 'dlg-actions', style: 'justify-content:flex-start' });
+      const saveBtn = el('button', { type: 'button', className: 'dlg-btn ghost' }, '💾 Şimdi kaydet');
+      saveBtn.addEventListener('click', () => { const ok = sv && sv.save(); UI().toast(ok ? '💾 Kaydedildi' : 'Kayıt yapılamadı', 1800); openPanel('genel'); });
+      const resetBtn = el('button', { type: 'button', className: 'dlg-btn ghost' }, '🗑️ İlerlemeyi sıfırla');
+      resetBtn.addEventListener('click', confirmReset);
+      row.appendChild(saveBtn); row.appendChild(resetBtn);
+      list.appendChild(row);
     } else if (panelTab === 'yukseltme') UPGRADES.forEach((u) => list.appendChild(itemCard('upgrades', u)));
     else if (panelTab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u)));
     else SERVICES.forEach((u) => list.appendChild(itemCard('services', u)));
     node.appendChild(list);
     UI().openDialog({ icon: '🏗️', title: 'Başhekim Yönetim & İnşa Paneli', subtitle: 'Cihaz yükseltme · Personel · Yeni servisler', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
+  }
+
+  function confirmReset() {
+    UI().openDialog({
+      icon: '🗑️', title: 'İlerleme sıfırlansın mı?', subtitle: 'Bu işlem geri alınamaz',
+      text: 'Bütçe, itibar, açılan katlar, personel, yükseltmeler ve vaka arşivi silinir; oyun baştan başlar.',
+      actions: [
+        { label: 'Vazgeç', ghost: true, fn: () => openPanel('genel') },
+        { label: 'Evet, sıfırla', fn: () => { if (VH.save) VH.save.reset(); window.__vhNoSave = true; location.reload(); } },
+      ],
+    });
   }
 
   // ================================================================ KATLAR & ASANSÖR

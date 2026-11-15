@@ -45,6 +45,7 @@
   const keys = new Set();
   let dragMoved = false, pinchDist = 0;
   let targets = [];
+  let stepPhase = 0, lastCell = null;
 
   function setFollow(on) {
     cam().follow = on;
@@ -159,6 +160,7 @@
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
         case 'p': VH.hospital.openPanel(); break;
+        case 'm': toggleSound(); break;
         default: break;
       }
     });
@@ -171,6 +173,28 @@
     VH.ui.setToggle('btn-labels', VH.map.labels);
   }
 
+  function toggleSound() {
+    VH.audio.unlock();
+    const m = VH.audio.toggle();
+    VH.ui.setSoundButton(m);
+    VH.ui.toast(m ? '🔇 Ses kapalı' : '🔊 Ses açık', 1400);
+  }
+
+  /** Adım sesi (yürüme animasyonuna bağlı) ve kapı eşiğinden geçince kapı sesi. */
+  function footstepsAndDoors() {
+    const P = VH.entities.player;
+    if (P.moving) {
+      const ph = Math.floor(P.anim / Math.PI);
+      if (ph !== stepPhase) { stepPhase = ph; VH.audio.play('step'); }
+    }
+    const cx = Math.floor(P.x), cy = Math.floor(P.y);
+    if (lastCell && lastCell.f === P.floor && (lastCell.x !== cx || lastCell.y !== cy)) {
+      const w = VH.map.edgeBetween(lastCell.x, lastCell.y, cx, cy);
+      if (w && w.type === 'door') VH.audio.play('door');
+    }
+    lastCell = { x: cx, y: cy, f: P.floor };
+  }
+
   // ---------------------------------------------------------------- Döngü
   let last = performance.now();
   let hudTimer = 0;
@@ -181,6 +205,7 @@
     VH.ui.setChip('chip-budget', `💰 ₺${Math.round(S.budget).toLocaleString('tr-TR')}`);
     VH.ui.setChip('chip-rep', `★ İtibar ${S.reputation}`);
     VH.ui.setChip('chip-safety', `🛡️ Güvenlik ${S.safety}`);
+    VH.ui.setChip('chip-level', `🏥 Sv. ${VH.hospital.level()}`);
     VH.ui.setChip('chip-patients', `Hastalar: ${E.patients.length} · Bekleyen: ${waiting}`);
     VH.ui.setChip('chip-served', `Taburcu: ${E.stats.served}`);
     const room = VH.map.roomAt(E.player.x, E.player.y);
@@ -195,6 +220,8 @@
     VH.entities.update(dt);
     VH.cases.update(dt);
     VH.hospital.update(dt);
+    VH.save.update(dt);
+    footstepsAndDoors();
     cam().update(dt);
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
@@ -220,6 +247,7 @@
 
     VH.map.init();
     VH.entities.init();
+    const loaded = VH.save.load();
     VH.hospital.init();
     const c = cam();
     c.target = VH.entities.player;
@@ -240,6 +268,7 @@
       ['chip-budget', ''],
       ['chip-rep', ''],
       ['chip-safety', ''],
+      ['chip-level', ''],
       ['chip-patients', ''],
       ['chip-served', ''],
       ['chip-where', ''],
@@ -252,14 +281,17 @@
       follow: () => setFollow(!c.follow),
       labels: toggleLabels,
       panel: () => VH.hospital.openPanel(),
+      sound: toggleSound,
     });
     VH.ui.buildGameControls((i) => doInteract(targets[i]));
     VH.ui.setToggle('btn-follow', c.follow);
     VH.ui.setToggle('btn-labels', VH.map.labels);
+    VH.ui.setSoundButton(VH.audio.muted);
     bindInput();
     updateHud();
     selftest({ map: VH.map.stats(), rot: VH.map.rot, viewport: [vw, vh], cases: VH.cases.CASES.length });
     if (!params.has('nointro') && !params.has('selftest')) VH.cases.start();
+    if (loaded) VH.ui.toast(`💾 Kayıt yüklendi · Hastane Seviyesi ${VH.hospital.level()}`, 2600);
     requestAnimationFrame(frame);
   }
 

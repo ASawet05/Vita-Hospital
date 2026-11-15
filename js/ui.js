@@ -68,9 +68,19 @@
       btn('btn-follow', '◎', 'Başhekimi takip et (F)', h.follow);
       btn('btn-labels', 'Aa', 'Oda etiketleri (L)', h.labels);
       if (h.panel) btn('btn-panel', '🏗️', 'Yönetim & İnşa Paneli (P)', h.panel);
+      if (h.sound) btn('btn-sound', VH.audio && VH.audio.muted ? '🔇' : '🔊', 'Ses aç/kapat (M)', h.sound);
+      // Arayüz düğmelerinde hafif tıklama sesi
+      $('ui-root').addEventListener('click', (e) => { if (e.target.closest('button') && VH.audio) VH.audio.play('click'); });
       $('ui-root').appendChild(box);
       $('ui-root').appendChild(el('div', { id: 'help-hint' },
-        'WASD / Oklar: yürü · Shift: koş · E: etkileşim · Sürükle: kaydır · Tekerlek: yakınlaştır · Q/R: döndür · F: takip'));
+        'WASD / Oklar: yürü · Shift: koş · E: etkileşim · Q/R: döndür · F: takip · P: panel · M: ses'));
+    },
+    setSoundButton(muted) {
+      const b = $('btn-sound');
+      if (!b) return;
+      b.textContent = muted ? '🔇' : '🔊';
+      b.classList.toggle('on', !muted);
+      b.setAttribute('aria-label', muted ? 'Sesi aç (M)' : 'Sesi kapat (M)');
     },
     setToggle(id, on) {
       const b = $(id);

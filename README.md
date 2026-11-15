@@ -22,6 +22,8 @@ Görsel yükleme öz-testi için adrese `?selftest` ekleyin. Sayfada `VH_SELFTES
 index.html, style.css
 js/asset-manifest.js   assets/ altındaki tüm PNG'lerin listesi
 js/assets.js           Asset Preloader (yükleme + kırık yol raporu)
+js/audio.js            Web Audio ile sentezlenen ses efektleri
+js/save.js             localStorage kayıt sistemi (doğrulamalı)
 js/map.js              İzometrik harita motoru ve kamera
 js/entities.js         Başhekim, personel ve hasta karakterleri
 js/cases.js            Klinik vaka senaryoları
@@ -39,7 +41,7 @@ assets/ward/           ThirdAngle Hospital Starter
 3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller ✔
 4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (14 vaka) ✔
 5. Acil servis zaman yönetimi, eczane, hastane büyütme ✔
-6. Ses efektleri, kayıt sistemi, son kalite kontrolü
+6. Ses efektleri, kayıt sistemi, son kalite kontrolü ✔
 
 ## Görsel lisansları
 
@@ -88,3 +90,12 @@ Her vaka 6 adımdan oluşur: **Geliş → Kayıt → Muayene & Sorgulama → Lab
   - Yükseltmeler: hızlı tahlil analizörü, gelişmiş mikroskop, konforlu bekleme salonu, acil ekipman paketi, dijital eczane
   - Personel: acil hemşiresi, acil tıp uzmanı, ek laborant, eczane teknisyeni
   - Yeni katlar (asansörle): 1. Kat Cerrahi & Ameliyathane, 2. Kat Yatan Hasta & Pediatri, 3. Kat Radyoloji & İleri Tanı. Her kat pasif gelir ve oyun içi avantaj sağlar.
+
+## Ses ve kayıt
+
+- **Ses:** Bütün efektler Web Audio API ile üretilir, ses dosyası yoktur: adım, kapı, tıklama, ipucu, tahlil hazır sinyali, acil siren ve alarm, başarı ve hata sesleri. 🔊 düğmesi veya `M` tuşu sesi açıp kapatır; tercih hatırlanır.
+- **Kayıt:** İlerleme `localStorage` içinde (`vitaHospital.save.v1`) her 15 saniyede bir ve önemli olaylardan sonra otomatik saklanır. Kapsananlar: hastane seviyesi, açılan katlar ve servisler, yükseltmeler, personel, itibar, hasta güvenliği, bütçe, çözülen vaka arşivi ve ayarlar. Yüklenen veri doğrulanır; bozuk ya da geçersiz kayıtlar yok sayılır. Yönetim Paneli → Genel sekmesinden elle kaydedebilir veya ilerlemeyi sıfırlayabilirsiniz.
+
+## Test parametreleri
+
+`?nosave` kayıt sistemini kapatır, `?nointro` açılış hikâyesini atlar, `?touch` mobil kontrolleri zorlar, `?selftest` görsel yükleme raporunu sayfaya yazar.

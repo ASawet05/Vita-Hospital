@@ -334,6 +334,8 @@
   let active = null;
   let nextCaseIn = 6;
   let introShown = false;
+  const sound = (n) => { if (VH.audio) VH.audio.play(n); };
+  const persist = () => { if (VH.save) VH.save.save(); };
 
   const clamp = (v) => Math.max(0, Math.min(100, v));
   const money = (n) => '₺' + Math.round(n).toLocaleString('tr-TR');
@@ -370,6 +372,7 @@
     };
     active.patient = E().spawnCasePatient(c);
     UI().toast(`🚑 Yeni vaka: ${c.name}, ${c.age} yaş. Şikâyet: ${c.complaint}`, 4200);
+    sound('notify');
   }
 
   // ---------------------------------------------------------------- Varlık kancaları
@@ -391,6 +394,7 @@
     active.labsReady = true;
     active.inExam = false; // odaya dönüyor; varınca onExamStart tekrar çağrılır
     UI().toast('🧪 Tahlil sonuçları hazır: laboratuvardaki analizörü inceleyin.', 4000);
+    sound('labDone');
   }
 
   // ================================================================ Arayüz yardımcıları
@@ -462,7 +466,7 @@
     a.patience--;
     a.log.push(q);
     let newClue = null;
-    if (q.clue) { a.clues.push(q); newClue = q; }
+    if (q.clue) { a.clues.push(q); newClue = q; sound('clue'); } else sound('click');
     E().say(a.patient, q.a.length > 70 ? q.a.slice(0, 67) + '…' : q.a, 3000);
     openExam(q.a, newClue);
   }
@@ -623,6 +627,8 @@
     E().say(a.patient, choice === 'refer' ? 'Uzmana gideceğim, teşekkürler.' : choice === 'tests' ? 'Tetkikleri yaptıracağım.' : 'Önerileri uygulayacağım, sağ olun!', 3000);
     active = null;
     nextCaseIn = 22;
+    sound(grade === 'best' ? 'success' : grade === 'acceptable' ? 'ok' : 'error');
+    persist();
     UI().openDialog({
       icon: grade === 'best' ? '🏆' : grade === 'acceptable' ? '📋' : '⚠️',
       title: `Vaka Sonucu: ${c.title}`, subtitle: 'Adım 6/6 · Sonuç ve İtibar', wide: true, node,
@@ -668,6 +674,7 @@
 
   function openIntro() {
     introShown = true;
+    persist();
     const node = el('div', { className: 'intro' });
     node.appendChild(el('p', {}, 'Vita Hospital\'in yeni Başhekimisiniz. Dijital hastanemiz kapılarını yeni açtı ve şehrin dört bir yanından hastalar geliyor.'));
     node.appendChild(el('p', {}, 'Hastalar başta her şeyi anlatmaz. Doğru soruları sorarak gizli kalan yaşam tarzı, beslenme ve uyku ipuçlarını ortaya çıkarın, tahlilleri inceleyin ve en güvenli kararı verin.'));
@@ -730,6 +737,8 @@
 
   VH.cases = {
     CASES, state, OPTIONS,
+    get introSeen() { return introShown; },
+    set introSeen(v) { introShown = !!v; },
     get active() { return active; },
     init() {},
     start() { if (!introShown) openIntro(); },
