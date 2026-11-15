@@ -563,11 +563,13 @@
       const s = 0.85 + r * 0.45;
       const leaf = ['#4f9a4a', '#5aa64f', '#3f8a46', '#6aa84f'][Math.floor(r * 4)];
       k.custom(0.5, 0.5, 0, (c, sx, sy) => { c.fillStyle = 'rgba(10,40,20,0.22)'; c.beginPath(); c.ellipse(sx + 6, sy + 2, 22 * s, 11 * s, 0, 0, Math.PI * 2); c.fill(); });
+      // Rüzgârda hafif salınım (taç katmanları yükseldikçe daha fazla)
+      const sw = Math.sin(performance.now() / 900 + r * 12) * 0.035 * wind;
       k.cyl(0.5, 0.5, 3.5 * s, 0, 24 * s, C.trunk);
-      k.ball(0.5, 0.5, 34 * s, 17 * s, shade(leaf, -0.1));
-      k.ball(0.36, 0.5, 42 * s, 13 * s, leaf);
-      k.ball(0.62, 0.48, 46 * s, 12 * s, shade(leaf, 0.08));
-      k.ball(0.5, 0.42, 54 * s, 10 * s, shade(leaf, 0.15));
+      k.ball(0.5 + sw * 0.4, 0.5, 34 * s, 17 * s, shade(leaf, -0.1));
+      k.ball(0.36 + sw * 0.7, 0.5, 42 * s, 13 * s, leaf);
+      k.ball(0.62 + sw * 0.8, 0.48, 46 * s, 12 * s, shade(leaf, 0.08));
+      k.ball(0.5 + sw, 0.42, 54 * s, 10 * s, shade(leaf, 0.15));
     },
     bush(k) {
       const r = hash(k.o.x + 3, k.o.y);
@@ -639,11 +641,20 @@
   // Zemin tipi düz nesneler (zemin katmanında çizilir)
   const FLAT = new Set(['play_mat', 'floor_decal', 'ambulance_bay', 'rug', 'road_mark', 'parking_lines', 'crosswalk']);
 
+  let wind = 1;
   VH.art = {
-    KINDS: Object.keys(K),
+    get KINDS() { return Object.keys(K); },
     has: (kind) => !!K[kind],
     isFlat: (kind) => FLAT.has(kind),
     shade,
+    hash,
+    C,
+    screenDeco,
+    ecgLine,
+    set wind(v) { wind = v; },
+    /** Yeni nesne türü ekle ya da var olanı sar (art_extra.js, equipment.js). */
+    register(kind, fn, flat) { K[kind] = fn; if (flat) FLAT.add(kind); },
+    get(kind) { return K[kind]; },
     /** Haritadaki bir nesneyi çiz. it: { o, ... } */
     draw(context, it) {
       const fn = K[it.o.k];

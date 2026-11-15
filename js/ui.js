@@ -74,7 +74,7 @@
       $('ui-root').addEventListener('click', (e) => { if (e.target.closest('button') && VH.audio) VH.audio.play('click'); });
       $('ui-root').appendChild(box);
       $('ui-root').appendChild(el('div', { id: 'help-hint' },
-        'WASD / Oklar: yürü · Shift: koş · E: etkileşim · Q/R: döndür · F: takip · P: panel · M: ses'));
+        'WASD: yürü · Shift: koş · E: etkileşim · Q/R: döndür · P: panel · K: personel · B: düzenle · G: görevler · M: ses'));
     },
     setSoundButton(muted) {
       const b = $('btn-sound');
@@ -86,6 +86,20 @@
     setToggle(id, on) {
       const b = $(id);
       if (b) b.classList.toggle('on', !!on);
+    },
+
+    /** Sağ kenardaki yönetim çubuğu: [ikon, etiket, kısayol, fn] */
+    buildDock(items) {
+      const dock = el('nav', { id: 'dock' });
+      dock.setAttribute('aria-label', 'Yönetim menüsü');
+      items.forEach(([icon, label, key, fn]) => {
+        const b = el('button', { type: 'button', className: 'dock-btn', title: label + (key ? ' (' + key + ')' : '') });
+        b.appendChild(el('span', { className: 'dock-icon' }, icon));
+        b.appendChild(el('span', { className: 'dock-label' }, label));
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); b.blur(); });
+        dock.appendChild(b);
+      });
+      $('ui-root').appendChild(dock);
     },
 
     // ------------------------------------------------------------ Mobil joystick + eylem düğmeleri

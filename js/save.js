@@ -47,6 +47,7 @@
       order: st.order, idx: st.idx,
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
       introSeen: VH.cases.introSeen,
+      staffData: st.staffData, equip: st.equip, layout: st.layout, prog: st.prog,
       settings: { labels: VH.map.labels, rot: VH.map.rot },
     };
   }
@@ -87,6 +88,10 @@
         ticket: int(d.stats && d.stats.ticket, 0, 0, 1e7),
       },
       introSeen: d.introSeen === true,
+      staffData: VH.staff ? VH.staff.sanitize(d.staffData) : null,
+      equip: VH.equipment ? VH.equipment.sanitize(d.equip) : null,
+      layout: VH.build ? VH.build.sanitize(d.layout) : null,
+      prog: VH.progress ? VH.progress.sanitize(d.prog) : null,
       settings: {
         labels: !(d.settings && d.settings.labels === false),
         rot: int(d.settings && d.settings.rot, 0, 0, 3),
@@ -111,6 +116,10 @@
     st.upgrades = c.upgrades; st.hires = c.hires; st.services = c.services;
     st.dev = c.dev; st.shiftN = c.shiftN; st.shiftT = c.shiftT; st.shiftLog = c.shiftLog;
     st.solved = c.solved; st.order = c.order; st.idx = c.idx;
+    if (c.staffData) st.staffData = c.staffData;
+    if (c.equip) st.equip = c.equip;
+    if (c.layout) st.layout = c.layout;
+    if (c.prog) st.prog = c.prog;
     Object.assign(VH.entities.stats, c.stats);
     VH.cases.introSeen = c.introSeen;
     VH.map.labels = c.settings.labels;

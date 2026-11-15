@@ -197,6 +197,15 @@
     for (let y = 1; y <= 25; y += 3) { tree(-2, y); tree(-6, y + 1); }
     for (const [x, y] of [[-1, 4], [-1, 12], [-1, 20], [6, -1], [16, -1], [26, -1]]) add('lamp_post', x, y, { block: false });
     for (const x of [-5, 2, 12, 22, 33, 41]) add('bench', x, 31, { face: 'N', block: false });
+    // Giriş meydanı canlandırma: saçak, süs havuzu, bayraklar, saksılar, bisiklet parkı, acil tabelası
+    add('entrance_canopy', 3, 23, { w: 4, h: 2, block: false });
+    add('fountain', 14, 23, { w: 2, h: 2 });
+    for (const x of [10, 11, 12]) add('flag_pole', x, 23, { tint: x });
+    for (const x of [17, 20, 23, 28]) add('planter', x, 23);
+    add('bike_rack', 25, 23, { w: 2 });
+    add('er_sign', 31, 13);
+    add('bus_stop', 39, 25, { w: 3, block: false });
+    add('picnic_table', -3, 11, { w: 2, block: false }); add('picnic_table', -3, 17, { w: 2, block: false });
     return out;
   }
 
@@ -756,6 +765,7 @@
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.ellipse(sx, sy, 90, 45, 0, 0, Math.PI * 2); ctx.fill();
       }
+      if (fx.lights) fx.lights(ctx, fx.night, [L, T, R, B]);
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
@@ -854,6 +864,15 @@
     },
     setFloor,
     rotate,
+    /** Kat düzeni değişti (eşya taşındı/eklendi): ızgara, çarpışma ve çizim önbelleği yenilenir. */
+    rebuild(f, gridOnly) {
+      if (f === undefined) f = fi;
+      floors[f] = buildFloor(FLOOR_DEFS[f]);
+      if (f === fi) { useFloor(fi); if (!gridOnly) buildCache(); }
+    },
+    /** Izgara içindeki yürünebilir hücreler (düzenleme modu bağlantı denetimi). */
+    blockedGrid(f) { return FL(f).blocked; },
+    get viewBounds() { return cache ? cache.bounds : null; },
     setRotation(r) { while (rot !== (r & 3)) rotate(1); },
     draw,
     worldToIso, isoToWorld, depthAt, rotPt, unrotVec, rotVec,

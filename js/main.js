@@ -65,6 +65,7 @@
 
   function clickAt(px, py) {
     if (VH.ui.isDialogOpen()) return;
+    if (VH.build && VH.build.active) { VH.build.click(px, py, vw, vh); return; }
     const t = VH.entities.hitTest(px, py, vw, vh);
     if (!t) return;
     if (t.type === 'patient') VH.guide.selectPatient(t.ref);
@@ -103,6 +104,7 @@
     canvas.addEventListener('pointermove', (e) => {
       const p = pointers.get(e.pointerId);
       if (e.pointerType === 'mouse') updateHover(e.clientX, e.clientY);
+      if (VH.build && VH.build.active) VH.build.hover(e.clientX, e.clientY, vw, vh);
       if (!p) return;
       if (pointers.size === 1) {
         const dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -145,6 +147,11 @@
         return;
       }
       if (e.repeat) return;
+      if (VH.build && VH.build.active) {
+        if (k === 't') { VH.build.rotate(); return; }
+        if (k === 'escape') { VH.build.cancel(); return; }
+        if (k === 'delete' || k === 'backspace') { VH.build.sell(); return; }
+      }
       switch (k) {
         case 'e': case 'enter': case ' ':
           e.preventDefault();
@@ -158,6 +165,9 @@
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
         case 'p': VH.hospital.openPanel(); break;
+        case 'k': VH.hospital.openPanel('kadro'); break;
+        case 'g': VH.hospital.openPanel('gorevler'); break;
+        case 'b': if (VH.build.active) VH.build.exit(); else VH.build.enter(); break;
         case 'm': toggleSound(); break;
         default: break;
       }
@@ -204,6 +214,7 @@
     VH.ui.setChip('chip-rep', `★ İtibar ${S.reputation}`);
     VH.ui.setChip('chip-safety', `🛡️ Güvenlik ${S.safety}`);
     VH.ui.setChip('chip-level', `🏥 Sv. ${VH.hospital.level()}`);
+    VH.progress.hud();
     const sh = VH.hospital.shift, ss = Math.max(0, Math.ceil(sh.t));
     VH.ui.setChip('chip-shift', `${VH.hospital.isNightShift ? '🌙' : '☀️'} Nöbet ${sh.n} · ${Math.floor(ss / 60)}:${String(ss % 60).padStart(2, '0')}`);
     const cb = VH.hospital.combo;
@@ -223,6 +234,9 @@
       VH.entities.update(dt);
       VH.cases.update(dt);
       VH.hospital.update(dt);
+      VH.staff.update(dt);
+      VH.progress.update(dt);
+      VH.world.update(dt, vw, vh);
       VH.save.update(dt);
       footstepsAndDoors();
     }
@@ -231,8 +245,11 @@
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map)),
-      { ground: VH.guide.drawGround, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
+    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map)),
+      { ground: VH.world.drawGround, lights: VH.world.drawLights, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
+    VH.world.drawSky(ctx, vw, vh);
+    VH.build.drawOverlay(ctx, vw, vh);
+    VH.equipment.drawOverlay(ctx, vw, vh);
     VH.guide.drawOverlay(ctx, vw, vh);
     VH.entities.drawOverlay(ctx, vw, vh, targets[0], VH.ui.isTouch());
     VH.hospital.drawOverlay(ctx, vw, vh);
@@ -256,6 +273,11 @@
     VH.entities.init();
     const loaded = VH.save.load();
     VH.hospital.init();
+    VH.equipment.init();
+    VH.build.init();
+    VH.staff.init();
+    VH.progress.init();
+    VH.world.init();
     const c = cam();
     c.target = VH.entities.player;
 
@@ -276,6 +298,8 @@
       ['chip-rep', ''],
       ['chip-safety', ''],
       ['chip-level', ''],
+      ['chip-rating', ''],
+      ['chip-event', ''],
       ['chip-shift', ''],
       ['chip-combo', ''],
       ['chip-patients', ''],
@@ -293,6 +317,13 @@
       sound: toggleSound,
     });
     VH.ui.buildGameControls((i) => doInteract(targets[i]));
+    VH.ui.buildDock([
+      ['🏗️', 'Yönetim', 'P', () => VH.hospital.openPanel('genel')],
+      ['👥', 'Personel', 'K', () => VH.hospital.openPanel('kadro')],
+      ['🔧', 'Ekipman', '', () => VH.hospital.openPanel('ekipman')],
+      ['🛋️', 'Düzenle', 'B', () => (VH.build.active ? VH.build.exit() : VH.build.enter())],
+      ['🎯', 'Görevler', 'G', () => VH.hospital.openPanel('gorevler')],
+    ]);
     VH.ui.setToggle('btn-follow', c.follow);
     VH.ui.setToggle('btn-labels', VH.map.labels);
     VH.ui.setSoundButton(VH.audio.muted);

@@ -365,8 +365,8 @@
     active = {
       c, questions, keyTotal,
       step: 1, asked: new Set(), clues: [], log: [],
-      patience: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0),
-      patienceMax: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0),
+      patience: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0) + (VH.equipment ? VH.equipment.casePatienceBonus() : 0),
+      patienceMax: keyTotal + 3 + (state.upgrades.comfort ? 2 : 0) + (VH.equipment ? VH.equipment.casePatienceBonus() : 0),
       labsOrdered: false, labsReady: false, labsReviewed: false,
       inExam: false, consulted: false, patient: null,
     };
@@ -585,12 +585,14 @@
       else if (grade === 'risky' || hasty) VH.hospital.comboBreak('aceleci ya da riskli karar');
       VH.hospital.onCaseSolved();
     }
+    if (VH.emit) VH.emit('caseSolved', { id: c.id, grade, hasty, choice, child: c.age < 13 });
     if (mult > 1) {
       bonus += r.budget * (mult - 1);
       state.reputation = clamp(state.reputation + (mult - 1) * 2);
       bonusNotes.push(`🔥 ${mult}x Klinik Karar Kombosu: bütçe ödülü ${mult} katı, itibar +${(mult - 1) * 2}`);
     }
     if (choice === 'tests' && state.services.radiology && grade !== 'risky') { bonus += 1000; bonusNotes.push('📡 Tetkikler Radyoloji katında yapıldı: +₺1.000'); }
+    if (choice === 'tests' && grade !== 'risky' && VH.equipment && VH.equipment.imagingBonus()) { const ib = VH.equipment.imagingBonus(); bonus += ib; bonusNotes.push(`🖥️ Gelişmiş görüntüleme cihazları: +₺${ib.toLocaleString('tr-TR')}`); }
     if (c.age < 13 && state.services.ward && grade === 'best') { bonus += 1000; bonusNotes.push('🧸 Pediatri servisi çocuğu hemen devraldı: +₺1.000'); }
     state.budget += r.budget + bonus;
     const score = Math.max(0, Math.min(100, Math.round(

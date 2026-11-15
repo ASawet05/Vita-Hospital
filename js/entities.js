@@ -12,6 +12,9 @@
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const mod = (k) => (VH.hospital && VH.hospital.mod ? VH.hospital.mod(k) : 1);
+  // Personel verimliliği (yetenek, enerji, moral) — staff.js yoksa 1
+  const sf = (id) => (VH.staff && VH.staff.timeFactor ? VH.staff.timeFactor(id) : 1);
+  const emit = (n, d) => { if (VH.emit) VH.emit(n, d); };
 
   // ================================================================ Görünüm
   const SKINS = ['#f3cfb1', '#e8b48f', '#c98d62', '#9c6b47', '#f6dcc7', '#b9825a'];
@@ -20,19 +23,28 @@
   const PANTS = ['#2f3e46', '#354f52', '#3d405b', '#5a4a42', '#283618', '#6b705c', '#22223b'];
 
   const LOOKS = {
-    chief:        { coat: '#fbfdff', shirt: '#2e6f95', tie: '#b83b3b', pants: '#2f3e4e', skin: '#e9b98f', hair: '#3b2a20', hairStyle: 'short', stethoscope: true, badge: '#e6c66e' },
-    receptionist: { coat: '#2a9d8f', shirt: '#e9f5f3', pants: '#264653', skin: '#f3cfb1', hair: '#4a3121', hairStyle: 'bun' },
-    doctorA:      { coat: '#fbfdff', shirt: '#5aa9e6', pants: '#5aa9e6', skin: '#e8b48f', hair: '#1c1c1c', hairStyle: 'long', stethoscope: true },
-    doctorB:      { coat: '#fbfdff', shirt: '#7fc8a9', pants: '#7fc8a9', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', stethoscope: true },
-    laborant:     { coat: '#f4f7fb', shirt: '#7b5ea7', pants: '#7b5ea7', skin: '#f6dcc7', hair: '#a0522d', hairStyle: 'short', gloves: '#7b5ea7', goggles: true },
-    pharmacist:   { coat: '#fbfdff', shirt: '#3a7d44', pants: '#3a5a40', skin: '#e8b48f', hair: '#7a5230', hairStyle: 'long', cross: true },
+    chief:        { coat: '#fbfdff', shirt: '#2e6f95', tie: '#b83b3b', pants: '#2f3e4e', skin: '#e9b98f', hair: '#3b2a20', hairStyle: 'short', stethoscope: true, badge: '#e6c66e', longCoat: true, shoes: '#3b2a20' },
+    receptionist: { coat: '#2a9d8f', shirt: '#e9f5f3', pants: '#264653', skin: '#f3cfb1', hair: '#4a3121', hairStyle: 'bun', headset: true, badge: '#ffffff' },
+    doctorA:      { coat: '#fbfdff', shirt: '#5aa9e6', pants: '#5aa9e6', skin: '#e8b48f', hair: '#1c1c1c', hairStyle: 'long', stethoscope: true, glasses: '#7a1d1d', longCoat: true, carry: 'clipboard' },
+    doctorB:      { coat: '#fbfdff', shirt: '#7fc8a9', pants: '#7fc8a9', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', stethoscope: true, beard: true, longCoat: true, carry: 'tablet' },
+    laborant:     { coat: '#f4f7fb', shirt: '#7b5ea7', pants: '#7b5ea7', skin: '#f6dcc7', hair: '#a0522d', hairStyle: 'curly', gloves: '#7b5ea7', goggles: true, longCoat: true },
+    pharmacist:   { coat: '#fbfdff', shirt: '#3a7d44', pants: '#3a5a40', skin: '#e8b48f', hair: '#7a5230', hairStyle: 'ponytail', cross: true, glasses: true },
+    paramedic:    { coat: '#d9480f', sleeve: '#d9480f', pants: '#2b333b', skin: '#c98d62', hair: '#1c1c1c', hairStyle: 'short', stripes: true, carry: 'kit', shoes: '#111' },
   };
 
-  function randomPatientLook() {
-    return {
-      coat: pick(CLOTHES), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS),
-      hairStyle: pick(['short', 'long', 'bun', 'short', 'bald']), patient: true,
+  function randomPatientLook(age) {
+    const old = age >= 62;
+    const st = pick(['short', 'long', 'bun', 'short', 'bald', 'curly', 'ponytail']);
+    const look = {
+      coat: pick(CLOTHES), pants: pick(PANTS), skin: pick(SKINS), hair: old ? pick(['#b9b9b9', '#d6d6d6', '#8f8f8f']) : pick(HAIRS),
+      hairStyle: st, patient: true, shoes: pick(['#2b2b2b', '#5a4a42', '#f4f4f4', '#30638e']),
     };
+    if (Math.random() < 0.22) look.glasses = true;
+    if ((st === 'short' || st === 'bald') && Math.random() < 0.3) look.beard = true;
+    if ((st === 'long' || st === 'bun') && Math.random() < (old ? 0.45 : 0.18)) look.scarf = pick(['#8e6c8a', '#30638e', '#d1495b', '#edae49', '#66a182', '#f2cc8f']);
+    if (old && Math.random() < 0.4) look.cane = true;
+    if (!old && Math.random() < 0.18) look.carry = 'bag';
+    return look;
   }
 
   function rr(ctx, x, y, w, h, r) {
@@ -407,7 +419,7 @@
     const age = Math.floor(rand(18, 78));
     const p = makeEntity('patient', {
       name: pick(FIRST) + ' ' + pick(LAST), age, complaint: pick(COMPLAINTS),
-      look: randomPatientLook(), x: ENTRANCE[0] + rand(-0.3, 0.3), y: ENTRANCE[1],
+      look: randomPatientLook(age), x: ENTRANCE[0] + rand(-0.3, 0.3), y: ENTRANCE[1],
       speed: rand(1.5, 2.0), state: 'queue', timer: 0, needsLab: Math.random() < 0.6, waitSince: 0,
     });
     patients.push(p);
@@ -419,9 +431,10 @@
   /** cases.js'teki bir senaryo için özel hasta (sabit ad/yaş/şikâyet). */
   function spawnCasePatient(c) {
     const female = c.sex === 'K';
-    const look = randomPatientLook();
-    look.hairStyle = female ? pick(['long', 'bun']) : pick(['short', 'short', 'bald']);
-    if (c.age >= 60) look.hair = '#b9b9b9';
+    const look = randomPatientLook(c.age);
+    look.hairStyle = female ? pick(['long', 'bun', 'ponytail', 'curly']) : pick(['short', 'short', 'bald', 'curly']);
+    if (!female) { look.scarf = null; } else look.beard = false;
+    if (c.age < 13) { look.cane = false; look.beard = false; look.scarf = null; look.glasses = false; }
     if (c.age < 13) look.scale = 0.74;
     const p = makeEntity('patient', {
       name: c.name, age: c.age, complaint: c.complaint, look, caseRef: c,
@@ -476,6 +489,8 @@
       p.sitting = false; p.lift = 0;
       say(p, 'Çok bekledim, başka hastaneye gidiyorum!', 3000);
       if (VH.hospital) VH.hospital.onAngryLeave(p);
+      p.angry = true;
+      emit('angry', p);
       p.state = 'leaving';
       goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
     }
@@ -488,7 +503,7 @@
     switch (p.state) {
       case 'queue':
         if (receptionQueue[0] === p && p.arrivedSlot) {
-          p.state = 'registering'; p.timer = rand(2.5, 4);
+          p.state = 'registering'; p.timer = rand(2.5, 4) * mod('regTime') * sf('receptionist');
           const rec = staffById('receptionist');
           faceToward(p, 2.5, 13.5);
           say(rec, `Hoş geldiniz ${p.name.split(' ')[0]}, şikâyetiniz nedir?`, 2600);
@@ -498,6 +513,7 @@
         if (p.timer <= 0) {
           const seat = openSeats().find((s) => !s.occ);
           if (!seat) { p.timer = 1; break; }
+          emit('registered', { staff: 'receptionist', p });
           stats.registered++; stats.ticket++;
           p.ticket = 'A-' + String(stats.ticket).padStart(3, '0');
           say(p, `Şikâyetim: ${p.complaint.toLowerCase()}.`, 2600);
@@ -510,6 +526,13 @@
           }, seat.via);
         }
         break;
+      case 'waiting':
+        // Bekleyen hasta ara sıra otomat / su sebili / kahve makinesine gider (koltuğu ayrılı kalır)
+        if (!p.caseRef && !p.refreshed && p.patience !== undefined && p.patience < 85 && Math.random() < dt * 0.04) goRefresh(p);
+        break;
+      case 'refresh':
+        if (p.refreshAt && p.timer <= 0) finishRefresh(p);
+        break;
       case 'exam':
         if (p.timer <= 0) finishExam(p);
         break;
@@ -521,7 +544,7 @@
         // süre dolarsa eczacı kendisi teslim eder (bonus yok).
         if (pharmacyQueue[0] === p && p.arrivedSlot) {
           if (p.timer > 90) {
-            p.timer = 14 * mod('pharmacyWait');
+            p.timer = 14 * mod('pharmacyWait') * sf('pharmacist');
             p.awaitingRx = true;
             say(p, 'Reçetem hazır mı? Nasıl kullanacağım?', 2600);
           }
@@ -529,6 +552,7 @@
             p.awaitingRx = false;
             say(staffById('pharmacist'), 'Geçmiş olsun, kullanım bilgilerini anlattım.', 2600);
             if (VH.hospital) VH.hospital.onPharmacyAuto(p);
+            emit('pharmacyAuto', { staff: 'pharmacist', p });
             leaveQueue(pharmacyQueue, p, PHARMACY_SLOTS);
             leave(p);
           }
@@ -537,6 +561,45 @@
       case 'leaving':
         break;
     }
+  }
+
+  // ---------------------------------------------------------------- İhtiyaçlar (otomat, su, kahve)
+  const REFRESH_KINDS = { vending: { icon: '🥤', say: 'Bir şeyler alayım…', gain: 22, income: 25 }, water_cooler: { icon: '💧', say: 'Biraz su içeyim.', gain: 16, income: 0 }, coffee_machine: { icon: '☕', say: 'Kahve iyi gelir.', gain: 26, income: 20 } };
+  function accessCell(o) {
+    const map = M();
+    const cand = [];
+    for (let x = o.x - 1; x <= o.x + o.w; x++) for (let y = o.y - 1; y <= o.y + o.h; y++) {
+      const inside = x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h;
+      const diag = (x < o.x || x >= o.x + o.w) && (y < o.y || y >= o.y + o.h);
+      if (inside || diag || map.isBlocked(x, y, 0)) continue;
+      cand.push([x, y]);
+    }
+    return cand.sort((a, b) => (b[1] - a[1]) || (a[0] - b[0]))[0] || null;
+  }
+  function goRefresh(p) {
+    const objs = M().floorObjects(0).filter((o) => REFRESH_KINDS[o.k] && o.x >= 0 && o.y >= 0 && o.x < 31 && o.y < 23);
+    if (!objs.length) { p.refreshed = true; return; }
+    objs.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+    const o = objs[Math.random() < 0.7 ? 0 : Math.floor(Math.random() * objs.length)];
+    const cell = accessCell(o);
+    if (!cell) { p.refreshed = true; return; }
+    p.refreshed = true; p.refreshObj = o; p.state = 'refresh'; p.refreshAt = false;
+    say(p, REFRESH_KINDS[o.k].say, 1800);
+    goTo(p, cell[0] + 0.5, cell[1] + 0.5, (e) => {
+      faceToward(e, o.x + o.w / 2, o.y + o.h / 2);
+      e.refreshAt = true; e.timer = 2.2;
+    });
+  }
+  function finishRefresh(p) {
+    const kind = REFRESH_KINDS[p.refreshObj.k];
+    p.patience = Math.min(100, (p.patience || 0) + kind.gain);
+    p.emote = { icon: kind.icon, until: performance.now() + 2600 };
+    emit('refresh', { p, kind: p.refreshObj.k, income: kind.income, x: p.x, y: p.y });
+    p.refreshAt = false;
+    const seat = p.seatRef;
+    if (!seat) { p.state = 'waiting'; return; }
+    p.state = 'toSeat';
+    goTo(p, seat.seat[0], seat.seat[1], (e) => { sitAt(e, seat.seat, 7); e.state = 'waiting'; e.back = false; e.flip = false; }, seat.via);
   }
 
   function callNextPatients() {
@@ -561,7 +624,7 @@
       if (!p) break;
       ch.patient = p; p.state = 'toLab'; p.labRef = ch;
       goTo(p, ch.seat[0], ch.seat[1], (e) => {
-        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8) * mod("labTime");
+        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8) * mod("labTime") * sf('laborant');
         const tech = staffById('laborant');
         tech.busy = true;
         goTo(tech, ch.tech[0], ch.tech[1], (t) => { faceToward(t, ch.seat[0], ch.seat[1]); say(t, 'Küçük bir iğne batması hissedeceksiniz.', 2400); });
@@ -577,7 +640,7 @@
     goTo(p, ex.bed[0], ex.bed[1], (e) => {
       sitAt(e, ex.bed, 13); e.state = 'exam';
       // Vaka hastası, Başhekim karar verene kadar odada kalır
-      e.timer = e.caseRef ? Infinity : rand(7, 11) * mod("examTime");
+      e.timer = e.caseRef ? Infinity : rand(7, 11) * mod("examTime") * sf(ex.doctor);
       const doc = staffById(ex.doctor);
       doc.busy = true;
       goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
@@ -611,6 +674,7 @@
 
   function finishExam(p) {
     const ex = p.examRef;
+    emit('examDone', { staff: ex.doctor, p });
     ex.patient = null; p.examRef = null;
     const doc = staffById(ex.doctor);
     doc.busy = false; doc.timer = 0.5;
@@ -627,6 +691,7 @@
 
   function finishLab(p) {
     const ch = p.labRef;
+    emit('labDone', { staff: 'laborant', p });
     ch.patient = null; p.labRef = null;
     const tech = staffById('laborant');
     tech.busy = false;
@@ -652,6 +717,7 @@
     p.state = 'leaving';
     stats.served++;
     if (VH.hospital) VH.hospital.onServed(p);
+    emit('served', p);
     if (dest) goTo(p, dest[0], dest[1], (e) => { e.gone = true; if (dest[2]) dest[2](e); });
     else goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
   }
@@ -737,6 +803,7 @@
       const d = rectDist(player.x, player.y, dv);
       if (d <= RANGE_DEV) out.push({ type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y, dist: d + 0.3 });
     }
+    for (const prov of VH.targetProviders || []) (prov(player) || []).forEach((t) => out.push(t));
     // Aktif acil vakada ihtiyaç duyulan cihaz/hasta öne alınır
     if (VH.hospital && VH.hospital.priority) out.forEach((t) => { t.dist -= VH.hospital.priority(t); });
     out.sort((a, b) => a.dist - b.dist);
@@ -806,6 +873,8 @@
   function interact(t) {
     if (!t) return;
     if (VH.ui.isDialogOpen()) { VH.ui.closeDialog(); return; }
+    if (t.handler) { t.handler(t); return; }
+    for (const h of VH.interactHandlers || []) if (h(t)) return;
     if (VH.hospital && VH.hospital.handleInteract(t)) return;
     if (VH.cases && VH.cases.handleInteract(t)) return;
     const spec = describe(t);
@@ -839,8 +908,19 @@
   }
 
   // ================================================================ Çizim
+  function moodOf(e) {
+    if (e.kind !== 'patient') return e.kind === 'staff' && VH.staff && VH.staff.energy(e.id) < 25 ? 0 : 1;
+    if (e.erRef || e.state === 'resident') return 0;
+    if (e.state === 'leaving') return e.angry ? -1 : 1;
+    const pt = e.patience === undefined ? 100 : e.patience;
+    return pt >= 65 ? 1 : pt >= 30 ? 0 : -1;
+  }
+
+  /** Ek karakterler (paramedik, yaya vb.) world.js tarafından eklenir. */
+  const extraPeople = [];
   function drawables(map) {
-    const all = [player].concat(staff, patients).filter((e) => e.floor === map.floor && !e.gone);
+    const now = performance.now();
+    const all = [player].concat(staff, patients, extraPeople).filter((e) => e.floor === map.floor && !e.gone);
     return all.map((e) => {
       const [sx, sy] = map.worldToIso(e.x, e.y);
       let angle = 0;
@@ -848,9 +928,9 @@
       return {
         // Oturan karakter, üzerine oturduğu koltuk/sedyeden sonra çizilmeli (ön hücre anahtarını geçer)
         kind: 'ent', key: map.depthAt(e.x, e.y) + (e.sitting || e.lying ? 0.9 : 0.02), cx: sx, cy: sy,
-        draw: (ctx) => drawPerson(ctx, sx, sy, e.look, {
-          t: e.anim, moving: e.moving, flip: e.flip, back: e.back, sitting: e.sitting, lift: e.lift, ring: e === player,
-          lying: e.lying, angle,
+        draw: (ctx) => (VH.people ? VH.people.draw : drawPerson)(ctx, sx, sy, e.look, {
+          t: e.anim, t2: now / 1000 + (typeof e.id === 'number' ? e.id : 7) * 0.77, moving: e.moving, flip: e.flip, back: e.back,
+          sitting: e.sitting, lift: e.lift, ring: e === player, lying: e.lying, angle, chair: !!e.chair, mood: moodOf(e),
         }),
       };
     });
@@ -888,12 +968,30 @@
       const [ix, iy] = M().worldToIso(e.x, e.y);
       return cam.toScreen(ix, iy - (e.lift || 0) - 50, vw, vh);
     };
-    for (const e of staff.concat(patients, [player])) {
+    for (const e of staff.concat(patients, [player], extraPeople)) {
       if (!e.bubble || e.floor !== player.floor) continue;
       if (now > e.bubble.until) { e.bubble = null; continue; }
       const [sx, sy] = head(e);
       if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
       bubble(ctx, sx, sy + 2 * z, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
+    }
+    // Duygu / ihtiyaç simgeleri (konuşma balonu yokken): kızgın, susamış, yorgun personel
+    ctx.font = '14px system-ui, "Segoe UI Emoji", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const e of patients.concat(staff)) {
+      if (e.bubble || e.floor !== player.floor || e.gone || e.lying) continue;
+      let icon = null;
+      if (e.emote && now < e.emote.until) icon = e.emote.icon;
+      else if (e.kind === 'patient' && !e.caseRef && (e.state === 'waiting' || e.state === 'queue') && e.patience !== undefined && e.patience < 30) icon = '😠';
+      else if (e.kind === 'staff' && VH.staff && VH.staff.energy(e.id) < 25) icon = '💤';
+      if (!icon) continue;
+      const [sx, sy] = head(e);
+      if (sx < -40 || sx > vw + 40 || sy < -40 || sy > vh + 40) continue;
+      const fl = Math.sin(now / 350 + (e.id || 0)) * 2;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.arc(sx + 10, sy + 4 + fl, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + 3, sy + 13 + fl, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(icon, sx + 10, sy + 5 + fl);
     }
     // Vaka hastası işareti (altın yıldız)
     for (const p of patients) {
@@ -944,7 +1042,7 @@
       for (let i = 0; i < 2; i++) {
         const p = makeEntity('patient', {
           name: pick(FIRST) + ' ' + pick(LAST), age: Math.floor(rand(20, 70)), complaint: pick(COMPLAINTS),
-          look: randomPatientLook(), speed: rand(1.5, 2.0), state: 'waiting', needsLab: Math.random() < 0.6,
+          look: randomPatientLook(40), speed: rand(1.5, 2.0), state: 'waiting', needsLab: Math.random() < 0.6,
           waitSince: performance.now() + i * 10000, timer: 0,
         });
         stats.registered++; stats.ticket++;
@@ -978,6 +1076,18 @@
     faceToward,
     // Aşama 5 API'si (hospital.js)
     makeEntity, goTo, sitAt, randomPatientLook, rectDist,
+    stepPath, face, extraPeople, accessCell, buildDevices,
+    _refresh: (p) => goRefresh(p),
+    /** Hasta akışı için ayrılmış hücreler (düzenleme modu bunları kapatamaz). */
+    keySpots() {
+      const c = (p) => [Math.floor(p[0]), Math.floor(p[1])];
+      const out = [c(ENTRANCE), [4, 24]].concat(RECEPTION_SLOTS.map(c), PHARMACY_SLOTS.map(c), LAB_WAIT.map(c));
+      SEATS.forEach((s) => { out.push(s.via, c(s.seat)); });
+      EXAMS.forEach((e) => { out.push(e.via, c(e.docSpot)); });
+      LAB_CHAIRS.forEach((l) => { out.push(l.via, c(l.tech)); });
+      return out;
+    },
+    get EXAMS_LIST() { return EXAMS; },
     get devices() { return devices; },
     get pharmacyFront() {
       const p = pharmacyQueue[0];
@@ -1003,6 +1113,7 @@
         name: pick(FIRST) + ' ' + pick(LAST), age: Math.floor(rand(20, 80)), complaint: 'Serviste takip ediliyor',
         look: randomPatientLook(), state: 'resident', timer: 0,
       }, props));
+      p.look = Object.assign({}, p.look, { gown: true, cane: false, carry: null });
       p.sitting = true;
       patients.push(p);
       return p;
@@ -1015,4 +1126,5 @@
   };
   STATUS.resident = 'Serviste yatıyor';
   STATUS.er = 'Acil hasta';
+  STATUS.refresh = 'Otomat / su sebiline gitti';
 })();

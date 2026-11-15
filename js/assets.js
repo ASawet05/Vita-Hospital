@@ -16,4 +16,18 @@
   }
 
   VH.assets = { preload, procedural: true };
+
+  // ---------------------------------------------------------------- Olay yolu (modüller arası)
+  // Oyun olayları (taburcu, acil başarı, kombo, alım...) buradan yayınlanır; görevler,
+  // başarımlar ve personel deneyimi gibi modüller birbirini doğrudan çağırmadan dinler.
+  const listeners = {};
+  VH.on = (name, fn) => { (listeners[name] = listeners[name] || []).push(fn); };
+  VH.emit = (name, data) => {
+    (listeners[name] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error('[VH.emit]', name, e); } });
+  };
+  // Etkileşim zinciri ve ek hedef sağlayıcılar (temizlik, düzenleme modu vb.)
+  VH.interactHandlers = VH.interactHandlers || [];
+  VH.targetProviders = VH.targetProviders || [];
+  // Yönetim paneline modüllerin eklediği sekmeler: { id, label, order, render(list, rerender) }
+  VH.panelTabs = VH.panelTabs || [];
 })();

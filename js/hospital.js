@@ -95,7 +95,7 @@
   ];
   const devLevel = (id) => { const d = S().dev; return d && d[id] ? d[id] : 0; };
 
-  function mod(k) {
+  function baseMod(k) {
     const tf = Math.pow(0.85, devLevel('treat'));
     switch (k) {
       case 'labTime': return (has('upgrades', 'fastLab') ? 0.5 : 1) * (has('hires', 'labTech2') ? 0.7 : 1) * tf;
@@ -107,6 +107,15 @@
       case 'patienceDrain': return has('upgrades', 'comfort') ? 0.7 : 1;
       default: return 1;
     }
+  }
+  /**
+   * Toplam değiştirici: temel yükseltmeler × personel (staff.js) × ekipman (equipment.js)
+   * × hastane durumu (progress.js: ücret politikası, temizlik, konfor, olaylar).
+   */
+  function mod(k) {
+    let v = baseMod(k);
+    for (const m of [VH.staff, VH.equipment, VH.progress, VH.build]) if (m && m.factor) v *= m.factor(k);
+    return v;
   }
 
   // ================================================================ KOMBO ZİNCİRİ
@@ -123,6 +132,7 @@
     combo.best = Math.max(combo.best, combo.mult);
     if (shift.stats) shift.stats.bestCombo = Math.max(shift.stats.bestCombo, combo.mult);
     if (combo.mult >= 2) { UI().toast(`🔥 ${combo.mult}x ${label} Kombosu! Ödüller ${combo.mult} katı`, 2800); sound('combo'); }
+    if (VH.emit) VH.emit('combo', combo.mult);
     return combo.mult;
   }
   function comboBreak(why) {
@@ -136,7 +146,7 @@
   const shift = { n: 1, t: SHIFT_LEN, stats: null };
   let nightF = 0;
   const isNightShift = () => shift.n % 2 === 0;
-  const erTimeBonus = () => (has('upgrades', 'erKit') ? 20 : 0) + (has('hires', 'erNurse') ? 10 : 0);
+  const erTimeBonus = () => (has('upgrades', 'erKit') ? 20 : 0) + (has('hires', 'erNurse') ? 10 : 0) + (VH.equipment ? VH.equipment.erBonus() : 0);
   const incomePerMin = () => SERVICES.reduce((s, sv) => s + (has('services', sv.id) ? sv.income : 0), 0);
   function level() {
     const st = S();
@@ -175,7 +185,7 @@
     { id: 'allergy', name: 'Elif Duman', age: 23, sex: 'K', complaint: 'Fıstık yedikten sonra yüzde şişlik ve nefes darlığı', vitals: { pulse: 126, bp: '100/65', spo2: 90, temp: 36.9, mind: 'Açık, kaygılı' }, need: 'oxygen', time: 60,
       why: 'Alerjik reaksiyonda hava yolu tehlikede: oksijen desteği ve hızlı hekim müdahalesi.' },
   ];
-  const ER_DOOR_OUT = [32.4, 16.5];
+  const ER_DOOR_OUT = [31.55, 16.5];
   const TRIAGE_SPOT = [29.5, 16.6];
   const BAYS = [
     { bed: [21.95, 13.5], via: [21, 14], occ: null },
@@ -184,27 +194,92 @@
   ];
   const er = { active: null, nextIn: 70, siren: 0, amb: null, warned: false, leaving: [], follow: null };
 
-  function startEmergency() {
-    const def = pick(ER_TYPES);
+  // Ambulans rotası (araç merkezi, dünya koordinatı): ana caddenin kuzey şeridinden gelir,
+  // ambulans yoluna döner, acil kapısının önünde durur; dönüşte güney şeridinden ayrılır.
+  const AMB_IN = [[47, 27.95], [33, 27.95], [33, 16.5]];
+  const AMB_OUT = [[33, 16.5], [33, 29.05], [47, 29.05]];
+  function startEmergency(forced) {
+    const pool = (VH.progress && VH.progress.erPool) ? VH.progress.erPool(ER_TYPES) : ER_TYPES;
+    const def = forced ? (ER_TYPES.find((d) => d.id === forced) || pick(pool)) : pick(pool);
     er.siren = 4;
     sound('siren');
-    er.amb = { y: 28, target: 16.5, phase: 'arrive', wait: 0, def };
+    er.amb = { pts: AMB_IN, i: 1, x: AMB_IN[0][0], y: AMB_IN[0][1], heading: 'W', phase: 'arrive', wait: 0, def, v: 7 };
     UI().toast('🚨 ACİL DURUM! Ambulans geliyor: ' + def.complaint, 4200);
+    if (VH.emit) VH.emit('erStart', def);
+  }
+
+  /** Rota boyunca ilerle; son noktaya varınca true. Yaklaşırken yavaşlar, köşede yön değiştirir. */
+  function driveAmb(amb, dt) {
+    let remain = 0;
+    for (let i = amb.i; i < amb.pts.length; i++) {
+      const a = i === amb.i ? [amb.x, amb.y] : amb.pts[i - 1], b = amb.pts[i];
+      remain += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    const target = amb.phase === 'arrive' ? Math.min(8, 1.4 + remain * 1.3) : Math.min(8, (amb.v || 1) + dt * 5);
+    amb.v = target;
+    let step = amb.v * dt;
+    while (step > 0 && amb.i < amb.pts.length) {
+      const [tx, ty] = amb.pts[amb.i];
+      const dx = tx - amb.x, dy = ty - amb.y, d = Math.hypot(dx, dy);
+      if (Math.abs(dx) > 1e-4 || Math.abs(dy) > 1e-4) amb.heading = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'W' : 'E') : (dy < 0 ? 'N' : 'S');
+      if (d <= step) { amb.x = tx; amb.y = ty; amb.i++; step -= d; if (amb.phase === 'arrive' && amb.i < amb.pts.length) amb.v = Math.min(amb.v, 3.2); }
+      else { amb.x += (dx / d) * step; amb.y += (dy / d) * step; step = 0; }
+    }
+    return amb.i >= amb.pts.length;
+  }
+
+  // Paramedik: hastayı tekerlekli sandalyede triyaja kadar iter, teslim eder, ambulansa döner.
+  function makeParamedic(p) {
+    const m = E().makeEntity('extra', { name: 'Paramedik', role: 'Paramedik', look: E().LOOKS.paramedic, x: p.x + 0.45, y: p.y + 0.35, speed: 1.6, floor: 0, trail: [] });
+    E().extraPeople.push(m);
+    return m;
+  }
+  function updateParamedic(dt) {
+    const m = er.medic;
+    if (!m) return;
+    if (m.gone) { const i = E().extraPeople.indexOf(m); if (i >= 0) E().extraPeople.splice(i, 1); er.medic = null; return; }
+    if (m.mode === 'push' && m.patient) {
+      const p = m.patient, tr = m.trail;
+      const last = tr[tr.length - 1];
+      if (!last || Math.hypot(p.x - last[0], p.y - last[1]) > 0.05) tr.push([p.x, p.y]);
+      // izdeki ~0.55 hücre gerideki noktaya yürü
+      let acc = 0, goal = tr[0];
+      for (let i = tr.length - 1; i > 0; i--) { acc += Math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]); if (acc >= 0.55) { goal = tr[i - 1]; break; } }
+      if (goal) {
+        const dx = goal[0] - m.x, dy = goal[1] - m.y, d = Math.hypot(dx, dy);
+        if (d > 0.02) { const s = Math.min(d, 2.4 * dt); m.x += (dx / d) * s; m.y += (dy / d) * s; E().face(m, p.x - m.x, p.y - m.y); m.moving = true; m.anim += dt * 10; } else m.moving = false;
+      }
+      if (tr.length > 80) tr.splice(0, tr.length - 80);
+    } else {
+      if (m.mode === 'return' && m.wait > 0) { m.wait -= dt; if (m.wait <= 0) E().goTo(m, 31.6, 17.3, (e) => { e.gone = true; }); }
+      E().stepPath(m, dt);
+    }
+  }
+  function paramedicHandover() {
+    const m = er.medic;
+    if (!m || m.mode !== 'push') return;
+    const d = er.active && er.active.def;
+    m.mode = 'return';
+    m.bubble = { text: d ? `Teslim ediyorum: ${d.age} yaş, ${d.complaint.split(',')[0].toLowerCase()}. Nabız ${d.vitals.pulse}, SpO₂ %${d.vitals.spo2}.` : 'Hasta teslim edildi.', until: performance.now() + 4200 };
+    m.wait = 2.5;
   }
 
   function ambulanceArrived(def) {
     const female = def.sex === 'K';
-    const lk = E().randomPatientLook();
-    lk.hairStyle = female ? 'long' : 'short';
-    if (def.age >= 60) lk.hair = '#b9b9b9';
+    const lk = E().randomPatientLook(def.age);
+    lk.hairStyle = female ? pick(['long', 'bun', 'ponytail']) : pick(['short', 'bald', 'curly']);
+    if (!female) lk.scarf = null; else lk.beard = false;
+    lk.cane = false; lk.carry = null;
     const p = E().makeEntity('patient', {
       name: def.name, age: def.age, complaint: def.complaint, look: lk, erRef: def,
-      x: ER_DOOR_OUT[0], y: ER_DOOR_OUT[1], speed: 1.25, state: 'er', timer: 0, floor: 0,
+      x: ER_DOOR_OUT[0], y: ER_DOOR_OUT[1], speed: 1.25, state: 'er', timer: 0, floor: 0, chair: true,
     });
     E().patients.push(p);
     er.active = { def, p, timeLeft: def.time + erTimeBonus(), phase: 'arrive', wrong: new Set(), bay: null, stab: 0 };
     E().say(p, 'Yardım edin… lütfen!', 2600);
-    E().goTo(p, TRIAGE_SPOT[0], TRIAGE_SPOT[1], () => { if (er.active && er.active.p === p) er.active.phase = 'wait'; });
+    er.medic = makeParamedic(p);
+    er.medic.mode = 'push'; er.medic.patient = p;
+    E().goTo(p, TRIAGE_SPOT[0], TRIAGE_SPOT[1], () => { if (er.active && er.active.p === p) { er.active.phase = 'wait'; paramedicHandover(); } });
   }
 
   function vitalsNode(v) {
@@ -240,6 +315,7 @@
       const body = el('span', { className: 'opt-body' });
       body.appendChild(el('strong', {}, `${u.icon} ${u.name}`));
       if (has('hires', 'erDoctor') && k === d.need) body.appendChild(el('span', { className: 'opt-desc' }, '★ Acil Tıp Uzmanı önerisi'));
+      else if (VH.equipment && VH.equipment.triageHint(k) && k === d.need) body.appendChild(el('span', { className: 'opt-desc' }, '📟 Gelişmiş izlem sistemi bu üniteyi öneriyor'));
       if (a.wrong.has(k)) { b.disabled = true; body.appendChild(el('span', { className: 'opt-desc' }, '✗ Uygun değil')); }
       b.appendChild(body);
       b.addEventListener('click', () => triage(k));
@@ -267,7 +343,7 @@
     UI().toast(`✅ Doğru triyaj! Hastayı sedyeye alıyoruz. Şimdi ${UNITS[k].device} ile müdahale edin.`, 3600);
     E().goTo(a.p, bay.bed[0], bay.bed[1], (p) => {
       E().sitAt(p, bay.bed, 17);
-      p.sitting = false; p.lying = true;
+      p.sitting = false; p.lying = true; p.chair = false;
       if (er.active && er.active.p === p) er.active.phase = 'bay';
     }, bay.via);
   }
@@ -276,6 +352,8 @@
     const a = er.active;
     a.phase = 'stab';
     a.stab = 3 * mod('stabTime');
+    if (VH.equipment) a.stab *= VH.equipment.stabFactor(dv.tag);
+    if (VH.emit) VH.emit('deviceUse', { tag: dv.tag });
     a.stabMax = a.stab;
     a.device = dv;
     UI().toast(`🩺 ${dv.name} ile stabilizasyon başladı. Cihazın yanında kalın!`, 2600);
@@ -291,6 +369,7 @@
     const budget = Math.round((2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0)) * mult);
     reward(rep, 3, budget);
     shift.stats.er++;
+    if (VH.emit) VH.emit('erSuccess', { def: d, mult, timeLeft: a.timeLeft, max });
     sound('success');
     const node = el('div', {});
     node.appendChild(el('div', { className: 'grade', style: 'border-color:#46a758' }, '✅ Hasta stabilize edildi'));
@@ -314,6 +393,7 @@
     const a = er.active, d = a.def;
     reward(-8, -10, 0);
     shift.stats.erFail++;
+    if (VH.emit) VH.emit('erFail', { def: d });
     comboBreak('acil hasta sevk edildi');
     sound('error');
     UI().openDialog({
@@ -343,7 +423,7 @@
       er.leaving.splice(i, 1);
       const { a, p, kind } = L;
       if (a.bay) a.bay.occ = null;
-      p.sitting = false; p.lying = false; p.lift = 0;
+      p.sitting = false; p.lying = false; p.lift = 0; p.chair = false;
       if (kind === 'pharmacy') {
         // 4. adım: eczanede ilaç teslimi ve taburcu (Başhekim onayı)
         p.erStage = 'pharmacy';
@@ -371,17 +451,15 @@
     if (er.siren > 0) er.siren -= dt;
     // ambulans
     const amb = er.amb;
+    updateParamedic(dt);
     if (amb) {
       if (amb.phase === 'arrive') {
-        amb.y = Math.max(amb.target, amb.y - dt * 5);
-        if (amb.y <= amb.target) { amb.phase = 'parked'; amb.wait = 7; ambulanceArrived(amb.def); }
+        if (driveAmb(amb, dt)) { amb.phase = 'parked'; amb.wait = 7; amb.v = 0; ambulanceArrived(amb.def); }
       } else if (amb.phase === 'parked') {
         amb.wait -= dt;
-        if (amb.wait <= 0) amb.phase = 'leave';
-      } else {
-        amb.y += dt * 5;
-        if (amb.y > 30) er.amb = null;
-      }
+        // paramedik dönene kadar bekler (en fazla 25 sn)
+        if (amb.wait <= 0 && (!er.medic || amb.wait < -18)) { if (er.medic) er.medic.gone = true; amb.phase = 'leave'; amb.pts = AMB_OUT; amb.i = 1; amb.v = 0.5; }
+      } else if (driveAmb(amb, dt)) er.amb = null;
     }
     const a = er.active;
     if (!a) {
@@ -455,6 +533,7 @@
       bonus = 400 * (has('upgrades', 'digitalPharmacy') ? 2 : 1) * mult;
       reward(mult, 0, bonus); sound('success');
       shift.stats.pharmacy++;
+      if (VH.emit) VH.emit('counsel', { p, mult });
     } else { reward(-1, -1, 0); sound('error'); comboBreak('yanlış ilaç bilgisi'); }
     E().say(p, ok ? 'Çok net anlattınız, teşekkürler!' : 'Hmm… emin değilim.', 2600);
     const ward = p.erRef && has('services', 'ward');
@@ -485,6 +564,7 @@
     st[group] = st[group] || {};
     st[group][item.id] = true;
     sound('success');
+    if (VH.emit) VH.emit('buy', { group, id: item.id });
     if (group === 'hires') E().addStaff(Object.assign({ id: item.id }, item.staff), 0);
     if (group === 'services') { setupService(item.id); UI().toast(`🏗️ ${item.name} açıldı! Asansörle ${M().floorName(item.floor)}'a çıkabilirsiniz.`, 4200); }
     else UI().toast(`✅ ${item.name} hazır.`, 2600);
@@ -511,6 +591,8 @@
   }
 
   function openPanel(tab) {
+    const prevDlg = document.getElementById('dialog');
+    const keepScroll = prevDlg && prevDlg.dataset.panel === (tab || panelTab) ? (prevDlg.querySelector('.dlg-body') || {}).scrollTop || 0 : 0;
     panelTab = tab || panelTab;
     const st = S();
     const node = el('div', {});
@@ -519,7 +601,8 @@
       .forEach((t) => stats.appendChild(el('span', {}, t)));
     node.appendChild(stats);
     const tabs = el('div', { className: 'tabs' });
-    [['genel', 'Genel'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Personel'], ['servis', 'Servisler & Katlar']].forEach(([id, label]) => {
+    const extTabs = (VH.panelTabs || []).slice().sort((a, b) => (a.order || 50) - (b.order || 50));
+    [['genel', 'Genel'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Uzman Kadro'], ['servis', 'Servisler & Katlar']].concat(extTabs.map((t) => [t.id, t.label])).forEach(([id, label]) => {
       const b = el('button', { type: 'button', className: 'tab' + (panelTab === id ? ' on' : '') }, label);
       b.addEventListener('click', () => openPanel(id));
       tabs.appendChild(b);
@@ -551,9 +634,12 @@
     } else if (panelTab === 'yukseltme') UPGRADES.forEach((u) => list.appendChild(itemCard('upgrades', u)));
     else if (panelTab === 'gelisim') list.appendChild(devCards(() => openPanel('gelisim')));
     else if (panelTab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u)));
-    else SERVICES.forEach((u) => list.appendChild(itemCard('services', u)));
+    else if (panelTab === 'servis') SERVICES.forEach((u) => list.appendChild(itemCard('services', u)));
+    else { const ext = extTabs.find((t) => t.id === panelTab); if (ext) ext.render(list, () => openPanel(panelTab)); else SERVICES.forEach((u) => list.appendChild(itemCard('services', u))); }
+    if (panelTab === 'genel' && VH.progress && VH.progress.renderGeneral) VH.progress.renderGeneral(list, () => openPanel('genel'));
     node.appendChild(list);
-    UI().openDialog({ icon: '🏗️', title: 'Başhekim Yönetim & İnşa Paneli', subtitle: 'Cihaz yükseltme · Personel · Yeni servisler', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
+    UI().openDialog({ icon: '🏗️', title: 'Başhekim Yönetim & İnşa Paneli', subtitle: 'Personel · Ekipman · Düzenleme · Servisler', wide: true, node, scrollTop: keepScroll, actions: [{ label: 'Kapat', ghost: true }] });
+    const dlg = document.getElementById('dialog'); if (dlg) { dlg.dataset.panel = panelTab; dlg.classList.add('panel'); }
   }
 
   // ---------------------------------------------------------------- Geliştirme mağazası & nöbet özeti
@@ -601,14 +687,19 @@
       n: shift.n, night: isNightShift(), treated: st.treated, er: st.er, erFail: st.erFail, cases: st.cases, pharmacy: st.pharmacy, angry: st.angry,
       rep: S().reputation - st.rep0, income: Math.round(S().budget - st.budget0 + st.spent), bestCombo: st.bestCombo,
     };
+    // Modüller (maaş bordrosu, bakım, değerlendirme) özete ek kart ekler
+    summary.extra = [];
+    if (VH.emit) VH.emit('shiftEnd', summary);
+    const { extra } = summary;
+    delete summary.extra;
     S().shiftLog = (S().shiftLog || []).concat([summary]).slice(-10);
     VH.paused = true;
     sound('notify');
     persist();
-    openShiftSummary(summary);
+    openShiftSummary(summary, extra);
   }
 
-  function openShiftSummary(sm) {
+  function openShiftSummary(sm, extra) {
     const node = el('div', { className: 'shift' });
     const grid = el('div', { className: 'shift-grid' });
     const card = (icon, label, value, cls) => {
@@ -626,6 +717,7 @@
     card('💊', 'Eczane bilgilendirme', String(sm.pharmacy));
     card('🔥', 'En iyi kombo', sm.bestCombo + 'x');
     card('😤', 'Bekleyip giden', String(sm.angry), sm.angry ? 'warn-c' : '');
+    (extra || []).forEach((x) => card(x.icon, x.label, x.value, x.cls));
     node.appendChild(grid);
     node.appendChild(el('div', { className: 'sec-title' }, `Geliştirme Mağazası · Bütçe ${money(S().budget)}`));
     const rerender = () => { UI().openDialog(spec()); };
@@ -662,6 +754,7 @@
     shift.stats = freshStats();
     VH.paused = false;
     UI().toast(isNightShift() ? `🌙 ${shift.n}. Gece Nöbeti başladı` : `☀️ ${shift.n}. Gündüz Nöbeti başladı`, 2600);
+    if (VH.emit) VH.emit('shiftStart', shift.n);
     persist();
   }
 
@@ -756,64 +849,34 @@
   }
 
   // ================================================================ Çizim
-  function drawAmbulance(ctx, amb) {
-    const map = M();
-    const x0 = 32.25, x1 = 33.75, y0 = amb.y - 1.4, y1 = amb.y + 1.4, h = 34, lift = 4;
-    const P = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => map.worldToIso(x, y));
-    const up = (p, z) => [p[0], p[1] - z];
-    // gölge
-    ctx.fillStyle = 'rgba(10,20,30,0.3)';
-    ctx.beginPath(); P.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1] + 2) : ctx.moveTo(p[0], p[1] + 2))); ctx.closePath(); ctx.fill();
-    // tekerlekler
-    ctx.fillStyle = '#1d2329';
-    [[x0 + 0.1, y0 + 0.5], [x1 - 0.1, y0 + 0.5], [x0 + 0.1, y1 - 0.5], [x1 - 0.1, y1 - 0.5]].forEach(([x, y]) => {
-      const [sx, sy] = map.worldToIso(x, y);
-      ctx.beginPath(); ctx.ellipse(sx, sy - 3, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
-    });
-    const faces = [
-      { a: 0, b: 1, n: [0, -1], front: true }, { a: 1, b: 2, n: [1, 0] }, { a: 2, b: 3, n: [0, 1] }, { a: 3, b: 0, n: [-1, 0] },
-    ];
-    faces.forEach((f) => {
-      const rv = map.rotVec(f.n[0], f.n[1]);
-      if (rv[0] + rv[1] <= 0) return;
-      const A = up(P[f.a], lift), B = up(P[f.b], lift);
-      const quad = (z0, z1, color) => {
-        ctx.fillStyle = color;
-        ctx.beginPath(); ctx.moveTo(A[0], A[1] - z0); ctx.lineTo(B[0], B[1] - z0); ctx.lineTo(B[0], B[1] - z1); ctx.lineTo(A[0], A[1] - z1); ctx.closePath(); ctx.fill();
-      };
-      const shade = rv[0] > rv[1] ? '#e9eef2' : '#d3dbe1';
-      quad(0, h, shade);
-      quad(10, 15, '#d62828');
-      if (f.front) quad(18, 29, '#2b3a46');
-      else quad(20, 28, 'rgba(43,58,70,0.55)');
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(B[0], B[1] - h); ctx.lineTo(A[0], A[1] - h); ctx.closePath(); ctx.stroke();
-    });
-    // üst yüz
-    const T = P.map((p) => up(p, lift + h));
-    ctx.fillStyle = '#f7f9fb';
-    ctx.beginPath(); T.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.stroke();
-    const [cx, cy] = map.worldToIso((x0 + x1) / 2, amb.y + 0.3);
-    ctx.fillStyle = '#d62828';
-    ctx.fillRect(cx - 7, cy - lift - h - 2.5, 14, 5);
-    ctx.fillRect(cx - 2.5, cy - lift - h - 7, 5, 14);
-    // tepe lambaları
-    const [lx, ly] = map.worldToIso((x0 + x1) / 2, y0 + 0.35);
-    const flash = Math.floor(performance.now() / 220) % 2 === 0;
-    const on = amb.phase !== 'parked' || er.siren > 0 || (er.active && er.active.phase !== 'done');
-    ctx.fillStyle = on && flash ? '#ff3b3b' : '#7a1d1d';
-    ctx.fillRect(lx - 9, ly - lift - h - 6, 8, 5);
-    ctx.fillStyle = on && !flash ? '#3b8bff' : '#1d3b7a';
-    ctx.fillRect(lx + 1, ly - lift - h - 6, 8, 5);
+  /** Ambulansın anlık nesne tanımı (art_extra.js 'ambulance' türüyle çizilir). */
+  function ambObject(amb) {
+    const ns = amb.heading === 'N' || amb.heading === 'S';
+    const w = ns ? 1.4 : 2.8, h = ns ? 2.8 : 1.4;
+    return { k: 'ambulance', x: amb.x - w / 2, y: amb.y - h / 2, w, h, face: amb.heading, lights: ambLights() };
   }
+  const ambLights = () => !!er.amb && (er.amb.phase !== 'parked' || er.siren > 0 || !!er.active);
 
   function drawables(map) {
     if (map.floor !== 0 || !er.amb) return [];
-    const amb = er.amb;
-    const [cx, cy] = map.worldToIso(33, amb.y);
-    const key = Math.max(map.depthAt(33.75, amb.y + 1.4), map.depthAt(32.25, amb.y + 1.4), map.depthAt(33.75, amb.y - 1.4), map.depthAt(32.25, amb.y - 1.4)) - 0.6;
-    return [{ kind: 'amb', key, cx, cy, draw: (ctx) => drawAmbulance(ctx, amb) }];
+    const o = ambObject(er.amb);
+    const cs = [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]].map(([x, y]) => map.rotPt(x, y));
+    const key = Math.max(...cs.map((c) => c[0])) + Math.max(...cs.map((c) => c[1])) - 1;
+    const [cx, cy] = map.worldToIso(er.amb.x, er.amb.y);
+    return [{ kind: 'amb', key, cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) }];
+  }
+
+  /** Zemin katmanı: dönen tepe lambalarının asfalta vuran kırmızı/mavi ışığı. */
+  function drawGroundFx(ctx) {
+    if (M().floor !== 0 || !er.amb || !ambLights()) return;
+    const [sx, sy] = M().worldToIso(er.amb.x, er.amb.y);
+    const ph = performance.now() / 180;
+    const red = Math.floor(ph) % 2 === 0;
+    for (const [col, ox, on] of [['255,59,59', -26, red], ['59,139,255', 26, !red]]) {
+      const g = ctx.createRadialGradient(sx + ox, sy, 4, sx + ox, sy, 70);
+      g.addColorStop(0, `rgba(${col},${on ? 0.32 : 0.08})`); g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(sx + ox, sy, 70, 35, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawOverlay(ctx, vw, vh) {
@@ -869,6 +932,8 @@
   let incomeAcc = 0;
   VH.hospital = {
     UPGRADES, HIRES, SERVICES, ER_TYPES, RX, UNITS, DEV, er, combo, shift, SHIFT_LEN,
+    ER_RX, CASE_RX, reward, drawGroundFx, ambObject,
+    keySpots: () => [TRIAGE_SPOT, ER_DOOR_OUT, [31.6, 17.3], [29.5, 10.4]].map((p) => [Math.floor(p[0]), Math.floor(p[1])]).concat(BAYS.map((b) => b.via)),
     mod, level, incomePerMin, has, devLevel, comboHit, comboBreak,
     get gameTime() { return gameTime; },
     get night() { return nightF; },
@@ -917,14 +982,14 @@
     drawOverlay,
     openPanel, openElevator, travel, endShift,
     onServed(p) {
-      S().budget += 150 + (has('upgrades', 'comfort') ? 50 : 0);
+      S().budget += (150 + (has('upgrades', 'comfort') ? 50 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1);
       if (shift.stats && !(p && p.erRef)) shift.stats.treated++;
     },
-    onPharmacyAuto() { if (has('hires', 'pharmTech')) S().budget += 150; },
+    onPharmacyAuto() { if (has('hires', 'pharmTech')) S().budget += 150; if (VH.equipment) S().budget += VH.equipment.pharmacyBonus(); },
     onAngryLeave() { reward(-1, 0, 0); if (shift.stats) shift.stats.angry++; comboBreak('hasta beklemekten sıkıldı'); },
     onCaseSolved() { if (shift.stats) shift.stats.cases++; },
     // test yardımcıları
-    _startEmergency: startEmergency,
+    _startEmergency: (id) => startEmergency(id),
     _triage: triage,
     _buy: (group, id) => buy(group, ({ upgrades: UPGRADES, hires: HIRES, services: SERVICES })[group].find((x) => x.id === id)),
     _buyDev: (id) => buyDev(id),
