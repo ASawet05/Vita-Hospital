@@ -99,6 +99,7 @@
     error:   { gap: 0.3, fn: () => tone(220, 0, 0.28, { type: 'square', vol: 0.05, glide: 160 }) },
     alarm:   { gap: 1, fn: () => [0, 0.22, 0.44].forEach((a) => tone(880, a, 0.12, { type: 'square', vol: 0.04 })) },
     siren:   { gap: 3, fn: siren },
+    combo:   { gap: 0.5, fn: () => [784, 988, 1175, 1568].forEach((f, i) => tone(f, i * 0.06, 0.16, { type: 'triangle', vol: 0.12 })) },
   };
 
   function play(name) {

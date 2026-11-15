@@ -16,18 +16,15 @@
 
   // ---------------------------------------------------------------- Asset raporu
   function report(result) {
-    const missingRequired = VH.map.REQUIRED.filter((k) => !VH.assets.has(k));
-    const missingPlaced = VH.map.allObjects().filter((o) => !o.k.startsWith('proc:') && !VH.assets.has(o.k)).map((o) => o.k);
+    const missingKinds = VH.map.missingKinds();
     const summary = {
-      ok: result.failed.length === 0 && missingRequired.length === 0 && missingPlaced.length === 0,
-      loaded: result.loaded,
-      total: result.total,
+      ok: result.failed.length === 0 && missingKinds.length === 0,
+      procedural: true,
+      kinds: result.total,
       failed: result.failed,
-      missingRequired,
-      missingPlaced,
+      missingKinds,
     };
     VH.assetReport = summary;
-    console.log('[VH] Asset raporu', summary);
     return summary;
   }
 
@@ -70,6 +67,7 @@
     if (VH.ui.isDialogOpen()) return;
     const t = VH.entities.hitTest(px, py, vw, vh);
     if (!t) return;
+    if (t.type === 'patient') VH.guide.selectPatient(t.ref);
     if (VH.entities.inRange(t)) doInteract(t);
     else VH.ui.toast(`${t.name}: etkileşim için yaklaşın`);
   }
@@ -206,6 +204,10 @@
     VH.ui.setChip('chip-rep', `★ İtibar ${S.reputation}`);
     VH.ui.setChip('chip-safety', `🛡️ Güvenlik ${S.safety}`);
     VH.ui.setChip('chip-level', `🏥 Sv. ${VH.hospital.level()}`);
+    const sh = VH.hospital.shift, ss = Math.max(0, Math.ceil(sh.t));
+    VH.ui.setChip('chip-shift', `${VH.hospital.isNightShift ? '🌙' : '☀️'} Nöbet ${sh.n} · ${Math.floor(ss / 60)}:${String(ss % 60).padStart(2, '0')}`);
+    const cb = VH.hospital.combo;
+    VH.ui.setCombo(cb.mult, cb.streak ? (cb.until - VH.hospital.gameTime) / 75 : 0, cb.streak);
     VH.ui.setChip('chip-patients', `Hastalar: ${E.patients.length} · Bekleyen: ${waiting}`);
     VH.ui.setChip('chip-served', `Taburcu: ${E.stats.served}`);
     const room = VH.map.roomAt(E.player.x, E.player.y);
@@ -216,17 +218,22 @@
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    readMoveInput();
-    VH.entities.update(dt);
-    VH.cases.update(dt);
-    VH.hospital.update(dt);
-    VH.save.update(dt);
-    footstepsAndDoors();
+    if (!VH.paused) {
+      readMoveInput();
+      VH.entities.update(dt);
+      VH.cases.update(dt);
+      VH.hospital.update(dt);
+      VH.save.update(dt);
+      footstepsAndDoors();
+    }
+    VH.guide.update(dt);
     cam().update(dt);
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map)));
+    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map)),
+      { ground: VH.guide.drawGround, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
+    VH.guide.drawOverlay(ctx, vw, vh);
     VH.entities.drawOverlay(ctx, vw, vh, targets[0], VH.ui.isTouch());
     VH.hospital.drawOverlay(ctx, vw, vh);
     hudTimer -= dt;
@@ -240,7 +247,7 @@
     const result = await VH.assets.preload(VH.ui.loaderProgress);
     const summary = report(result);
     if (!summary.ok) {
-      VH.ui.loaderErrors(summary.failed.concat(summary.missingRequired, summary.missingPlaced).map((k) => 'eksik: ' + k));
+      VH.ui.loaderErrors(summary.failed.concat(summary.missingKinds.map((k) => "çizicisi olmayan tür: " + k)));
       selftest();
       return;
     }
@@ -269,6 +276,8 @@
       ['chip-rep', ''],
       ['chip-safety', ''],
       ['chip-level', ''],
+      ['chip-shift', ''],
+      ['chip-combo', ''],
       ['chip-patients', ''],
       ['chip-served', ''],
       ['chip-where', ''],

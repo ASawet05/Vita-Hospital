@@ -8,42 +8,38 @@
 // koordinatta en öndeki noktasının rx+ry toplamıdır (Y-sorting).
 (function () {
   const VH = (window.VH = window.VH || {});
-  const A = (k) => VH.assets.get(k);
 
   const HW = 32, HH = 16;            // yarım karo genişliği / yüksekliği
   let W = 35, H = 26;                // geçerli katın boyutu (hücre)
   const WALL_FULL = 66, WALL_CUT = 14; // tam duvar / kesit (cutaway) duvar yüksekliği
 
-  const ARCH = 'core/Architecture/hospital_architecture_';
-  const FURN = 'core/Furniture/hospital_furniture_';
-  const EQ = 'core/Equipment/hospital_equipment_';
-  const SUP = 'core/Supplies/hospital_supplies_';
-  const PROP = 'core/Props/hospital_props_';
-  const DEC = 'core/Decor/hospital_decor_';
-
-  // ---------------------------------------------------------------- Görsel tanımları
+  // ---------------------------------------------------------------- Prosedürel görsel tanımları
+  // Tüm zeminler kodla üretilen dokulardır (harici görsel yok).
   const FLOORS = {
-    white:    { tex: ARCH + 'floor_linoleum_white_01' },
-    green:    { tex: ARCH + 'floor_linoleum_green_01' },
-    corridor: { tex: ARCH + 'floor_corridor_antislip_01' },
-    ramp:     { tex: ARCH + 'floor_ramp_entrance_01' },
-    er:       { tex: ARCH + 'floor_linoleum_white_01', tint: 'rgba(90,150,230,0.13)' },
-    vinyl:    { iso: 'ward/floor_ward_vinyl' },
-    terrazzo: { iso: 'lab/floor_or_terrazzo' },
-    pavement: { color: '#b3b9b4', speck: '#9ea59f' },
-    asphalt:  { color: '#4d5860', speck: '#58646c' },
-    grass:    { color: '#5f8f5a', speck: '#6f9f66' },
+    white:    { base: '#eef1ef', speck: '#d8dfdc', pattern: 'speck', indoor: true },
+    green:    { base: '#c3dccd', speck: '#a7c8b4', pattern: 'speck', indoor: true },
+    corridor: { base: '#e7dfd0', speck: '#cdbfa7', pattern: 'antislip', indoor: true },
+    er:       { base: '#e3ebf6', speck: '#c8d6ea', pattern: 'speck', indoor: true },
+    vinyl:    { base: '#d4ebe1', speck: '#b9dacb', pattern: 'plank', indoor: true },
+    terrazzo: { base: '#dde1de', speck: '#c5cbc8', pattern: 'terrazzo', indoor: true },
+    ramp:     { base: '#c7ccc6', speck: '#aeb4ad', pattern: 'brick' },
+    pavement: { base: '#c9cbc3', speck: '#b2b5ac', pattern: 'brick' },
+    path:     { base: '#ddd2bd', speck: '#c8baa0', pattern: 'brick' },
+    asphalt:  { base: '#4b545c', speck: '#5d6870', pattern: 'asphalt', grid: false },
+    parking:  { base: '#525c64', speck: '#636e76', pattern: 'asphalt', grid: false },
+    road:     { base: '#42494f', speck: '#535c63', pattern: 'asphalt', grid: false },
+    grass:    { base: '#6aa25f', speck: '#5b9352', pattern: 'grass', grid: false },
   };
 
+  // Duvar stilleri: yüz rengi, süpürgelik, bant, tırabzan, pencere, kapı rengi
   const WALL_STYLES = {
-    ward:          { kind: 'ta', plainL: 'ward/wall_plain_left', plainR: 'ward/wall_plain_right', doorL: 'ward/wall_double_doors_left', doorR: 'ward/wall_double_doors_right' },
-    lab:           { kind: 'ta', plainL: 'lab/wall_plain_left', plainR: 'lab/wall_plain_right', doorL: 'ward/wall_double_doors_left', doorR: 'ward/wall_double_doors_right' },
-    core_straight: { kind: 'core', tex: ARCH + 'wall_ward_straight_01', door: ARCH + 'door_double_swing_01' },
-    core_handrail: { kind: 'core', tex: ARCH + 'wall_corridor_handrail_01', door: ARCH + 'door_double_swing_01' },
-    core_window:   { kind: 'core', tex: ARCH + 'wall_observation_window_01', door: ARCH + 'door_ward_single_01' },
-    or:            { kind: 'ta', plainL: 'lab/wall_plain_left', plainR: 'lab/wall_plain_right', doorL: 'lab/wall_or_doors_left', doorR: 'lab/wall_or_doors_right' },
+    ward:          { base: '#e6eef0', trim: '#9fb4bf', accent: '#8fd3b8', door: '#d5e3e8' },
+    lab:           { base: '#e7eef1', trim: '#8fa3ad', accent: '#a9cfe0', door: '#d9e4e8' },
+    core_straight: { base: '#f0ebe3', trim: '#8d7f72', wainscot: '#e2d6c6', frame: '#bfe0d6', door: '#d8cbb8' },
+    core_handrail: { base: '#eef1f2', trim: '#7e8d96', rail: '#9aa7b0', accent: '#2ec4b6', door: '#d5dde2' },
+    core_window:   { base: '#eef1f2', trim: '#7e8d96', window: true, door: '#d5dde2' },
+    or:            { base: '#dcefe9', trim: '#5e9c8e', accent: '#2f9e8f', door: '#bfe0d6' },
   };
-
   // ---------------------------------------------------------------- Yerleşim planı
   // r: [x0, y0, x1, y1] (dahil)
   const ROOMS0 = {
@@ -74,104 +70,138 @@
   const O = (k, x, y, extra) => Object.assign({ k, x, y }, extra || {});
   const OBJECTS0 = [
     // 1 — Resepsiyon ve Hasta Kayıt
-    O(FURN + 'desk_reception_01', 2, 14, { w: 2, s: 0.5, tag: 'reception_desk' }),
-    O(DEC + 'queue_display_blank_01', 1, 12, { s: 0.42, tag: 'queue_display' }),
-    O(DEC + 'sign_directory_stand_blank_01', 7, 20, { s: 0.42 }),
-    O(DEC + 'barrier_posts_pair_01', 3, 17, { s: 0.36 }),
-    O(ARCH + 'column_structural_01', 8, 15, { s: 0.42 }),
-    O(FURN + 'chair_visitor_01', 1, 19, { s: 0.36 }),
-    O(FURN + 'chair_visitor_01', 1, 20, { s: 0.36 }),
+    O('reception_desk', 2, 14, { w: 2, tag: 'reception_desk' }),
+    O('queue_display', 1, 12, { tag: 'queue_display' }),
+    O('directory_sign', 7, 20),
+    O('barrier_posts', 3, 17),
+    O('column', 8, 15),
+    O('chair', 1, 19),
+    O('chair', 1, 20),
 
     // 2 — Hasta Bekleme Salonu
-    O('ward/waiting_chairs', 11, 14), O('ward/waiting_chairs', 12, 14), O('ward/waiting_chairs', 13, 14),
-    O('ward/waiting_chairs', 11, 17), O('ward/waiting_chairs', 12, 17), O('ward/waiting_chairs', 13, 17),
-    O(FURN + 'chairs_waiting_row_01', 16, 14, { w: 2, s: 0.42 }),
-    O(FURN + 'chairs_waiting_row_01', 16, 17, { w: 2, s: 0.42 }),
-    O(DEC + 'vending_machine_blank_01', 18, 11, { s: 0.42 }),
-    O(DEC + 'water_dispenser_column_01', 17, 11, { s: 0.42 }),
-    O(DEC + 'play_mat_children_01', 11, 20, { w: 2, h: 2, s: 0.45, flat: true }),
+    O('waiting_chair', 11, 14), O('waiting_chair', 12, 14), O('waiting_chair', 13, 14),
+    O('waiting_chair', 11, 17), O('waiting_chair', 12, 17), O('waiting_chair', 13, 17),
+    O('waiting_row', 16, 14, { w: 2 }),
+    O('waiting_row', 16, 17, { w: 2 }),
+    O('vending', 18, 11),
+    O('water_cooler', 17, 11),
+    O('play_mat', 11, 20, { w: 2, h: 2, flat: true }),
+    // Kapasite geliştirmesiyle kullanıma açılan ek koltuklar
+    O('waiting_chair', 14, 20), O('waiting_chair', 15, 20), O('waiting_chair', 16, 20), O('waiting_chair', 17, 20),
 
     // 3 — Muayene Odası 1
-    O(FURN + 'desk_doctor_01', 7, 2, { w: 2, s: 0.42, tag: 'exam_desk' }),
-    O(FURN + 'stool_medical_round_01', 9, 3, { s: 0.34 }),
-    O(FURN + 'bed_examination_01', 10, 5, { w: 2, s: 0.42, tag: 'exam_bed' }),
-    O(FURN + 'curtain_privacy_screen_01', 11, 3, { s: 0.4 }),
-    O(EQ + 'blood_pressure_stand_01', 7, 5, { s: 0.4 }),
-    O(SUP + 'stethoscope_01', 7, 2, { s: 0.13, z: 26, ox: -6, block: false }),
-    O(PROP + 'reflex_hammer_01', 8, 2, { s: 0.12, z: 26, block: false }),
-    O(PROP + 'penlight_exam_01', 11, 5, { s: 0.12, z: 20, block: false }),
+    O('desk', 7, 2, { w: 2, tag: 'exam_desk' }),
+    O('stool', 9, 3),
+    O('exam_table', 10, 5, { w: 2, tag: 'exam_bed' }),
+    O('screen', 11, 3),
+    O('bp_stand', 7, 5),
+    O('prop_stethoscope', 7, 2, { z: 26, ox: -6, block: false }),
+    O('prop_hammer', 8, 2, { z: 26, block: false }),
+    O('prop_penlight', 11, 5, { z: 20, block: false }),
     // 3 — Muayene Odası 2
-    O(FURN + 'desk_doctor_01', 12, 2, { w: 2, s: 0.42, tag: 'exam_desk' }),
-    O(FURN + 'stool_medical_round_01', 14, 3, { s: 0.34 }),
-    O(FURN + 'bed_examination_01', 15, 5, { w: 2, s: 0.42, tag: 'exam_bed' }),
-    O(FURN + 'curtain_privacy_screen_01', 16, 3, { s: 0.4 }),
-    O(EQ + 'blood_pressure_stand_01', 12, 5, { s: 0.4 }),
-    O(SUP + 'stethoscope_01', 12, 2, { s: 0.13, z: 26, ox: -6, block: false }),
-    O(PROP + 'reflex_hammer_01', 13, 2, { s: 0.12, z: 26, block: false }),
-    O(PROP + 'penlight_exam_01', 16, 5, { s: 0.12, z: 20, block: false }),
+    O('desk', 12, 2, { w: 2, tag: 'exam_desk' }),
+    O('stool', 14, 3),
+    O('exam_table', 15, 5, { w: 2, tag: 'exam_bed' }),
+    O('screen', 16, 3),
+    O('bp_stand', 12, 5),
+    O('prop_stethoscope', 12, 2, { z: 26, ox: -6, block: false }),
+    O('prop_hammer', 13, 2, { z: 26, block: false }),
+    O('prop_penlight', 16, 5, { z: 20, block: false }),
 
     // 4 — Kan Alma ve Biyo-Laboratuvar
-    O('lab/blood_draw_chair', 17, 3, { tag: 'blood_chair' }),
-    O('lab/blood_draw_chair', 17, 5, { tag: 'blood_chair' }),
-    O(FURN + 'cart_instrument_01', 18, 4, { s: 0.32 }),
-    O(SUP + 'syringe_tray_01', 18, 4, { s: 0.12, z: 22, block: false }),
-    O(EQ + 'autoclave_sterilizer_01', 19, 1, { s: 0.42 }),
-    O('lab/hematology_analyzer', 21, 1, { tag: 'analyzer' }),
-    O('lab/specimen_vial_rack', 22, 1),
-    O(EQ + 'centrifuge_bench_01', 24, 3, { s: 0.42, tag: 'centrifuge' }),
-    O(PROP + 'blood_tubes_rack_01', 24, 3, { s: 0.12, z: 28, ox: 10, block: false }),
-    O(EQ + 'microscope_station_01', 24, 5, { s: 0.42, tag: 'microscope' }),
-    O('lab/biohazard_waste_bin', 17, 7),
+    O('blood_chair', 17, 3, { tag: 'blood_chair' }),
+    O('blood_chair', 17, 5, { tag: 'blood_chair' }),
+    O('cart', 18, 4),
+    O('prop_tray', 18, 4, { z: 22, block: false }),
+    O('autoclave', 19, 1),
+    O('analyzer', 21, 1, { tag: 'analyzer' }),
+    O('vial_rack', 22, 1),
+    O('centrifuge', 24, 3, { tag: 'centrifuge' }),
+    O('prop_tubes', 24, 3, { z: 28, ox: 10, block: false }),
+    O('microscope', 24, 5, { tag: 'microscope' }),
+    O('biohazard_bin', 17, 7),
 
     // 5 — Acil Servis ve Ambulans Girişi
-    O(FURN + 'gurney_stretcher_01', 21, 13, { w: 2, s: 0.42, tag: 'gurney' }),
-    O(EQ + 'monitor_patient_01', 20, 12, { s: 0.4, tag: 'monitor' }),
-    O(FURN + 'iv_stand_01', 23, 13, { s: 0.4, tag: 'iv' }),
-    O(FURN + 'gurney_stretcher_01', 21, 16, { w: 2, s: 0.42, tag: 'gurney' }),
-    O(EQ + 'monitor_patient_01', 20, 15, { s: 0.4, tag: 'monitor' }),
-    O('ward/iv_drip_stand', 23, 16, { tag: 'iv' }),
-    O(FURN + 'gurney_stretcher_01', 21, 19, { w: 2, s: 0.42, tag: 'gurney' }),
-    O(EQ + 'ventilator_01', 20, 18, { s: 0.4, tag: 'ventilator' }),
-    O('ward/iv_drip_stand', 23, 19, { tag: 'iv' }),
-    O(EQ + 'defibrillator_01', 27, 12, { s: 0.4, tag: 'defibrillator' }),
-    O(EQ + 'oxygen_tanks_pair_01', 28, 12, { s: 0.4, tag: 'oxygen' }),
-    O(ARCH + 'wall_nurse_station_low_01', 26, 18, { w: 2, s: 0.42, tag: 'triage' }),
-    O('ward/wheelchair', 29, 21), O('ward/wheelchair', 30, 21),
-    O(DEC + 'floor_decal_warning_blank_01', 29, 16, { h: 2, s: 0.32, flat: true }),
-    O(ARCH + 'curb_ambulance_bay_01', 32, 15, { w: 2, h: 4, s: 0.55, flat: true }),
+    O('gurney', 21, 13, { w: 2, tag: 'gurney' }),
+    O('monitor', 20, 12, { tag: 'monitor' }),
+    O('iv_stand', 23, 13, { tag: 'iv' }),
+    O('gurney', 21, 16, { w: 2, tag: 'gurney' }),
+    O('monitor', 20, 15, { tag: 'monitor' }),
+    O('iv_stand', 23, 16, { tag: 'iv' }),
+    O('gurney', 21, 19, { w: 2, tag: 'gurney' }),
+    O('ventilator', 20, 18, { tag: 'ventilator' }),
+    O('iv_stand', 23, 19, { tag: 'iv' }),
+    O('defibrillator', 27, 12, { tag: 'defibrillator' }),
+    O('oxygen', 28, 12, { tag: 'oxygen' }),
+    O('counter', 26, 18, { w: 2, tag: 'triage' }),
+    O('wheelchair', 29, 21), O('wheelchair', 30, 21),
+    O('floor_decal', 29, 16, { h: 2, flat: true }),
+    O('ambulance_bay', 32, 15, { w: 2, h: 4, flat: true }),
 
     // 6 — Eczane ve İlaç Bölümü
-    O(FURN + 'cabinet_medicine_01', 25, 1, { s: 0.42 }),
-    O(FURN + 'cabinet_medicine_01', 26, 1, { s: 0.42 }),
-    O(FURN + 'cabinet_medicine_01', 30, 2, { s: 0.42 }),
-    O(ARCH + 'wall_nurse_station_low_01', 27, 5, { w: 2, s: 0.42, tag: 'pharmacy_counter' }),
-    O(SUP + 'medicine_bottles_group_01', 27, 5, { s: 0.14, z: 18, block: false }),
-    O(SUP + 'pill_blister_packs_01', 28, 5, { s: 0.18, z: 18, block: false }),
-    O(FURN + 'cart_instrument_01', 30, 5, { s: 0.32 }),
-    O(SUP + 'mask_box_01', 30, 5, { s: 0.11, z: 22, ox: -7, block: false }),
-    O(SUP + 'glove_box_01', 30, 5, { s: 0.11, z: 22, ox: 7, block: false }),
-    O(SUP + 'first_aid_kit_01', 28, 1, { s: 0.24 }),
-    O(SUP + 'sanitizer_dispenser_stand_01', 25, 7, { s: 0.4 }),
+    O('med_cabinet', 25, 1),
+    O('med_cabinet', 26, 1),
+    O('med_cabinet', 30, 2),
+    O('counter', 27, 5, { w: 2, tag: 'pharmacy_counter' }),
+    O('prop_bottles', 27, 5, { z: 18, block: false }),
+    O('prop_pills', 28, 5, { z: 18, block: false }),
+    O('cart', 30, 5),
+    O('prop_box_blue', 30, 5, { z: 22, ox: -7, block: false }),
+    O('prop_box_purple', 30, 5, { z: 22, ox: 7, block: false }),
+    O('first_aid', 28, 1),
+    O('sanitizer', 25, 7),
 
     // 7 — Başhekim ve Doktor Odası
-    O('proc:rug', 2, 2, { w: 4, h: 4, flat: true }),
-    O(FURN + 'desk_doctor_01', 3, 2, { w: 2, s: 0.5, tag: 'chief_desk' }),
-    O('proc:nameplate', 3, 2, { z: 28, ox: 8, block: false }),
-    O(FURN + 'chair_visitor_01', 3, 4, { s: 0.36 }),
-    O(FURN + 'chair_visitor_01', 4, 4, { s: 0.36 }),
-    O(DEC + 'locker_staff_narrow_01', 6, 1, { s: 0.42 }),
-    O(DEC + 'locker_staff_narrow_01', 6, 2, { s: 0.42 }),
-    O(DEC + 'locker_staff_narrow_01', 6, 3, { s: 0.42 }),
-    O('proc:terminal', 1, 5, { tag: 'archive_terminal' }),
-    O('proc:archive', 1, 6), O('proc:archive', 1, 7),
+    O('rug', 2, 2, { w: 4, h: 4, flat: true }),
+    O('desk', 3, 2, { w: 2, tag: 'chief_desk' }),
+    O('nameplate', 3, 2, { z: 28, ox: 8, block: false }),
+    O('chair', 3, 4),
+    O('chair', 4, 4),
+    O('locker', 6, 1),
+    O('locker', 6, 2),
+    O('locker', 6, 3),
+    O('terminal', 1, 5, { tag: 'archive_terminal' }),
+    O('archive', 1, 6), O('archive', 1, 7),
 
     // Asansör (koridorun doğu ucu)
-    O('proc:elevator', 30, 9, { tag: 'elevator' }),
+    O('elevator', 30, 9, { tag: 'elevator' }),
   ];
+  OBJECTS0.push(...campusObjects());
+
+  /** Hastane kampüsü: giriş meydanı, tabela, banklar, lambalar, otopark, yollar ve park ağaçları. */
+  function campusObjects() {
+    const out = [];
+    const jit = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = (h ^ (h >>> 13)) >>> 0; return (h % 1000) / 1000; };
+    const add = (k, x, y, extra) => out.push(O(k, x, y, extra));
+    // Yol işaretleri ve yaya geçidi (zemine yatık)
+    add('road_mark', -8, 27, { w: 53, h: 3, block: false });
+    add('road_mark', 31, -8, { w: 4, h: 35, block: false });
+    add('crosswalk', 3, 27, { w: 4, h: 3, block: false });
+    // Giriş meydanı (ızgara içinde: engelleyici)
+    add('sign_hospital', 8, 24, { w: 2 });
+    add('flower_bed', 13, 25, { w: 2 }); add('flower_bed', 21, 25, { w: 2 });
+    add('bench', 11, 24, { face: 'S' }); add('bench', 16, 24, { face: 'S' }); add('bench', 25, 24, { face: 'S' });
+    add('trash_bin', 10, 24); add('trash_bin', 24, 24);
+    add('bush', 1, 25); add('bush', 2, 25); add('bush', 28, 25); add('bush', 30, 25); add('bush', 18, 25);
+    for (const x of [7, 19, 29]) add('lamp_post', x, 24);
+    // Ambulans yolu ve otopark lambaları (dış alan)
+    for (const y of [4, 10, 16, 22]) add('lamp_post', 35, y - 1.5, { block: false });
+    // Otopark: çizgiler + araçlar
+    [3, 7, 12, 16].forEach((y, row) => {
+      add('parking_lines', 35, y, { w: 10, h: 2, face: 'E', block: false });
+      for (let i = 0; i < 5; i++) if (jit(i + 3, row + 5) > 0.35) add('car', 35.5 + i * 2, y, { h: 2, face: row % 2 ? 'N' : 'S', block: false });
+    });
+    // Park ağaçları: kuzey ve batı bantları, cadde güneyi
+    const tree = (x, y) => add(jit(x, y) > 0.82 ? 'bush' : 'tree', x + (jit(y, x) - 0.5) * 0.7, y + (jit(x + 1, y) - 0.5) * 0.7, { block: false });
+    for (let x = -7; x <= 44; x += 3) { tree(x, -2); tree(x + 1, -6); tree(x, 32); }
+    for (let y = 1; y <= 25; y += 3) { tree(-2, y); tree(-6, y + 1); }
+    for (const [x, y] of [[-1, 4], [-1, 12], [-1, 20], [6, -1], [16, -1], [26, -1]]) add('lamp_post', x, y, { block: false });
+    for (const x of [-5, 2, 12, 22, 33, 41]) add('bench', x, 31, { face: 'N', block: false });
+    return out;
+  }
 
   // ---------------------------------------------------------------- Üst katlar (Aşama 5)
   // Her kat ayrı bir harita: kendi odaları, kapıları ve nesneleri. Asansör (1,7) hücresinde.
-  const LAB_ = 'lab/', WARD_ = 'ward/';
   const UPPER_CORRIDOR = { num: 0, name: 'Koridor', r: [1, 7, 22, 8], floor: 'corridor', wall: 'core_handrail', noLabel: true };
 
   const FLOOR_SURGERY = {
@@ -187,32 +217,32 @@
     doors: [{ e: 'N', x: 4, y: 7 }, { e: 'N', x: 11, y: 7 }, { e: 'N', x: 18, y: 7 }, { e: 'N', x: 5, y: 9 }, { e: 'N', x: 16, y: 9 }, { e: 'W', x: 10, y: 3 }],
     open: [],
     objects: [
-      O(LAB_ + 'operating_table', 5, 3, { tag: 'operating_table' }),
-      O(EQ + 'lamp_surgical_01', 6, 2, { s: 0.42, tag: 'surgical_lamp' }),
-      O(LAB_ + 'anesthesia_machine', 3, 2, { tag: 'anesthesia' }),
-      O(EQ + 'monitor_patient_01', 3, 4, { s: 0.4 }),
-      O(FURN + 'cart_instrument_01', 7, 3, { s: 0.32 }),
-      O(PROP + 'forceps_scissors_tray_01', 7, 3, { s: 0.12, z: 22, block: false }),
-      O(LAB_ + 'gauze_roll_stack', 7, 5),
-      O(LAB_ + 'biohazard_waste_bin', 8, 1),
-      O(LAB_ + 'scrub_trough_station', 11, 1, { tag: 'scrub' }),
-      O(LAB_ + 'scrub_trough_station', 13, 1, { tag: 'scrub' }),
-      O(PROP + 'sink_medical_small_01', 14, 3, { s: 0.36 }),
-      O(DEC + 'uv_sterilizer_cart_01', 12, 5, { s: 0.38 }),
-      O(WARD_ + 'hospital_bed', 16, 2), O(WARD_ + 'bedside_cabinet', 17, 2),
-      O(WARD_ + 'hospital_bed', 19, 2), O(WARD_ + 'bedside_cabinet', 20, 2),
-      O(EQ + 'monitor_patient_01', 21, 2, { s: 0.38 }),
-      O(WARD_ + 'iv_drip_stand', 18, 4),
-      O(FURN + 'desk_doctor_01', 2, 10, { w: 2, s: 0.42 }),
-      O(FURN + 'chair_visitor_01', 2, 12, { s: 0.36 }), O(FURN + 'chair_visitor_01', 3, 12, { s: 0.36 }),
-      O(FURN + 'bed_examination_01', 8, 11, { w: 2, s: 0.42 }),
-      O(FURN + 'curtain_privacy_screen_01', 10, 10, { s: 0.4 }),
-      O(EQ + 'autoclave_sterilizer_01', 13, 10, { s: 0.42 }),
-      O(FURN + 'cart_instrument_01', 15, 12, { s: 0.32 }),
-      O(DEC + 'uv_sterilizer_cart_01', 18, 11, { s: 0.38 }),
-      O(PROP + 'pillow_blanket_stack_01', 20, 10, { s: 0.3 }),
-      O(PROP + 'gown_patient_folded_01', 21, 10, { s: 0.3 }),
-      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+      O('or_table', 5, 3, { tag: 'operating_table' }),
+      O('surgical_lamp', 6, 2, { tag: 'surgical_lamp' }),
+      O('anesthesia', 3, 2, { tag: 'anesthesia' }),
+      O('monitor', 3, 4),
+      O('cart', 7, 3),
+      O('prop_tray', 7, 3, { z: 22, block: false }),
+      O('gauze', 7, 5),
+      O('biohazard_bin', 8, 1),
+      O('scrub_sink', 11, 1, { tag: 'scrub' }),
+      O('scrub_sink', 13, 1, { tag: 'scrub' }),
+      O('sink', 14, 3),
+      O('uv_cart', 12, 5),
+      O('bed', 16, 2), O('bedside', 17, 2),
+      O('bed', 19, 2), O('bedside', 20, 2),
+      O('monitor', 21, 2),
+      O('iv_stand', 18, 4),
+      O('desk', 2, 10, { w: 2 }),
+      O('chair', 2, 12), O('chair', 3, 12),
+      O('exam_table', 8, 11, { w: 2 }),
+      O('screen', 10, 10),
+      O('autoclave', 13, 10),
+      O('cart', 15, 12),
+      O('uv_cart', 18, 11),
+      O('linen', 20, 10),
+      O('linen', 21, 10),
+      O('elevator', 1, 7, { tag: 'elevator' }),
     ],
   };
 
@@ -228,25 +258,25 @@
     doors: [{ e: 'N', x: 4, y: 7 }, { e: 'N', x: 16, y: 7 }, { e: 'N', x: 4, y: 9 }, { e: 'N', x: 14, y: 9 }],
     open: [],
     objects: [
-      O(WARD_ + 'hospital_bed', 2, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 3, 2),
-      O(WARD_ + 'hospital_bed', 5, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 6, 2),
-      O(WARD_ + 'hospital_bed', 8, 2, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 9, 2),
-      O(WARD_ + 'iv_drip_stand', 4, 4), O(WARD_ + 'iv_drip_stand', 10, 4),
-      O(FURN + 'incubator_infant_01', 13, 2, { s: 0.38, tag: 'incubator' }),
-      O(FURN + 'incubator_infant_01', 15, 2, { s: 0.38, tag: 'incubator' }),
-      O(WARD_ + 'hospital_bed', 19, 2, { tag: 'ward_bed' }), O(WARD_ + 'hospital_bed', 21, 2, { tag: 'ward_bed' }),
-      O(WARD_ + 'teddy_bear', 14, 4), O(WARD_ + 'teddy_bear', 18, 5),
-      O(DEC + 'play_mat_children_01', 17, 4, { w: 2, h: 2, s: 0.42, flat: true }),
-      O(ARCH + 'wall_nurse_station_low_01', 2, 11, { w: 2, s: 0.42, tag: 'nurse_station' }),
-      O(SUP + 'medicine_bottles_group_01', 2, 11, { s: 0.13, z: 18, block: false }),
-      O(FURN + 'cabinet_medicine_01', 1, 9, { s: 0.42 }),
-      O(SUP + 'sanitizer_dispenser_stand_01', 7, 10, { s: 0.4 }),
-      O(WARD_ + 'hospital_bed', 10, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 11, 10),
-      O(WARD_ + 'hospital_bed', 13, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 14, 10),
-      O(WARD_ + 'hospital_bed', 16, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 17, 10),
-      O(WARD_ + 'hospital_bed', 19, 10, { tag: 'ward_bed' }), O(WARD_ + 'bedside_cabinet', 20, 10),
-      O(FURN + 'table_overbed_01', 10, 12, { s: 0.34 }),
-      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+      O('bed', 2, 2, { tag: 'ward_bed' }), O('bedside', 3, 2),
+      O('bed', 5, 2, { tag: 'ward_bed' }), O('bedside', 6, 2),
+      O('bed', 8, 2, { tag: 'ward_bed' }), O('bedside', 9, 2),
+      O('iv_stand', 4, 4), O('iv_stand', 10, 4),
+      O('incubator', 13, 2, { tag: 'incubator' }),
+      O('incubator', 15, 2, { tag: 'incubator' }),
+      O('bed', 19, 2, { tag: 'ward_bed' }), O('bed', 21, 2, { tag: 'ward_bed' }),
+      O('teddy', 14, 4), O('teddy', 18, 5),
+      O('play_mat', 17, 4, { w: 2, h: 2, flat: true }),
+      O('counter', 2, 11, { w: 2, tag: 'nurse_station' }),
+      O('prop_bottles', 2, 11, { z: 18, block: false }),
+      O('med_cabinet', 1, 9),
+      O('sanitizer', 7, 10),
+      O('bed', 10, 10, { tag: 'ward_bed' }), O('bedside', 11, 10),
+      O('bed', 13, 10, { tag: 'ward_bed' }), O('bedside', 14, 10),
+      O('bed', 16, 10, { tag: 'ward_bed' }), O('bedside', 17, 10),
+      O('bed', 19, 10, { tag: 'ward_bed' }), O('bedside', 20, 10),
+      O('overbed', 10, 12),
+      O('elevator', 1, 7, { tag: 'elevator' }),
     ],
   };
 
@@ -263,40 +293,53 @@
     doors: [{ e: 'N', x: 3, y: 7 }, { e: 'N', x: 10, y: 7 }, { e: 'N', x: 17, y: 7 }, { e: 'N', x: 6, y: 9 }, { e: 'N', x: 18, y: 9 }],
     open: [],
     objects: [
-      O(EQ + 'xray_machine_01', 3, 3, { w: 2, s: 0.5, tag: 'xray' }),
-      O(DEC + 'lightbox_cross_plain_01', 6, 1, { s: 0.3 }),
-      O(PROP + 'neck_collar_01', 7, 4, { s: 0.2 }),
-      O(EQ + 'ultrasound_cart_01', 10, 2, { s: 0.4, tag: 'ultrasound' }),
-      O(FURN + 'bed_examination_01', 11, 4, { w: 2, s: 0.42 }),
-      O(FURN + 'stool_medical_round_01', 9, 4, { s: 0.34 }),
-      O(EQ + 'ecg_machine_01', 16, 2, { s: 0.4, tag: 'ecg' }),
-      O(FURN + 'bed_examination_01', 18, 3, { w: 2, s: 0.42 }),
-      O(EQ + 'monitor_patient_01', 21, 2, { s: 0.4 }),
-      O(EQ + 'defibrillator_01', 21, 4, { s: 0.38 }),
-      O(EQ + 'dialysis_machine_01', 2, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 3, 10),
-      O(EQ + 'dialysis_machine_01', 5, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 6, 10),
-      O(EQ + 'dialysis_machine_01', 8, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 9, 10),
-      O(EQ + 'dialysis_machine_01', 11, 10, { s: 0.4, tag: 'dialysis' }), O(LAB_ + 'blood_draw_chair', 12, 10),
-      O(FURN + 'desk_doctor_01', 16, 10, { w: 2, s: 0.42 }),
-      O(FURN + 'desk_doctor_01', 19, 10, { w: 2, s: 0.42 }),
-      O('proc:terminal', 21, 12, { tag: 'pacs' }),
-      O('proc:elevator', 1, 7, { tag: 'elevator' }),
+      O('xray', 3, 3, { w: 2, tag: 'xray' }),
+      O('lightbox', 6, 1),
+      O('prop_collar', 7, 4),
+      O('ultrasound', 10, 2, { tag: 'ultrasound' }),
+      O('exam_table', 11, 4, { w: 2 }),
+      O('stool', 9, 4),
+      O('ecg', 16, 2, { tag: 'ecg' }),
+      O('exam_table', 18, 3, { w: 2 }),
+      O('monitor', 21, 2),
+      O('defibrillator', 21, 4),
+      O('dialysis', 2, 10, { tag: 'dialysis' }), O('blood_chair', 3, 10),
+      O('dialysis', 5, 10, { tag: 'dialysis' }), O('blood_chair', 6, 10),
+      O('dialysis', 8, 10, { tag: 'dialysis' }), O('blood_chair', 9, 10),
+      O('dialysis', 11, 10, { tag: 'dialysis' }), O('blood_chair', 12, 10),
+      O('desk', 16, 10, { w: 2 }),
+      O('desk', 19, 10, { w: 2 }),
+      O('terminal', 21, 12, { tag: 'pacs' }),
+      O('elevator', 1, 7, { tag: 'elevator' }),
     ],
   };
 
   const FLOOR_DEFS = [
-    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true },
+    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true, deco: { x0: -8, y0: -8, x1: 45, y1: 34 } },
     FLOOR_SURGERY, FLOOR_WARD, FLOOR_RADIOLOGY,
   ];
 
   // ---------------------------------------------------------------- Izgara (kat başına)
   const ek = (e, x, y) => e + ':' + x + ':' + y;
 
+  // Zemin kat dış dünyası: ızgara dışındaki (negatif/taşan) hücreler yalnızca görsel "kampüs"tür.
+  //  - x 31..34: ambulans yolu, x 35..44: otopark, y 23..26: giriş meydanı, y 27..29: ana cadde,
+  //  - y 30: kaldırım, kuzey/batı: park alanı ve yürüyüş yolu.
   function outdoorFloor(def, x, y) {
     if (!def.outdoor) return null;
+    if (y >= 27 && y <= 29) return 'road';
+    if (y === 26 || y === 30) return 'pavement';
+    if (x >= 31 && x <= 34) return 'asphalt';
+    if (x >= 35 && x <= 44 && y >= 2 && y <= 21) return 'parking';
+    if (x >= 35 && y >= 22 && y <= 25) return 'pavement';
     if (y === 23 && (x === 4 || x === 5)) return 'ramp';
-    if (x >= 31) return 'asphalt';
-    if (y >= 23) return 'pavement';
+    if (y >= 23 && y <= 25) {
+      if (x >= 3 && x <= 6) return 'pavement';
+      if (y === 23) return 'pavement';
+      return x < 0 ? 'grass' : (x % 9 === 0 ? 'path' : 'grass');
+    }
+    if (x === 0 || y === 0) return 'path';
+    if (x === -4 || y === -4) return 'path';
     return 'grass';
   }
 
@@ -322,7 +365,7 @@
       o.w = o.w || 1; o.h = o.h || 1;
       const solid = o.block !== undefined ? o.block : !o.flat && !o.z;
       if (!solid) return;
-      for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) blocked[y][x] = true;
+      for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (blocked[y] && x >= 0 && x < W) blocked[y][x] = true;
     });
 
     const special = new Map();
@@ -399,42 +442,64 @@
   const depthAt = (x, y) => { const [rx, ry] = rotPt(x, y); return rx + ry; };
   const inBounds = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
 
-  // ---------------------------------------------------------------- Zemin karoları
+  // ---------------------------------------------------------------- Prosedürel zemin karoları
   const floorTiles = {}; // tip -> [canvas varyantları] (2x çözünürlük, 128x64 elmas)
   function diamondPath(c, w, h) {
     c.beginPath(); c.moveTo(w / 2, 0); c.lineTo(w, h / 2); c.lineTo(w / 2, h); c.lineTo(0, h / 2); c.closePath();
   }
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+  function paintPattern(c, f, R) {
+    c.fillStyle = f.base; c.fillRect(0, 0, 128, 64);
+    // hafif ton dalgalanması
+    const g = c.createLinearGradient(0, 0, 128, 64);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0.04)');
+    c.fillStyle = g; c.fillRect(0, 0, 128, 64);
+    const dots = (n, col, size) => { c.fillStyle = col; for (let i = 0; i < n; i++) c.fillRect(R() * 128, R() * 64, size, size); };
+    const isoLines = (step, col, w) => {
+      c.strokeStyle = col; c.lineWidth = w;
+      for (let k = -128; k < 256; k += step) { c.beginPath(); c.moveTo(k, 0); c.lineTo(k + 128, 64); c.stroke(); }
+    };
+    const isoLines2 = (step, col, w) => {
+      c.strokeStyle = col; c.lineWidth = w;
+      for (let k = -128; k < 256; k += step) { c.beginPath(); c.moveTo(k, 64); c.lineTo(k + 128, 0); c.stroke(); }
+    };
+    switch (f.pattern) {
+      case 'speck': dots(70, f.speck, 2); break;
+      case 'terrazzo': ['#9aa3a0', '#c96f4a', '#6f8f9f', '#f4f6f5', '#b5a58a'].forEach((col) => dots(26, col, 2.5)); break;
+      case 'plank': isoLines(32, 'rgba(60,110,90,0.18)', 1.5); dots(30, f.speck, 2); break;
+      case 'antislip': for (let y = 4; y < 64; y += 8) for (let x = (y % 16) ? 4 : 8; x < 128; x += 8) { c.fillStyle = f.speck; c.fillRect(x, y, 2, 2); } break;
+      case 'brick': isoLines(16, 'rgba(70,60,50,0.18)', 1.2); isoLines2(32, 'rgba(70,60,50,0.12)', 1); dots(30, f.speck, 2); break;
+      case 'grass':
+        dots(40, f.speck, 2);
+        for (let i = 0; i < 90; i++) {
+          const x = R() * 128, y = R() * 64, h = 2 + R() * 4;
+          c.strokeStyle = R() > 0.5 ? 'rgba(130,190,100,0.7)' : 'rgba(50,110,50,0.6)'; c.lineWidth = 1;
+          c.beginPath(); c.moveTo(x, y); c.lineTo(x + (R() - 0.5) * 2, y - h); c.stroke();
+        }
+        break;
+      case 'asphalt': dots(120, f.speck, 1.5); dots(40, 'rgba(255,255,255,0.05)', 2); break;
+      default: break;
+    }
+  }
+
   function buildFloorTiles() {
-    const crops = [[24, 24], [80, 44], [40, 92], [110, 70]];
     for (const t in FLOORS) {
       const f = FLOORS[t];
-      if (f.iso) continue;
-      floorTiles[t] = crops.map(([cx, cy], i) => {
+      floorTiles[t] = [0, 1, 2, 3].map((i) => {
         const cv = document.createElement('canvas');
         cv.width = 128; cv.height = 64;
         const c = cv.getContext('2d');
         diamondPath(c, 128, 64);
         c.save(); c.clip();
-        if (f.tex) {
-          c.drawImage(A(f.tex), cx, cy, 128, 64, 0, 0, 128, 64);
-          if (f.tint) { c.fillStyle = f.tint; c.fillRect(0, 0, 128, 64); }
-        } else {
-          c.fillStyle = f.color; c.fillRect(0, 0, 128, 64);
-          c.fillStyle = f.speck;
-          let seed = 17 + i * 31;
-          for (let n = 0; n < 60; n++) {
-            seed = (seed * 9301 + 49297) % 233280;
-            const px = (seed / 233280) * 128;
-            seed = (seed * 9301 + 49297) % 233280;
-            const py = (seed / 233280) * 64;
-            c.fillRect(px, py, 2, 2);
-          }
-        }
+        paintPattern(c, f, rng(t.length * 97 + i * 131 + 7));
         c.restore();
-        diamondPath(c, 128, 64);
-        c.strokeStyle = 'rgba(30,50,60,0.10)';
-        c.lineWidth = 2;
-        c.stroke();
+        if (f.grid !== false) {
+          diamondPath(c, 128, 64);
+          c.strokeStyle = f.indoor ? 'rgba(30,50,60,0.13)' : 'rgba(0,0,0,0.05)';
+          c.lineWidth = 2;
+          c.stroke();
+        }
         return cv;
       });
     }
@@ -443,17 +508,23 @@
   // ---------------------------------------------------------------- Döndürmeye bağlı önbellek
   let cache = null;
   function buildCache() {
-    const floors = [];
-    for (let y = 0; y < H; y++)
-      for (let x = 0; x < W; x++) {
+    const def = floors[fi].def;
+    const ext = def.deco || { x0: 0, y0: 0, x1: W, y1: H };
+    const floorsList = [];
+    for (let y = ext.y0; y < ext.y1; y++)
+      for (let x = ext.x0; x < ext.x1; x++) {
+        const inside = inBounds(x, y);
+        const t = inside ? floorType[y][x] : outdoorFloor(def, x, y);
+        if (!t) continue;
         const [rx, ry] = rotPt(x + 0.5, y + 0.5);
         const cx = Math.floor(rx), cy = Math.floor(ry);
         const [sx, sy] = iso(cx, cy);
-        if (floorType[y][x]) floors.push({ sx, sy, t: floorType[y][x], v: (x * 7 + y * 13) & 3 });
+        floorsList.push({ sx, sy, t, v: ((x * 7 + y * 13) & 3 + 4) & 3 });
       }
 
     const items = []; // derinlik sıralı nesne/duvar listesi
     const flats = [];
+    const lamps = [];
 
     const doorParts = {};
     walls.forEach((w) => {
@@ -486,189 +557,99 @@
       const rx0 = Math.min(a[0], b[0]), rx1 = Math.max(a[0], b[0]);
       const ry0 = Math.min(a[1], b[1]), ry1 = Math.max(a[1], b[1]);
       const [cx, cy] = iso((rx0 + rx1) / 2, (ry0 + ry1) / 2);
-      const it = {
-        kind: 'obj', o, cx, cy,
-        corners: [iso(rx0, ry0), iso(rx1, ry0), iso(rx1, ry1), iso(rx0, ry1)],
-        key: rx1 + ry1 - 1 + (o.z ? 0.05 : 0),
-      };
-      (o.flat ? flats : items).push(it);
+      const it = { kind: 'obj', o, cx, cy, key: rx1 + ry1 - 1 + (o.z ? 0.05 : 0) };
+      (o.flat || VH.art.isFlat(o.k) ? flats : items).push(it);
+      if (o.k === 'lamp_post') { const [lx, ly] = worldToIso(o.x + 0.5, o.y + 0.5); lamps.push([lx, ly]); }
     });
-
+    flats.sort((p, q) => p.key - q.key);
     items.sort((p, q) => p.key - q.key);
 
-    // Harita sınırları (kamera kısıtlaması)
-    const cs = [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => worldToIso(x, y));
+    // Harita sınırları (kamera kısıtlaması) — dış dünya dahil
+    const cs = [[ext.x0, ext.y0], [ext.x1, ext.y0], [ext.x1, ext.y1], [ext.x0, ext.y1]].map(([x, y]) => worldToIso(x, y));
+    const pad = def.deco ? 120 : 0;
     const bounds = {
-      x0: Math.min(...cs.map((c) => c[0])), x1: Math.max(...cs.map((c) => c[0])),
-      y0: Math.min(...cs.map((c) => c[1])) - WALL_FULL, y1: Math.max(...cs.map((c) => c[1])),
+      x0: Math.min(...cs.map((c) => c[0])) + pad, x1: Math.max(...cs.map((c) => c[0])) - pad,
+      y0: Math.min(...cs.map((c) => c[1])) - WALL_FULL + pad / 2, y1: Math.max(...cs.map((c) => c[1])) - pad / 2,
     };
-    cache = { floors, items, flats, bounds };
+    cache = { floors: floorsList, items, flats, bounds, lamps };
   }
 
   // ---------------------------------------------------------------- Çizim yardımcıları
-  const mirrored = () => (rot & 1) === 1;
-
   function drawFloor(ctx, f) {
-    const def = FLOORS[f.t];
-    if (def.iso) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(A(def.iso), f.sx - 32, f.sy - 32, 64, 64);
-    } else {
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(floorTiles[f.t][f.v], f.sx - 32.4, f.sy - 0.2, 64.8, 32.4);
-    }
+    ctx.drawImage(floorTiles[f.t][f.v], f.sx - 32.4, f.sy - 0.2, 64.8, 32.4);
   }
 
-  function faceClip(ctx, X, Y, sgn, h) {
-    ctx.beginPath();
-    ctx.moveTo(X, Y + 3);
-    ctx.lineTo(X + sgn * 32, Y + 19);
-    ctx.lineTo(X + sgn * 32, Y + 16 - h);
-    ctx.lineTo(X, Y - h);
-    ctx.closePath();
-    ctx.clip();
-  }
+  const shade = (c, k) => VH.art.shade(c, k);
 
+  /**
+   * Prosedürel izometrik duvar: yüz, süpürgelik, bant/tırabzan, pencere, kapı ve
+   * arkaya doğru kalınlığı olan üst başlık (derinlik hissi). Kesit duvarlar alçak çizilir.
+   */
   function drawWall(ctx, it) {
     const w = it.w, st = WALL_STYLES[it.style];
     const X = it.sx, Y = it.sy, sgn = it.run === 'R' ? 1 : -1;
     const full = it.full, h = full ? WALL_FULL : WALL_CUT;
+    const pt = (u, z) => [X + sgn * 32 * u, Y + 16 * u - z];
+    const quad = (u0, u1, z0, z1, col) => {
+      const a = pt(u0, z0), b = pt(u1, z0), c = pt(u1, z1), d = pt(u0, z1);
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); ctx.fill();
+    };
+    const dk = sgn < 0 ? -0.12 : 0; // sol yüzler biraz daha gölgeli
+    const S = (c) => shade(c, dk);
 
     if (w.type === 'door' && !full) {
-      // Kesit görünümde kapı = eşik şeridi
-      ctx.strokeStyle = 'rgba(46,196,182,0.55)';
-      ctx.lineWidth = 3;
+      // Kesit görünümde kapı = metal eşik + turkuaz yön şeridi
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(160,175,185,0.9)'; ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + sgn * 32, Y + 16); ctx.stroke();
+      ctx.strokeStyle = 'rgba(46,196,182,0.75)'; ctx.lineWidth = 2;
+      ctx.stroke();
       return;
     }
 
-    ctx.save();
-    if (!full) faceClip(ctx, X, Y, sgn, h);
-    if (st.kind === 'ta') {
-      const isDoor = w.type === 'door';
-      const img = A(isDoor ? (sgn > 0 ? st.doorR : st.doorL) : (sgn > 0 ? st.plainR : st.plainL));
-      const half = isDoor ? it.part : it.s & 1;
-      ctx.imageSmoothingEnabled = false;
-      if (sgn > 0) ctx.drawImage(img, half * 32, 0, 32, 128, X, Y - 82 - half * 16, 32, 128);
-      else ctx.drawImage(img, half ? 0 : 32, 0, 32, 128, X - 31, Y - 82 - half * 16, 32, 128);
+    if (w.type === 'door') {
+      quad(0, 1, 0, h, S(st.base));
+      const p = it.part || 0;
+      // çift kanatlı kapı: bu hücre kanadın yarısı
+      quad(p ? 0 : 0.1, p ? 0.9 : 1, 0, 52, S(st.door || '#cfd8dc'));
+      quad(p ? 0.25 : 0.35, p ? 0.65 : 0.75, 30, 46, S('#9ccbe0'));
+      quad(p ? 0 : 0.1, p ? 0.9 : 1, 0, 6, S('#8fa3ad'));
+      quad(p ? 0 : 0.1, p ? 0.9 : 1, 52, 55, S(st.trim));
+      if (p === 0) quad(0.96, 1, 6, 52, S('#7e8d96'));
     } else {
-      const isDoor = w.type === 'door';
-      const img = A(isDoor ? st.door : st.tex);
-      const cw = img.width - 32, ch = img.height - 32;
-      const n = isDoor ? 2 : 3;
-      const idx = isDoor ? it.part : it.s % 3;
-      const uw = cw / n, u0 = 16 + idx * uw;
-      const vh = ch * (h / WALL_FULL), v0 = 16 + ch - vh;
-      ctx.imageSmoothingEnabled = true;
-      ctx.transform(sgn * 32 / uw, 16 / uw, 0, h / vh, X, Y - h);
-      ctx.drawImage(img, u0, v0, uw, vh, 0, 0, uw, vh);
-      if (sgn < 0) { ctx.fillStyle = 'rgba(15,40,60,0.14)'; ctx.fillRect(0, 0, uw, vh); }
-    }
-    ctx.restore();
-
-    if (!full || st.kind === 'core') {
-      // Duvar üst kesiti (cutaway kapağı)
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = '#3d5664';
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(X, Y - h); ctx.lineTo(X + sgn * 32, Y + 16 - h); ctx.stroke();
-      ctx.strokeStyle = '#e8eef1';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-  }
-
-  function shadow(ctx, cx, cy, size) {
-    ctx.fillStyle = 'rgba(10,30,40,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + 4, 13 + 9 * (size - 1), (13 + 9 * (size - 1)) / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function isoBox(ctx, cx, cy, hw, hh, ht, top, left, right) {
-    ctx.fillStyle = left;
-    ctx.beginPath(); ctx.moveTo(cx - hw, cy); ctx.lineTo(cx, cy + hh); ctx.lineTo(cx, cy + hh - ht); ctx.lineTo(cx - hw, cy - ht); ctx.fill();
-    ctx.fillStyle = right;
-    ctx.beginPath(); ctx.moveTo(cx + hw, cy); ctx.lineTo(cx, cy + hh); ctx.lineTo(cx, cy + hh - ht); ctx.lineTo(cx + hw, cy - ht); ctx.fill();
-    ctx.fillStyle = top;
-    ctx.beginPath(); ctx.moveTo(cx, cy - hh - ht); ctx.lineTo(cx + hw, cy - ht); ctx.lineTo(cx, cy + hh - ht); ctx.lineTo(cx - hw, cy - ht); ctx.fill();
-  }
-
-  // Prosedürel çizimler (paketlerde karşılığı olmayan özel parçalar)
-  const PROC = {
-    rug(ctx, it) {
-      const c = it.corners;
-      ctx.fillStyle = '#7a2f3b';
-      ctx.beginPath(); c.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#d9b26a'; ctx.lineWidth = 2; ctx.stroke();
-    },
-    nameplate(ctx, it) {
-      const x = it.cx + (it.o.ox || 0), y = it.cy - (it.o.z || 0);
-      isoBox(ctx, x, y, 7, 3.5, 4, '#e6c66e', '#9c7f35', '#b8963f');
-    },
-    terminal(ctx, it) {
-      const { cx, cy } = it;
-      isoBox(ctx, cx, cy, 24, 12, 18, '#8a6a4c', '#5d4632', '#6f553d'); // masa
-      isoBox(ctx, cx, cy - 18, 11, 5.5, 3, '#2a2f36', '#1b1f24', '#22272d');
-      // ekran
-      ctx.fillStyle = '#1b2329';
-      ctx.fillRect(cx - 12, cy - 44, 24, 18);
-      ctx.fillStyle = '#2ec4b6';
-      ctx.fillRect(cx - 10, cy - 42, 20, 14);
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      for (let i = 0; i < 4; i++) ctx.fillRect(cx - 8, cy - 40 + i * 3, 8 + ((i * 5) % 9), 1.5);
-      ctx.fillStyle = '#1b2329';
-      ctx.fillRect(cx - 2, cy - 26, 4, 5);
-    },
-    archive(ctx, it) {
-      const { cx, cy } = it;
-      isoBox(ctx, cx, cy, 22, 11, 46, '#c9d1d6', '#8e9aa2', '#a9b4bb');
-      const cols = ['#d1495b', '#edae49', '#00798c', '#30638e', '#66a182'];
-      for (let r = 0; r < 3; r++)
-        for (let i = 0; i < 5; i++) {
-          ctx.fillStyle = cols[(i + r) % 5];
-          const x = cx + 3 + i * 3.6, y = cy + 1 + i * 1.8 - 12 - r * 13;
-          ctx.fillRect(x, y, 2.6, 9);
+      quad(0, 1, 0, h, S(st.base));
+      if (full && st.wainscot) quad(0, 1, 5, 26, S(st.wainscot));
+      quad(0, 1, 0, Math.min(5, h), S(st.trim));
+      if (full) {
+        if (st.accent) quad(0, 1, 30, 34, S(st.accent));
+        if (st.rail) { quad(0, 1, 22, 26, S(st.rail)); quad(0, 1, 21, 22, S(shade(st.rail, -0.3))); }
+        if (st.window && (it.s & 1) === 0) {
+          quad(0.12, 0.88, 28, 56, S('#6f8f9f'));
+          quad(0.16, 0.84, 30, 54, S('#a8d4e6'));
+          quad(0.16, 0.84, 41, 42.5, S('#6f8f9f'));
+          quad(0.48, 0.52, 30, 54, S('#6f8f9f'));
         }
-    },
-    elevator(ctx, it) {
-      const { cx, cy } = it;
-      isoBox(ctx, cx, cy, 30, 15, 64, '#aab6bd', '#7d8a93', '#94a2ab');
-      // kapılar (her iki görünen yüzde)
-      ctx.fillStyle = '#c9d3d9';
-      ctx.beginPath(); ctx.moveTo(cx - 24, cy - 3); ctx.lineTo(cx - 6, cy + 6); ctx.lineTo(cx - 6, cy - 40); ctx.lineTo(cx - 24, cy - 49); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(cx + 24, cy - 3); ctx.lineTo(cx + 6, cy + 6); ctx.lineTo(cx + 6, cy - 40); ctx.lineTo(cx + 24, cy - 49); ctx.fill();
-      ctx.strokeStyle = '#6b7880'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cx - 15, cy + 1.5); ctx.lineTo(cx - 15, cy - 44.5); ctx.moveTo(cx + 15, cy + 1.5); ctx.lineTo(cx + 15, cy - 44.5); ctx.stroke();
-      // kat göstergesi
-      ctx.fillStyle = '#16323f'; ctx.fillRect(cx - 7, cy - 60, 14, 8);
-      ctx.fillStyle = '#2ec4b6'; ctx.font = '700 7px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(fi === 0 ? 'Z' : String(fi), cx, cy - 55.5);
-    },
-  };
-
-  function drawObject(ctx, it) {
-    const o = it.o;
-    if (o.k.startsWith('proc:')) { PROC[o.k.slice(5)](ctx, it); return; }
-    const img = A(o.k);
-    if (!img) return;
-    const ta = !o.k.startsWith('core/');
-    const s = o.s || (ta ? 1 : 0.4);
-    const mir = mirrored();
-    const x = it.cx + (o.ox || 0) * (mir ? -1 : 1);
-    const y = it.cy - (o.z || 0);
-    if (!o.flat && !o.z) shadow(ctx, it.cx, it.cy, Math.max(o.w, o.h));
-    ctx.save();
-    ctx.translate(x, y);
-    if (ta && mir) ctx.scale(-1, 1);
-    ctx.imageSmoothingEnabled = !ta;
-    if (ta) ctx.drawImage(img, -32 * s, -48 * s, 64 * s, 64 * s);
-    else if (o.flat) ctx.drawImage(img, -img.width * s / 2, -img.height * s / 2, img.width * s, img.height * s);
-    else {
-      const ax = Math.floor(img.width / 2), ay = img.height - 16;
-      ctx.drawImage(img, -ax * s, -ay * s + 6, img.width * s, img.height * s);
+        if (!st.window && st.frame && (it.s % 4) === 1) {
+          // çerçeveli tablo / pano
+          quad(0.25, 0.75, 34, 52, S('#8d7f72'));
+          quad(0.28, 0.72, 36, 50, S(st.frame));
+        }
+      }
+      // panel derzi
+      if ((it.s & 1) === 0) { ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1; const a = pt(0, 0), d = pt(0, h); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(d[0], d[1]); ctx.stroke(); }
     }
-    ctx.restore();
+
+    // Üst başlık: duvarın arka tarafına doğru kalınlık
+    const t = 0.16;
+    const off = sgn > 0 ? [32 * t, -16 * t] : [-32 * t, -16 * t];
+    const a = pt(0, h), b = pt(1, h);
+    ctx.fillStyle = full ? '#f1f4f5' : '#e9eef1';
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(b[0] + off[0], b[1] + off[1]); ctx.lineTo(a[0] + off[0], a[1] + off[1]); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#3d5664'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   }
 
   function drawCellOutline(ctx, x, y, color) {
@@ -682,7 +663,6 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
-
   // ---------------------------------------------------------------- Kamera
   const camera = {
     x: 0, y: 0, zoom: 1.4, minZoom: 0.45, maxZoom: 3.2,
@@ -725,8 +705,14 @@
   let labels = true;
   let hover = null;
 
-  function draw(ctx, vw, vh, extras) {
-    ctx.fillStyle = '#14313f';
+  /**
+   * Ana çizim. extras: derinlik sırasına katılacak dinamik çizilebilirler (karakterler, ambulans).
+   * fx.ground(ctx): zemin üstü efektler (yön çizgisi, hedef halkası) — nesnelerden önce çizilir.
+   * fx.night: 0..1 gece karartması (vardiya döngüsü).
+   */
+  function draw(ctx, vw, vh, extras, fx) {
+    fx = fx || {};
+    ctx.fillStyle = fi === 0 ? '#2f5b3a' : '#14313f';
     ctx.fillRect(0, 0, vw, vh);
 
     ctx.save();
@@ -738,9 +724,10 @@
     const [r, b] = camera.toIso(vw, vh, vw, vh);
     const L = l - 160, R = r + 160, T = t - 40, B = b + 240;
 
-    for (const f of cache.floors) if (f.sx > L && f.sx < R && f.sy > T && f.sy < B) drawFloor(ctx, f);
-    for (const it of cache.flats) drawObject(ctx, it);
+    for (const f of cache.floors) if (f.sx > L - 40 && f.sx < R + 40 && f.sy > T - 40 && f.sy < B) drawFloor(ctx, f);
+    for (const it of cache.flats) if (it.cx > L - 200 && it.cx < R + 200 && it.cy > T - 120 && it.cy < B + 120) VH.art.draw(ctx, it);
     if (hover && inBounds(hover.x, hover.y)) drawCellOutline(ctx, hover.x, hover.y, 'rgba(46,196,182,0.9)');
+    if (fx.ground) fx.ground(ctx);
 
     const list = extras && extras.length ? cache.items.concat(extras).sort((p, q) => p.key - q.key) : cache.items;
     for (const it of list) {
@@ -748,8 +735,28 @@
       const y = it.sy !== undefined ? it.sy : it.cy;
       if (x !== undefined && (x < L || x > R || y < T || y > B)) continue;
       if (it.kind === 'wall') drawWall(ctx, it);
-      else if (it.kind === 'obj') drawObject(ctx, it);
+      else if (it.kind === 'obj') VH.art.draw(ctx, it);
       else if (it.draw) it.draw(ctx);
+    }
+
+    // Gece nöbeti: karartma + sokak lambası ışıkları
+    if (fx.night > 0) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = `rgba(8,18,48,${0.38 * fx.night})`;
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.restore();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const lp of cache.lamps) {
+        const [sx, sy] = lp;
+        if (sx < L || sx > R || sy < T || sy > B) continue;
+        const g = ctx.createRadialGradient(sx, sy, 4, sx, sy, 90);
+        g.addColorStop(0, `rgba(255,214,140,${0.32 * fx.night})`);
+        g.addColorStop(1, 'rgba(255,214,140,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(sx, sy, 90, 45, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
 
@@ -820,28 +827,8 @@
     }
   }
 
-  // Tasarım belgesinde adı geçen ve haritada kullanılacak görseller.
-  // main.js açılışta bunların gerçekten yüklendiğini doğrular.
-  const REQUIRED = [
-    ARCH + 'floor_linoleum_white_01', FURN + 'desk_reception_01', DEC + 'queue_display_blank_01', DEC + 'sign_directory_stand_blank_01',
-    'ward/waiting_chairs', FURN + 'chairs_waiting_row_01', DEC + 'vending_machine_blank_01', DEC + 'water_dispenser_column_01', DEC + 'play_mat_children_01',
-    FURN + 'desk_doctor_01', FURN + 'bed_examination_01', FURN + 'curtain_privacy_screen_01', FURN + 'stool_medical_round_01',
-    EQ + 'blood_pressure_stand_01', SUP + 'stethoscope_01', PROP + 'reflex_hammer_01', PROP + 'penlight_exam_01',
-    ARCH + 'floor_linoleum_green_01', 'lab/blood_draw_chair', 'lab/hematology_analyzer', 'lab/specimen_vial_rack', PROP + 'blood_tubes_rack_01',
-    EQ + 'centrifuge_bench_01', EQ + 'microscope_station_01', EQ + 'autoclave_sterilizer_01', SUP + 'syringe_tray_01', 'lab/biohazard_waste_bin',
-    ARCH + 'curb_ambulance_bay_01', FURN + 'gurney_stretcher_01', EQ + 'defibrillator_01', EQ + 'monitor_patient_01', EQ + 'ventilator_01',
-    EQ + 'oxygen_tanks_pair_01', 'ward/iv_drip_stand', FURN + 'iv_stand_01', 'ward/wheelchair',
-    FURN + 'cabinet_medicine_01', SUP + 'medicine_bottles_group_01', SUP + 'pill_blister_packs_01', SUP + 'first_aid_kit_01',
-    SUP + 'mask_box_01', SUP + 'glove_box_01', SUP + 'sanitizer_dispenser_stand_01', DEC + 'locker_staff_narrow_01',
-    'ward/wall_double_doors_left', 'ward/wall_double_doors_right', 'lab/wall_plain_left', 'lab/wall_plain_right',
-    // İleri servisler (Aşama 5)
-    'lab/operating_table', 'lab/anesthesia_machine', 'lab/scrub_trough_station', EQ + 'lamp_surgical_01', 'lab/floor_or_terrazzo',
-    'ward/hospital_bed', 'ward/bedside_cabinet', 'ward/teddy_bear', 'ward/floor_ward_vinyl', FURN + 'incubator_infant_01',
-    EQ + 'xray_machine_01', EQ + 'ultrasound_cart_01', EQ + 'ecg_machine_01', EQ + 'dialysis_machine_01',
-  ];
 
   VH.map = {
-    REQUIRED,
     get W() { return W; },
     get H() { return H; },
     get ROOMS() { return ROOMS; },
@@ -880,6 +867,8 @@
     },
     isBlocked: isBlockedF,
     canStep, edgeBetween,
+    /** Prosedürel çizicisi olmayan nesne türleri (öz-test). */
+    missingKinds() { return [...new Set(FLOOR_DEFS.reduce((a, d) => a.concat(d.objects), []).map((o) => o.k).filter((k) => !VH.art.has(k)))]; },
     stats() { return { walls: floors.reduce((s, F) => s + F.walls.length, 0), objects: FLOOR_DEFS.reduce((s, d) => s + d.objects.length, 0), floors: floors.length }; },
   };
 })();

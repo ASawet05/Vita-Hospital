@@ -373,3 +373,76 @@ body.touch #dialog.wide { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 
   .shop-card { grid-template-columns: auto 1fr; }
   .shop-card .dlg-btn { grid-column: 1 / -1; }
 }
+
+/* ---------------- Aktif Vaka Akış Şeması ---------------- */
+#chip-case { display: none !important; }
+#flow {
+  position: fixed;
+  left: 8px;
+  top: calc(max(8px, env(safe-area-inset-top)) + 44px);
+  width: min(560px, calc(100vw - 120px));
+  background: rgba(12, 32, 46, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(46, 196, 182, 0.45);
+  border-radius: 14px;
+  padding: 8px 10px 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  z-index: 15;
+}
+#flow.urgent { border-color: rgba(255, 107, 87, 0.75); }
+#flow.idle { opacity: 0.85; }
+.flow-head { display: flex; align-items: center; gap: 8px; }
+.flow-kicker { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+#flow.urgent .flow-kicker { color: #ff8a78; }
+.flow-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+.flow-tab { border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.05); color: var(--text); border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.flow-tab.on { background: var(--accent); color: #062026; border-color: var(--accent); font-weight: 700; }
+.flow-min { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; width: 26px; height: 26px; border-radius: 6px; }
+.flow-patient { margin: 4px 0 6px; font-size: 13px; }
+.flow-patient span { color: var(--muted); }
+.flow-timer { color: #ffb4a8 !important; font-weight: 700; }
+.flow-steps { list-style: none; margin: 0; padding: 0; display: flex; align-items: stretch; gap: 4px; flex-wrap: wrap; }
+.fs { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 9px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 12px; color: var(--muted); }
+.fs-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); font-size: 11px; font-weight: 800; flex: none; }
+.fs.done { color: #bfeccc; border-color: rgba(70, 196, 106, 0.45); background: rgba(70, 196, 106, 0.12); }
+.fs.done .fs-n { background: #46c46a; color: #06210f; }
+.fs.active { color: #fff; border-color: var(--accent); background: rgba(46, 196, 182, 0.22); box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7); animation: flowPulse 1.2s ease-in-out infinite; font-weight: 700; }
+.fs.active .fs-n { background: var(--accent); color: #062026; }
+#flow.urgent .fs.active { border-color: #ff6b57; background: rgba(255, 107, 87, 0.22); animation-name: flowPulseR; }
+#flow.urgent .fs.active .fs-n { background: #ff6b57; color: #2a0700; }
+.fs-arrow { color: var(--muted); align-self: center; font-size: 12px; padding: 0 1px; }
+@keyframes flowPulse { 50% { box-shadow: 0 0 0 5px rgba(46, 196, 182, 0); } }
+@keyframes flowPulseR { 0% { box-shadow: 0 0 0 0 rgba(255, 107, 87, 0.7); } 50% { box-shadow: 0 0 0 5px rgba(255, 107, 87, 0); } }
+@media (prefers-reduced-motion: reduce) { .fs.active { animation: none; } }
+.flow-instr { margin-top: 7px; font-size: 13px; line-height: 1.4; display: flex; gap: 6px; align-items: flex-start; }
+.fi-icon { flex: none; }
+.flow-link { margin-left: auto; flex: none; background: none; border: 1px solid rgba(255, 255, 255, 0.2); color: var(--text); border-radius: 999px; font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.flow-bar { margin-top: 7px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.flow-bar-fill { height: 100%; width: 100%; transition: width 0.25s linear; }
+#flow.min .flow-patient, #flow.min .flow-instr, #flow.min .flow-bar { display: none; }
+@media (max-width: 640px) {
+  #flow { width: calc(100vw - 108px); top: calc(max(8px, env(safe-area-inset-top)) + 70px); padding: 6px 8px 8px; }
+  .fs-l { display: none; }
+  .fs.active .fs-l { display: inline; }
+  .flow-kicker { font-size: 10px; }
+  .flow-instr { font-size: 12px; }
+}
+
+/* ---------------- Kombo & nöbet çipleri ---------------- */
+#chip-combo { position: relative; overflow: hidden; background: rgba(120, 60, 10, 0.85); }
+#chip-combo.hot { background: linear-gradient(90deg, #ff6b57, #f2a541); color: #2a0b00; font-weight: 800; }
+.combo-bar { position: absolute; left: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.85); }
+
+/* ---------------- Nöbet özeti ---------------- */
+.shift-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.shift-card { display: grid; gap: 2px; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); text-align: center; }
+.sc-icon { font-size: 20px; }
+.sc-val { font-size: 20px; font-weight: 800; }
+.sc-label { font-size: 11px; color: var(--muted); }
+.shift-card.up-c .sc-val { color: #8fd19e; }
+.shift-card.down-c .sc-val { color: #ff8a8d; }
+.shift-card.warn-c { background: rgba(229, 72, 77, 0.12); }
+.pips { font-size: 12px; color: #ffe7a8; letter-spacing: 1px; }
+#toast { top: auto; bottom: calc(max(10px, env(safe-area-inset-bottom)) + 92px); }
+@media (max-width: 640px) { #toast { top: auto; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 170px); } }

@@ -87,15 +87,55 @@
 
   // ================================================================ Durum & değiştiriciler
   const has = (group, id) => !!(S()[group] && S()[group][id]);
+  // Vardiya sonu geliştirme mağazası (seviyeli)
+  const DEV = [
+    { id: 'speed', icon: '🏃', name: 'Başhekim Koşu Hızı', desc: 'Her seviye hareket hızını %15 artırır.', costs: [2500, 5000, 9000] },
+    { id: 'treat', icon: '⚕️', name: 'Tedavi Hızı', desc: 'Her seviye stabilizasyon, muayene ve tahlil sürelerini %15 kısaltır.', costs: [3500, 7000, 12000] },
+    { id: 'capacity', icon: '🏥', name: 'Hastane Kapasitesi', desc: 'Her seviye +2 hasta kapasitesi, ek bekleme koltukları ve %12 daha sık hasta (daha çok gelir).', costs: [4000, 8000, 13000] },
+  ];
+  const devLevel = (id) => { const d = S().dev; return d && d[id] ? d[id] : 0; };
+
   function mod(k) {
+    const tf = Math.pow(0.85, devLevel('treat'));
     switch (k) {
-      case 'labTime': return (has('upgrades', 'fastLab') ? 0.5 : 1) * (has('hires', 'labTech2') ? 0.7 : 1);
-      case 'spawnInterval': return has('upgrades', 'comfort') ? 0.75 : 1;
+      case 'labTime': return (has('upgrades', 'fastLab') ? 0.5 : 1) * (has('hires', 'labTech2') ? 0.7 : 1) * tf;
+      case 'examTime': return tf;
+      case 'spawnInterval': return (has('upgrades', 'comfort') ? 0.75 : 1) * Math.pow(0.88, devLevel('capacity'));
       case 'pharmacyWait': return has('hires', 'pharmTech') ? 0.85 : 1;
-      case 'stabTime': return has('hires', 'erNurse') ? 0.5 : 1;
+      case 'stabTime': return (has('hires', 'erNurse') ? 0.5 : 1) * tf;
+      case 'playerSpeed': return 1 + 0.15 * devLevel('speed');
+      case 'patienceDrain': return has('upgrades', 'comfort') ? 0.7 : 1;
       default: return 1;
     }
   }
+
+  // ================================================================ KOMBO ZİNCİRİ
+  // Bekletmeden (sabır/stabilite barı kırmızıya düşmeden) art arda doğru tedavi → 2x / 3x çarpan.
+  const COMBO_WINDOW = 75;
+  let gameTime = 0;
+  const combo = { streak: 0, mult: 1, until: 0, best: 1, label: '' };
+  function comboHit(quality, label) {
+    if (quality < 0.3) { comboBreak('Hasta çok bekletildi'); return 1; }
+    combo.streak = gameTime <= combo.until ? combo.streak + 1 : 1;
+    combo.until = gameTime + COMBO_WINDOW;
+    combo.mult = Math.min(3, combo.streak);
+    combo.label = label;
+    combo.best = Math.max(combo.best, combo.mult);
+    if (shift.stats) shift.stats.bestCombo = Math.max(shift.stats.bestCombo, combo.mult);
+    if (combo.mult >= 2) { UI().toast(`🔥 ${combo.mult}x ${label} Kombosu! Ödüller ${combo.mult} katı`, 2800); sound('combo'); }
+    return combo.mult;
+  }
+  function comboBreak(why) {
+    if (combo.streak >= 2) UI().toast(`💔 Kombo bozuldu${why ? ': ' + why : ''}`, 2200);
+    combo.streak = 0; combo.mult = 1; combo.until = 0;
+  }
+
+  // ================================================================ VARDİYA (NÖBET) DÖNGÜSÜ
+  const SHIFT_LEN = 300; // oyun saniyesi
+  const freshStats = () => ({ treated: 0, er: 0, erFail: 0, cases: 0, pharmacy: 0, angry: 0, rep0: S().reputation, budget0: S().budget, spent: 0, bestCombo: 1 });
+  const shift = { n: 1, t: SHIFT_LEN, stats: null };
+  let nightF = 0;
+  const isNightShift = () => shift.n % 2 === 0;
   const erTimeBonus = () => (has('upgrades', 'erKit') ? 20 : 0) + (has('hires', 'erNurse') ? 10 : 0);
   const incomePerMin = () => SERVICES.reduce((s, sv) => s + (has('services', sv.id) ? sv.income : 0), 0);
   function level() {
@@ -142,7 +182,7 @@
     { bed: [21.95, 16.5], via: [21, 17], occ: null },
     { bed: [21.95, 19.5], via: [21, 20], occ: null },
   ];
-  const er = { active: null, nextIn: 70, siren: 0, amb: null, warned: false, leaving: [] };
+  const er = { active: null, nextIn: 70, siren: 0, amb: null, warned: false, leaving: [], follow: null };
 
   function startEmergency() {
     const def = pick(ER_TYPES);
@@ -216,6 +256,7 @@
       a.wrong.add(k);
       a.timeLeft -= 12;
       sound('error');
+      comboBreak('yanlış triyaj');
       openTriage(`Yanlış ünite! −12 sn. Yaşamsal bulgulara tekrar bakın: hangisi en çok bozulmuş?`);
       return;
     }
@@ -225,7 +266,8 @@
     sound('ok');
     UI().toast(`✅ Doğru triyaj! Hastayı sedyeye alıyoruz. Şimdi ${UNITS[k].device} ile müdahale edin.`, 3600);
     E().goTo(a.p, bay.bed[0], bay.bed[1], (p) => {
-      E().sitAt(p, bay.bed, 14);
+      E().sitAt(p, bay.bed, 17);
+      p.sitting = false; p.lying = true;
       if (er.active && er.active.p === p) er.active.phase = 'bay';
     }, bay.via);
   }
@@ -243,12 +285,16 @@
     const a = er.active, d = a.def;
     const ward = has('services', 'ward');
     const surgeryBonus = d.trauma && has('services', 'surgery');
-    const rep = 6 + Math.floor(a.timeLeft / 15);
-    let budget = 2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0);
+    const max = d.time + erTimeBonus();
+    const mult = comboHit(a.timeLeft / max, 'Acil Müdahale');
+    const rep = 6 + Math.floor(a.timeLeft / 15) + (mult - 1) * 2;
+    const budget = Math.round((2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0)) * mult);
     reward(rep, 3, budget);
+    shift.stats.er++;
     sound('success');
     const node = el('div', {});
     node.appendChild(el('div', { className: 'grade', style: 'border-color:#46a758' }, '✅ Hasta stabilize edildi'));
+    if (mult > 1) node.appendChild(el('div', { className: 'new-clue' }, `🔥 ${mult}x Acil Müdahale Kombosu: bütçe ödülü ${mult} katı, itibar +${(mult - 1) * 2}`));
     const deltas = el('div', { className: 'deltas' });
     deltas.appendChild(el('span', { className: 'delta up' }, `İtibar +${rep}`));
     deltas.appendChild(el('span', { className: 'delta up' }, 'Hasta Güvenliği +3'));
@@ -257,16 +303,18 @@
     node.appendChild(deltas);
     node.appendChild(el('p', { className: 'lesson' }, d.why));
     if (surgeryBonus) node.appendChild(el('p', { className: 'lesson' }, '🩻 Cerrahi servis: travma hastası ameliyathane değerlendirmesine alındı (ödül +%50).'));
-    node.appendChild(el('p', { className: 'lesson' }, ward ? '🛏️ Hasta yatan hasta servisine yatırıldı (+₺500).' : 'Hasta gözlem sonrası taburcu edilecek. Yatan Hasta Servisi açarak ek gelir elde edebilirsiniz.'));
+    node.appendChild(el('p', { className: 'lesson' }, '💊 Son adım: hasta eczaneye geçiyor. Tezgâhta "İlaç Onayla" ile doğru bilgilendirmeyi yapıp taburcu edin.' + (ward ? ' Ardından gözlem için yatan hasta servisine alınacak (+₺500 dahil).' : '')));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı sadeleştirilmiş senaryodur.'));
     UI().openDialog({ icon: '🚑', title: 'Acil Müdahale Başarılı', subtitle: `${d.name}, ${d.age} yaş`, wide: true, node, actions: [{ label: 'Devam' }] });
-    finishEmergency(ward ? 'admit' : 'discharge');
+    finishEmergency('pharmacy');
     persist();
   }
 
   function erFail() {
     const a = er.active, d = a.def;
     reward(-8, -10, 0);
+    shift.stats.erFail++;
+    comboBreak('acil hasta sevk edildi');
     sound('error');
     UI().openDialog({
       icon: '⚠️', title: 'Süre doldu: hasta sevk edildi', subtitle: `${d.name}, ${d.age} yaş`,
@@ -282,6 +330,7 @@
     er.active = null;
     er.nextIn = rand(100, 160);
     er.warned = false;
+    if (kind === 'pharmacy') { p.erStage = 'recover'; er.follow = { p, def: a.def }; }
     // Hasta kısa bir gözlemden sonra ayrılır (oyun zamanıyla)
     er.leaving.push({ a, p, kind, t: kind === 'transfer' ? 0.2 : 3.5 });
   }
@@ -294,9 +343,14 @@
       er.leaving.splice(i, 1);
       const { a, p, kind } = L;
       if (a.bay) a.bay.occ = null;
-      p.sitting = false; p.lift = 0;
-      if (kind === 'admit') E().goTo(p, 29.5, 10.4, (e) => { e.gone = true; admitToWard(e); });
-      else E().goTo(p, 33.4, 21.5, (e) => { e.gone = true; });
+      p.sitting = false; p.lying = false; p.lift = 0;
+      if (kind === 'pharmacy') {
+        // 4. adım: eczanede ilaç teslimi ve taburcu (Başhekim onayı)
+        p.erStage = 'pharmacy';
+        er.follow = { p, def: a.def };
+        E().say(p, 'Çok daha iyiyim, teşekkürler! Eczaneye geçiyorum.', 2600);
+        E().toPharmacy(p);
+      } else E().goTo(p, 33.4, 21.5, (e) => { e.gone = true; });
     }
   }
 
@@ -359,10 +413,15 @@
     sivi: { name: 'Ağızdan sıvı-tuz (ORS) desteği', opts: [['Paketi tarif edilen miktarda suyla hazırlayıp yudum yudum için.', true], ['Daha etkili olsun diye az suyla koyu hazırlayın.', false], ['Kola ile karıştırın.', false]] },
     sevk: { name: 'Uzman/tetkik yönlendirme bilgilendirmesi', opts: [['Randevu bilgisini ve uyarı işaretlerini yazılı verin; bu belirtiler olursa acile başvursun.', true], ['Uzmana gerek yok, takviye ile geçer deyin.', false], ['İnternetten araştırmasını önerin.', false]] },
   };
+  RX.inhaler = { name: 'Kurtarıcı inhaler (hekim reçetesiyle)', opts: [['Önce nefesinizi verin, inhaleri sıkarken yavaş ve derin nefes alın, 10 sn tutun; sık ihtiyaç olursa hekime başvurun.', true], ['Rahatlayana kadar art arda istediğiniz kadar sıkın.', false], ['Nefes darlığı geçince ilacı bir kenara atabilirsiniz.', false]] };
+  RX.seker = { name: 'Kan şekeri düşüklüğü bilgilendirmesi', opts: [['Titreme-terlemede hemen hızlı şeker alın, 15 dk sonra ölçün; ilaç dozlarınızı hekiminizle gözden geçirin.', true], ['Şeker düşerse ilacınızın dozunu kendiniz artırın.', false], ['Öğün atlamanın bir sakıncası yok.', false]] };
+  RX.alerji = { name: 'Alerji bilgilendirmesi', opts: [['Fıstık içeren ürünlerden kaçının, etiket okuyun; hekim yazdıysa adrenalin oto-enjektörünü yanınızda taşıyın.', true], ['Az miktarda yemekte sakınca yok.', false], ['Belirti olursa beklemeniz yeterli.', false]] };
+  const ER_RX = { asthma: 'inhaler', chest: 'sevk', dehyd: 'sivi', hypo: 'seker', arrhythmia: 'sevk', heat: 'sivi', trauma: 'agri', allergy: 'alerji' };
   const CASE_RX = { c01: 'demir', c02: 'b12', c03: 'magnezyum', c04: 'dvit', c05: 'sevk', c06: 'folat', c07: 'cinko', c08: 'sevk', c09: 'magnezyum', c10: 'sevk', c11: 'sevk', c12: 'sevk', c13: 'sevk', c14: 'dvit' };
   const COMPLAINT_RX = [[/yorgun|halsiz/i, 'demir'], [/kramp|uyku|baş ağrı/i, 'magnezyum'], [/eklem|ağrı/i, 'agri'], [/saç/i, 'cinko'], [/uyuşma|dikkat/i, 'b12'], [/mide|iştah/i, 'sivi']];
 
   function rxFor(p) {
+    if (p.erRef) return ER_RX[p.erRef.id] || 'sevk';
     if (p.caseRef) return p.caseChoice && p.caseChoice !== 'complete' ? 'sevk' : CASE_RX[p.caseRef.id] || 'dvit';
     const hit = COMPLAINT_RX.find(([re]) => re.test(p.complaint || ''));
     return hit ? hit[1] : pick(Object.keys(RX).filter((k) => k !== 'sevk'));
@@ -389,16 +448,23 @@
   }
 
   function counsel(p, ok, rx) {
-    const bonus = 400 * (has('upgrades', 'digitalPharmacy') ? 2 : 1);
     const correct = rx.opts.find((o) => o[1])[0];
-    if (ok) { reward(1, 0, bonus); sound('success'); }
-    else { reward(-1, -1, 0); sound('error'); }
+    let mult = 1, bonus = 0;
+    if (ok) {
+      mult = comboHit((p.erRef ? 1 : (p.patience === undefined ? 100 : p.patience) / 100), 'Eczane');
+      bonus = 400 * (has('upgrades', 'digitalPharmacy') ? 2 : 1) * mult;
+      reward(mult, 0, bonus); sound('success');
+      shift.stats.pharmacy++;
+    } else { reward(-1, -1, 0); sound('error'); comboBreak('yanlış ilaç bilgisi'); }
     E().say(p, ok ? 'Çok net anlattınız, teşekkürler!' : 'Hmm… emin değilim.', 2600);
+    const ward = p.erRef && has('services', 'ward');
     UI().openDialog({
       icon: ok ? '✅' : '⚠️', title: ok ? 'Doğru bilgilendirme' : 'Eksik/yanlış bilgilendirme', subtitle: rx.name,
-      text: ok ? `Hasta ilacını doğru kullanacak. Bütçe +${money(bonus)} · İtibar +1` : `Doğrusu: ${correct}\nİtibar −1 · Hasta Güvenliği −1`,
+      text: (ok ? `Hasta ilacını doğru kullanacak. Bütçe +${money(bonus)} · İtibar +${mult}${mult > 1 ? `  (🔥 ${mult}x kombo)` : ''}` : `Doğrusu: ${correct}\nİtibar −1 · Hasta Güvenliği −1`)
+        + (p.erRef ? `\n\n✅ Acil vaka tamamlandı: ${ward ? 'hasta gözlem için yatan hasta servisine alınıyor.' : 'hasta taburcu edildi.'}` : ''),
     });
-    E().approvePharmacy(p);
+    if (p.erRef) p.erStage = 'done';
+    E().approvePharmacy(p, ward ? [29.5, 10.4, (e) => admitToWard(e)] : null);
     persist();
   }
 
@@ -411,10 +477,11 @@
     return null;
   }
 
-  function buy(group, item) {
+  function buy(group, item, rerender) {
     const st = S();
     if (canBuy(item, has(group, item.id))) return;
     st.budget -= item.cost;
+    if (shift.stats) shift.stats.spent += item.cost;
     st[group] = st[group] || {};
     st[group][item.id] = true;
     sound('success');
@@ -422,10 +489,10 @@
     if (group === 'services') { setupService(item.id); UI().toast(`🏗️ ${item.name} açıldı! Asansörle ${M().floorName(item.floor)}'a çıkabilirsiniz.`, 4200); }
     else UI().toast(`✅ ${item.name} hazır.`, 2600);
     persist();
-    openPanel(panelTab);
+    if (rerender) rerender(); else openPanel(panelTab);
   }
 
-  function itemCard(group, item) {
+  function itemCard(group, item, rerender) {
     const owned = has(group, item.id);
     const card = el('div', { className: 'shop-card' + (owned ? ' owned' : '') });
     card.appendChild(el('div', { className: 'shop-icon' }, item.icon));
@@ -438,7 +505,7 @@
     const label = owned ? '✓ Aktif' : group === 'hires' ? 'İşe al' : group === 'services' ? 'İnşa et' : 'Satın al';
     const b = el('button', { type: 'button', className: 'dlg-btn' + (why ? ' ghost' : '') }, why && !owned ? why : label);
     b.disabled = !!why;
-    b.addEventListener('click', () => buy(group, item));
+    b.addEventListener('click', () => buy(group, item, rerender));
     card.appendChild(b);
     return card;
   }
@@ -452,7 +519,7 @@
       .forEach((t) => stats.appendChild(el('span', {}, t)));
     node.appendChild(stats);
     const tabs = el('div', { className: 'tabs' });
-    [['genel', 'Genel'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Personel'], ['servis', 'Servisler & Katlar']].forEach(([id, label]) => {
+    [['genel', 'Genel'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Personel'], ['servis', 'Servisler & Katlar']].forEach(([id, label]) => {
       const b = el('button', { type: 'button', className: 'tab' + (panelTab === id ? ' on' : '') }, label);
       b.addEventListener('click', () => openPanel(id));
       tabs.appendChild(b);
@@ -482,10 +549,120 @@
       row.appendChild(saveBtn); row.appendChild(resetBtn);
       list.appendChild(row);
     } else if (panelTab === 'yukseltme') UPGRADES.forEach((u) => list.appendChild(itemCard('upgrades', u)));
+    else if (panelTab === 'gelisim') list.appendChild(devCards(() => openPanel('gelisim')));
     else if (panelTab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u)));
     else SERVICES.forEach((u) => list.appendChild(itemCard('services', u)));
     node.appendChild(list);
     UI().openDialog({ icon: '🏗️', title: 'Başhekim Yönetim & İnşa Paneli', subtitle: 'Cihaz yükseltme · Personel · Yeni servisler', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
+  }
+
+  // ---------------------------------------------------------------- Geliştirme mağazası & nöbet özeti
+  function buyDev(id, rerender) {
+    const d = DEV.find((x) => x.id === id);
+    const lvl = devLevel(id);
+    if (!d || lvl >= d.costs.length) return false;
+    const cost = d.costs[lvl];
+    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return false; }
+    S().budget -= cost;
+    S().dev = S().dev || {};
+    S().dev[id] = lvl + 1;
+    shift.stats.spent += cost;
+    sound('success');
+    persist();
+    if (rerender) rerender();
+    return true;
+  }
+
+  function devCards(rerender) {
+    const box = el('div', { className: 'shop' });
+    DEV.forEach((d) => {
+      const lvl = devLevel(d.id), max = d.costs.length;
+      const card = el('div', { className: 'shop-card' + (lvl >= max ? ' owned' : '') });
+      card.appendChild(el('div', { className: 'shop-icon' }, d.icon));
+      const body = el('div', { className: 'shop-body' });
+      body.appendChild(el('strong', {}, d.name));
+      body.appendChild(el('span', { className: 'opt-desc' }, d.desc));
+      body.appendChild(el('span', { className: 'pips' }, '●'.repeat(lvl) + '○'.repeat(max - lvl) + `  Seviye ${lvl}/${max}`));
+      card.appendChild(body);
+      const cost = d.costs[lvl];
+      const short = lvl < max && S().budget < cost;
+      const b = el('button', { type: 'button', className: 'dlg-btn' + (lvl >= max || short ? ' ghost' : '') }, lvl >= max ? '✓ Maks.' : `Yükselt ${money(cost)}`);
+      b.disabled = lvl >= max || short;
+      b.addEventListener('click', () => buyDev(d.id, rerender));
+      card.appendChild(b);
+      box.appendChild(card);
+    });
+    return box;
+  }
+
+  function endShift() {
+    const st = shift.stats;
+    const summary = {
+      n: shift.n, night: isNightShift(), treated: st.treated, er: st.er, erFail: st.erFail, cases: st.cases, pharmacy: st.pharmacy, angry: st.angry,
+      rep: S().reputation - st.rep0, income: Math.round(S().budget - st.budget0 + st.spent), bestCombo: st.bestCombo,
+    };
+    S().shiftLog = (S().shiftLog || []).concat([summary]).slice(-10);
+    VH.paused = true;
+    sound('notify');
+    persist();
+    openShiftSummary(summary);
+  }
+
+  function openShiftSummary(sm) {
+    const node = el('div', { className: 'shift' });
+    const grid = el('div', { className: 'shift-grid' });
+    const card = (icon, label, value, cls) => {
+      const c = el('div', { className: 'shift-card' + (cls ? ' ' + cls : '') });
+      c.appendChild(el('span', { className: 'sc-icon' }, icon));
+      c.appendChild(el('span', { className: 'sc-val' }, value));
+      c.appendChild(el('span', { className: 'sc-label' }, label));
+      grid.appendChild(c);
+    };
+    card('🧑‍⚕️', 'Tedavi edilen hasta', String(sm.treated + sm.er));
+    card('🚑', 'Acil müdahale', `${sm.er}${sm.erFail ? ' (' + sm.erFail + ' sevk)' : ''}`, sm.erFail ? 'warn-c' : '');
+    card('★', 'Kazanılan itibar', (sm.rep >= 0 ? '+' : '') + sm.rep, sm.rep >= 0 ? 'up-c' : 'down-c');
+    card('💰', 'Nöbet geliri', money(sm.income), sm.income >= 0 ? 'up-c' : 'down-c');
+    card('📋', 'Çözülen vaka', String(sm.cases));
+    card('💊', 'Eczane bilgilendirme', String(sm.pharmacy));
+    card('🔥', 'En iyi kombo', sm.bestCombo + 'x');
+    card('😤', 'Bekleyip giden', String(sm.angry), sm.angry ? 'warn-c' : '');
+    node.appendChild(grid);
+    node.appendChild(el('div', { className: 'sec-title' }, `Geliştirme Mağazası · Bütçe ${money(S().budget)}`));
+    const rerender = () => { UI().openDialog(spec()); };
+    node.appendChild(devCards(rerender));
+    node.appendChild(el('div', { className: 'sec-title' }, 'Yeni servis katları'));
+    const sv = el('div', { className: 'shop' });
+    SERVICES.forEach((s) => sv.appendChild(itemCard('services', s, rerender)));
+    node.appendChild(sv);
+    const spec = () => ({
+      icon: sm.night ? '🌙' : '☀️', title: `Nöbet Özeti · ${sm.n}. ${sm.night ? 'Gece' : 'Gündüz'} Nöbeti`,
+      subtitle: 'Kazandığınız bütçeyle başhekimi ve hastaneyi geliştirin', wide: true, node: (() => { const n2 = node.cloneNode(false); return rebuild(n2); })(),
+      actions: [{ label: `▶ ${sm.n + 1}. nöbete başla (${(sm.n + 1) % 2 === 0 ? 'Gece' : 'Gündüz'})`, fn: startNextShift }],
+      onClose: startNextShift,
+    });
+    // Kart içerikleri bütçe değiştikçe yeniden üretilir
+    function rebuild(n2) {
+      n2.appendChild(grid);
+      n2.appendChild(el('div', { className: 'sec-title' }, `Geliştirme Mağazası · Bütçe ${money(S().budget)}`));
+      n2.appendChild(devCards(rerender));
+      n2.appendChild(el('div', { className: 'sec-title' }, 'Yeni servis katları'));
+      const sv2 = el('div', { className: 'shop' });
+      SERVICES.forEach((s) => sv2.appendChild(itemCard('services', s, rerender)));
+      n2.appendChild(sv2);
+      return n2;
+    }
+    UI().openDialog(spec());
+  }
+
+  function startNextShift() {
+    if (!VH.paused) return;
+    UI().closeDialog(true);
+    shift.n += 1;
+    shift.t = SHIFT_LEN;
+    shift.stats = freshStats();
+    VH.paused = false;
+    UI().toast(isNightShift() ? `🌙 ${shift.n}. Gece Nöbeti başladı` : `☀️ ${shift.n}. Gündüz Nöbeti başladı`, 2600);
+    persist();
   }
 
   function confirmReset() {
@@ -691,22 +868,41 @@
   // ================================================================ API
   let incomeAcc = 0;
   VH.hospital = {
-    UPGRADES, HIRES, SERVICES, ER_TYPES, RX, er,
-    mod, level, incomePerMin, has,
+    UPGRADES, HIRES, SERVICES, ER_TYPES, RX, UNITS, DEV, er, combo, shift, SHIFT_LEN,
+    mod, level, incomePerMin, has, devLevel, comboHit, comboBreak,
+    get gameTime() { return gameTime; },
+    get night() { return nightF; },
+    get isNightShift() { return isNightShift(); },
+    erMaxTime: (def) => def.time + erTimeBonus(),
     init() {
       const st = S();
-      st.upgrades = st.upgrades || {}; st.hires = st.hires || {}; st.services = st.services || {};
+      st.upgrades = st.upgrades || {}; st.hires = st.hires || {}; st.services = st.services || {}; st.dev = st.dev || {};
+      if (st.shiftN) shift.n = st.shiftN;
+      if (st.shiftT) shift.t = Math.max(20, Math.min(SHIFT_LEN, st.shiftT));
+      shift.stats = freshStats();
+      nightF = isNightShift() ? 1 : 0;
       // Kayıttan gelen alımları yeniden kur
       HIRES.forEach((h) => { if (st.hires[h.id]) E().addStaff(Object.assign({ id: h.id }, h.staff), 0); });
       SERVICES.forEach((s) => { if (st.services[s.id]) setupService(s.id); });
     },
     update(dt) {
+      gameTime += dt;
       updateER(dt);
       incomeAcc += dt;
       if (incomeAcc >= 1) {
         S().budget += (incomePerMin() / 60) * incomeAcc;
         incomeAcc = 0;
       }
+      // kombo süresi doldu mu?
+      if (combo.streak && gameTime > combo.until) { combo.streak = 0; combo.mult = 1; }
+      // ER takip: hasta eczaneden ayrılınca akış tamamlanır
+      if (er.follow && (er.follow.p.gone || er.follow.p.state === 'leaving')) { er.follow.doneAt = er.follow.doneAt || gameTime; if (gameTime - er.follow.doneAt > 4) er.follow = null; }
+      // vardiya
+      if (!VH.paused) shift.t -= dt;
+      S().shiftN = shift.n; S().shiftT = Math.round(shift.t);
+      const target = isNightShift() ? 1 : 0;
+      nightF += Math.sign(target - nightF) * Math.min(Math.abs(target - nightF), dt / 6);
+      if (shift.t <= 0 && !VH.paused) endShift();
       UI().setAlert(alertText());
     },
     handleInteract,
@@ -719,14 +915,21 @@
     },
     drawables,
     drawOverlay,
-    openPanel, openElevator, travel,
-    onServed() { S().budget += 150 + (has('upgrades', 'comfort') ? 50 : 0); },
+    openPanel, openElevator, travel, endShift,
+    onServed(p) {
+      S().budget += 150 + (has('upgrades', 'comfort') ? 50 : 0);
+      if (shift.stats && !(p && p.erRef)) shift.stats.treated++;
+    },
     onPharmacyAuto() { if (has('hires', 'pharmTech')) S().budget += 150; },
+    onAngryLeave() { reward(-1, 0, 0); if (shift.stats) shift.stats.angry++; comboBreak('hasta beklemekten sıkıldı'); },
+    onCaseSolved() { if (shift.stats) shift.stats.cases++; },
     // test yardımcıları
     _startEmergency: startEmergency,
     _triage: triage,
     _buy: (group, id) => buy(group, ({ upgrades: UPGRADES, hires: HIRES, services: SERVICES })[group].find((x) => x.id === id)),
+    _buyDev: (id) => buyDev(id),
     _counsel: (p, i) => { p.rx = p.rx || rxFor(p); counsel(p, RX[p.rx].opts[i][1], RX[p.rx]); },
     _rxFor: rxFor,
+    _setShiftTime: (t) => { shift.t = t; },
   };
 })();

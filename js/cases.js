@@ -578,6 +578,18 @@
     // Açılan servislerin ek katkıları (Aşama 5)
     const bonusNotes = [];
     let bonus = 0;
+    // Kombo: bekletmeden verilen en güvenli karar zinciri uzatır; aceleci/riskli karar bozar
+    let mult = 1;
+    if (VH.hospital) {
+      if (grade === 'best' && !hasty) mult = VH.hospital.comboHit((a.patient.patience === undefined ? 100 : a.patient.patience) / 100, 'Klinik Karar');
+      else if (grade === 'risky' || hasty) VH.hospital.comboBreak('aceleci ya da riskli karar');
+      VH.hospital.onCaseSolved();
+    }
+    if (mult > 1) {
+      bonus += r.budget * (mult - 1);
+      state.reputation = clamp(state.reputation + (mult - 1) * 2);
+      bonusNotes.push(`🔥 ${mult}x Klinik Karar Kombosu: bütçe ödülü ${mult} katı, itibar +${(mult - 1) * 2}`);
+    }
     if (choice === 'tests' && state.services.radiology && grade !== 'risky') { bonus += 1000; bonusNotes.push('📡 Tetkikler Radyoloji katında yapıldı: +₺1.000'); }
     if (c.age < 13 && state.services.ward && grade === 'best') { bonus += 1000; bonusNotes.push('🧸 Pediatri servisi çocuğu hemen devraldı: +₺1.000'); }
     state.budget += r.budget + bonus;

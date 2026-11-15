@@ -12,6 +12,7 @@
 
   const joy = { x: 0, y: 0, active: false };
   let dialogOpen = false;
+  let dialogOnClose = null;
   let actionSig = '';
 
   VH.ui = {
@@ -20,7 +21,7 @@
     // ------------------------------------------------------------ Yükleme ekranı
     loaderProgress(done, total) {
       $('loader-fill').style.width = ((done / total) * 100).toFixed(1) + '%';
-      $('loader-text').textContent = `Görseller yükleniyor… ${done}/${total}`;
+      $('loader-text').textContent = `Hastane çiziliyor… ${done}/${total}`;
     },
     loaderErrors(paths) {
       const ul = $('loader-errors');
@@ -167,7 +168,7 @@
     // ------------------------------------------------------------ Diyalog
     isDialogOpen() { return dialogOpen; },
     openDialog(spec) {
-      VH.ui.closeDialog();
+      VH.ui.closeDialog(true);
       const box = el('div', { id: 'dialog', role: 'dialog', className: spec.wide ? 'wide' : '' });
       const head = el('div', { className: 'dlg-head' });
       head.appendChild(el('div', { className: 'dlg-icon' }, spec.icon || '💬'));
@@ -195,16 +196,114 @@
       $('ui-root').appendChild(box);
       if (spec.scrollTop) { const b = box.querySelector('.dlg-body'); if (b) b.scrollTop = spec.scrollTop; }
       dialogOpen = true;
+      dialogOnClose = spec.onClose || null;
       actionSig = '';
     },
-    closeDialog() {
+    /** silent: başka diyalog açılırken (onClose tetiklenmez). */
+    closeDialog(silent) {
       const d = $('dialog');
       if (d) d.remove();
       dialogOpen = false;
+      const cb = dialogOnClose;
+      dialogOnClose = null;
+      if (!silent && cb) cb();
       actionSig = '';
     },
 
     el,
+
+    /**
+     * Aktif Vaka Akış Şeması paneli. model: guide.js akışı; flows: sekmeler; onTab(id).
+     * DOM yalnızca yapı değişince yeniden kurulur; süre/bar her karede güncellenir.
+     */
+    setFlow(model, flows, onTab) {
+      let box = $('flow');
+      if (!box) {
+        box = el('div', { id: 'flow', role: 'region' });
+        box.setAttribute('aria-label', 'Aktif Vaka Akış Şeması');
+        box.addEventListener('click', (e) => {
+          const t = e.target.closest('[data-tab]');
+          if (t && box._onTab) box._onTab(t.dataset.tab);
+          if (e.target.closest('[data-file]') && VH.cases) VH.cases.openCaseFile();
+          if (e.target.closest('[data-min]')) { box.classList.toggle('min'); }
+        });
+        $('ui-root').appendChild(box);
+      }
+      box._onTab = onTab;
+      const hud = $('hud');
+      if (hud) { const top = hud.getBoundingClientRect().bottom + 8; if (box._top !== top) { box._top = top; box.style.top = top + 'px'; } }
+      const sig = model ? [model.id, model.title, model.patient, model.instruction, model.steps.map((s) => s.state).join(''), flows.map((f) => f.id).join()].join('|') : 'idle';
+      if (box._sig !== sig) {
+        box._sig = sig;
+        box.innerHTML = '';
+        const head = el('div', { className: 'flow-head' });
+        head.appendChild(el('span', { className: 'flow-kicker' }, 'Aktif Vaka Akış Şeması'));
+        const tabs = el('span', { className: 'flow-tabs' });
+        if (model && flows.length > 1) flows.forEach((f) => {
+          const b = el('button', { type: 'button', className: 'flow-tab' + (f.id === model.id ? ' on' : '') }, f.tab);
+          b.dataset.tab = f.id;
+          tabs.appendChild(b);
+        });
+        head.appendChild(tabs);
+        const mn = el('button', { type: 'button', className: 'flow-min', title: 'Küçült/Büyüt' }, '▾');
+        mn.dataset.min = '1';
+        head.appendChild(mn);
+        box.appendChild(head);
+        if (!model) {
+          box.classList.add('idle');
+          box.appendChild(el('div', { className: 'flow-instr' }, '✓ Bekleyen acil vaka yok. Sıradaki ★ vaka hastası ya da ambulans yolda; bu arada eczane ve bekleme salonunu kontrol edin.'));
+        } else {
+          box.classList.remove('idle');
+          box.classList.toggle('urgent', !!model.urgent);
+          const pt = el('div', { className: 'flow-patient' });
+          pt.appendChild(el('strong', {}, model.title));
+          pt.appendChild(el('span', {}, ' · ' + model.patient));
+          const tm = el('span', { className: 'flow-timer' });
+          pt.appendChild(tm);
+          box.appendChild(pt);
+          const steps = el('ol', { className: 'flow-steps' });
+          model.steps.forEach((s, i) => {
+            const li = el('li', { className: 'fs ' + s.state });
+            li.appendChild(el('span', { className: 'fs-n' }, s.state === 'done' ? '✓' : String(i + 1)));
+            li.appendChild(el('span', { className: 'fs-l' }, s.label));
+            steps.appendChild(li);
+            if (i < model.steps.length - 1) steps.appendChild(el('li', { className: 'fs-arrow', ariaHidden: 'true' }, '➔'));
+          });
+          box.appendChild(steps);
+          const ins = el('div', { className: 'flow-instr' });
+          ins.appendChild(el('span', { className: 'fi-icon' }, '👉'));
+          ins.appendChild(el('span', {}, model.instruction));
+          if (model.id === 'case') { const fb = el('button', { type: 'button', className: 'flow-link' }, 'Vaka dosyası'); fb.dataset.file = '1'; ins.appendChild(fb); }
+          box.appendChild(ins);
+          const bar = el('div', { className: 'flow-bar' });
+          bar.appendChild(el('div', { className: 'flow-bar-fill' }));
+          box.appendChild(bar);
+        }
+      }
+      if (model) {
+        const tm = box.querySelector('.flow-timer');
+        if (tm) tm.textContent = model.timer ? ' · ⏱ ' + model.timer : '';
+        const fill = box.querySelector('.flow-bar-fill');
+        if (fill) {
+          const v = model.bar === null || model.bar === undefined ? null : Math.max(0, Math.min(1, model.bar));
+          fill.parentNode.hidden = v === null;
+          if (v !== null) { fill.style.width = (v * 100).toFixed(1) + '%'; fill.style.background = v > 0.6 ? '#46c46a' : v > 0.3 ? '#f2c94c' : '#ff5a5f'; }
+        }
+      }
+    },
+
+    /** Kombo rozeti (streak 0 → gizli). */
+    setCombo(mult, frac, streak) {
+      const c = $('chip-combo');
+      if (!c) return;
+      c.hidden = !streak;
+      if (!streak) return;
+      const text = mult > 1 ? `🔥 Kombo x${mult}` : '🔥 Kombo başladı';
+      if (c.firstChild && c.firstChild.nodeType === 3 && c.firstChild.nodeValue === text) { /* aynı */ } else { c.textContent = text; c.appendChild(el('span', { className: 'combo-bar' })); }
+      const b = c.querySelector('.combo-bar');
+      if (b) b.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+      c.classList.toggle('hot', mult > 1);
+    },
 
     /** Acil durum çipi (boş metin → gizli). */
     setAlert(text) {

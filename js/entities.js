@@ -45,6 +45,29 @@
    * 2.5D insan figürü. (sx, sy) ayakların yere bastığı izo nokta.
    * pose: { t, moving, flip, back, sitting, lift, ring }
    */
+  /** Sedyede/yatakta yatan hasta: battaniye altında gövde + yastıkta baş (ekran ekseni boyunca). */
+  function drawLying(ctx, sx, sy, look, angle) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(angle);
+    ctx.scale(1, 0.62);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    rr(ctx, -17, -5, 34, 13, 6);
+    ctx.fillStyle = '#9cc7e6';
+    rr(ctx, -16, -7, 28, 14, 6);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillRect(-14, -2, 24, 2);
+    ctx.fillStyle = look.coat;
+    rr(ctx, 6, -6, 7, 12, 3);
+    ctx.restore();
+    // baş (döndürmeden, okunaklı)
+    const hx = sx + Math.cos(angle) * 15, hy = sy + Math.sin(angle) * 15 * 0.62;
+    ctx.fillStyle = look.skin;
+    ctx.beginPath(); ctx.arc(hx, hy - 3, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = look.hair;
+    ctx.beginPath(); ctx.arc(hx, hy - 4.5, 5.2, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+  }
+
   function drawPerson(ctx, sx, sy, look, pose) {
     pose = pose || {};
     const t = pose.t || 0;
@@ -52,6 +75,7 @@
     const swing = moving ? Math.sin(t) : 0;
     const bob = moving ? -Math.abs(Math.cos(t)) * 1.3 : 0;
 
+    if (pose.lying) { drawLying(ctx, sx, sy - (pose.lift || 0), look, pose.angle || 0); return; }
     ctx.save();
     ctx.translate(sx, sy);
     // gölge + oyuncu halkası
@@ -215,7 +239,7 @@
 
   /** Varlığı (tx,ty) noktasına yürüt. via: önce ulaşılacak yürünebilir hücre (koltuk/sedye için). */
   function goTo(e, tx, ty, onArrive, via) {
-    e.sitting = false; e.lift = 0;
+    e.sitting = false; e.lying = false; e.lift = 0;
     const vx = via ? via[0] : Math.floor(tx), vy = via ? via[1] : Math.floor(ty);
     const p = findPath(Math.floor(e.x), Math.floor(e.y), vx, vy, e.floor);
     if (p === null) { e.x = tx; e.y = ty; e.path = []; e.onArrive = null; if (onArrive) onArrive(e); return; }
@@ -282,7 +306,7 @@
     let rx = input.x + input.y, ry = input.y - input.x;
     const l = Math.hypot(rx, ry) || 1;
     [rx, ry] = M().unrotVec(rx / l, ry / l);
-    const speed = 3.1 * (input.run ? 1.6 : 1) * mag;
+    const speed = 3.1 * mod("playerSpeed") * (input.run ? 1.6 : 1) * mag;
     const mx = rx * speed * dt, my = ry * speed * dt;
     face(player, rx, ry);
     const ox = player.x, oy = player.y;
@@ -348,7 +372,13 @@
     ...[11, 12, 13].map((x) => ({ seat: [x + 0.5, 17.55], via: [x, 18] })),
     ...[16, 17].map((x) => ({ seat: [x + 0.5, 14.55], via: [x, 15] })),
     ...[16, 17].map((x) => ({ seat: [x + 0.5, 17.55], via: [x, 18] })),
-  ].map((s) => Object.assign(s, { occ: null }));
+    // Kapasite geliştirmesiyle açılan ek koltuklar (cap = gereken seviye)
+    { seat: [1.5, 19.55], via: [2, 19], cap: 1 }, { seat: [1.5, 20.55], via: [2, 20], cap: 1 },
+    { seat: [14.5, 20.55], via: [14, 21], cap: 2 }, { seat: [15.5, 20.55], via: [15, 21], cap: 2 },
+    { seat: [16.5, 20.55], via: [16, 21], cap: 3 }, { seat: [17.5, 20.55], via: [17, 21], cap: 3 },
+  ].map((s) => Object.assign({ cap: 0 }, s, { occ: null }));
+  const capLevel = () => (VH.hospital && VH.hospital.devLevel ? VH.hospital.devLevel("capacity") : 0);
+  const openSeats = () => SEATS.filter((s) => s.cap <= capLevel());
   const EXAMS = [
     { name: 'Muayene 1', bed: [10.75, 5.5], via: [10, 6], doctor: 'doctor1', docSpot: [9.5, 5.5], patient: null },
     { name: 'Muayene 2', bed: [15.75, 5.5], via: [15, 6], doctor: 'doctor2', docSpot: [14.5, 5.5], patient: null },
@@ -364,7 +394,7 @@
   const pharmacyQueue = [];
   const stats = { registered: 0, served: 0, ticket: 0 };
   let spawnTimer = 2;
-  const MAX_PATIENTS = 8;
+  const maxPatients = () => 8 + 2 * capLevel();
 
   const STATUS = {
     queue: 'Resepsiyon kuyruğunda', registering: 'Kayıt yaptırıyor', toSeat: 'Bekleme salonuna gidiyor',
@@ -429,8 +459,31 @@
     refreshQueue(queue, slots);
   }
 
+  // Bekleme durumlarında sabır kaybı (puan/sn). Tedavi alırken toparlanır.
+  const PATIENCE_DRAIN = { queue: 0.55, registering: 0.3, waiting: 0.65, toSeat: 0.3, labWait: 0.5, pharmacy: 0.9, exam: 0.25 };
+  function updatePatience(p, dt) {
+    if (p.state === 'resident' || p.state === 'leaving' || p.erRef) return;
+    if (p.patience === undefined) p.patience = 100;
+    let drain = PATIENCE_DRAIN[p.state] || 0;
+    if (p.state === 'exam' && !p.caseRef) drain = -6;          // muayene ediliyor → toparlanır
+    if (p.state === 'lab' || p.state === 'toExam' || p.state === 'toLab') drain = -3;
+    if (p.state === 'pharmacy' && !(pharmacyQueue[0] === p && p.awaitingRx)) drain = 0.3;
+    drain *= mod('patienceDrain');
+    p.patience = Math.max(0, Math.min(100, p.patience - drain * dt));
+    // Bekleme salonunda sabrı tükenen hasta söylenerek ayrılır
+    if (p.patience <= 0 && p.state === 'waiting' && !p.caseRef) {
+      if (p.seatRef) { p.seatRef.occ = null; p.seatRef = null; }
+      p.sitting = false; p.lift = 0;
+      say(p, 'Çok bekledim, başka hastaneye gidiyorum!', 3000);
+      if (VH.hospital) VH.hospital.onAngryLeave(p);
+      p.state = 'leaving';
+      goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
+    }
+  }
+
   function updatePatient(p, dt) {
     stepPath(p, dt);
+    updatePatience(p, dt);
     p.timer -= dt;
     switch (p.state) {
       case 'queue':
@@ -443,7 +496,7 @@
         break;
       case 'registering':
         if (p.timer <= 0) {
-          const seat = SEATS.find((s) => !s.occ);
+          const seat = openSeats().find((s) => !s.occ);
           if (!seat) { p.timer = 1; break; }
           stats.registered++; stats.ticket++;
           p.ticket = 'A-' + String(stats.ticket).padStart(3, '0');
@@ -595,11 +648,12 @@
     refreshQueue(pharmacyQueue, PHARMACY_SLOTS);
   }
 
-  function leave(p) {
+  function leave(p, dest) {
     p.state = 'leaving';
     stats.served++;
     if (VH.hospital) VH.hospital.onServed(p);
-    goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
+    if (dest) goTo(p, dest[0], dest[1], (e) => { e.gone = true; if (dest[2]) dest[2](e); });
+    else goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
   }
 
   function updatePatients(dt) {
@@ -607,7 +661,7 @@
     if (spawnTimer <= 0) {
       spawnTimer = rand(7, 13) * mod("spawnInterval");
       const busySeats = SEATS.filter((s) => s.occ).length;
-      if (patients.length < MAX_PATIENTS && busySeats < SEATS.length - 1) spawnPatient();
+      if (patients.filter((p) => p.state !== "resident").length < maxPatients() && busySeats < openSeats().length - 1) spawnPatient();
     }
     patients.forEach((p) => updatePatient(p, dt));
     callNextPatients();
@@ -789,11 +843,14 @@
     const all = [player].concat(staff, patients).filter((e) => e.floor === map.floor && !e.gone);
     return all.map((e) => {
       const [sx, sy] = map.worldToIso(e.x, e.y);
+      let angle = 0;
+      if (e.lying) { const [ax, ay] = map.worldToIso(e.x + 1, e.y); angle = Math.atan2(ay - sy, ax - sx); }
       return {
         // Oturan karakter, üzerine oturduğu koltuk/sedyeden sonra çizilmeli (ön hücre anahtarını geçer)
-        kind: 'ent', key: map.depthAt(e.x, e.y) + (e.sitting ? 0.9 : 0.02), cx: sx, cy: sy,
+        kind: 'ent', key: map.depthAt(e.x, e.y) + (e.sitting || e.lying ? 0.9 : 0.02), cx: sx, cy: sy,
         draw: (ctx) => drawPerson(ctx, sx, sy, e.look, {
           t: e.anim, moving: e.moving, flip: e.flip, back: e.back, sitting: e.sitting, lift: e.lift, ring: e === player,
+          lying: e.lying, angle,
         }),
       };
     });
@@ -927,10 +984,10 @@
       return p && p.arrivedSlot && p.awaitingRx ? p : null;
     },
     /** Eczanede Başhekim onayı verildi: hasta hemen ayrılır. */
-    approvePharmacy(p) {
+    approvePharmacy(p, dest) {
       p.awaitingRx = false;
       leaveQueue(pharmacyQueue, p, PHARMACY_SLOTS);
-      leave(p);
+      leave(p, dest);
     },
     addStaff(def, floor) {
       const s = makeEntity('staff', {
@@ -951,6 +1008,9 @@
       return p;
     },
     spawnPatientNow: spawnPatient,
+    toPharmacy,
+    maxPatients,
+    get openSeatCount() { return openSeats().length; },
     randomName: () => pick(FIRST) + ' ' + pick(LAST),
   };
   STATUS.resident = 'Serviste yatıyor';

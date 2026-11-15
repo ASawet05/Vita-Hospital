@@ -1,101 +1,58 @@
 # Vita Hospital
 
-2.5D izometrik hastane yönetimi, acil servis ve klinik dedektiflik oyunu. Tarayıcıda çalışır; GitHub Pages ile yayınlanır, derleme adımı gerekmez.
+2.5D izometrik hastane yönetimi, acil servis ve klinik dedektiflik oyunu. Tarayıcıda çalışır, kurulum ya da derleme gerektirmez.
 
-> **Önemli:** Vita Hospital bir eğitim oyunudur. Gerçek tıbbi teşhis veya tedavi önerisi sunmaz. Amacı klinik düşünmeyi, doğru soru sormayı ve sağlık okuryazarlığını öğretmektir.
+> **Önemli:** Vita Hospital bir eğitim oyunudur. Gerçek tıbbi teşhis veya tedavi önerisi sunmaz. Klinik düşünmeyi, doğru soru sormayı ve sağlık okuryazarlığını öğretir. Oyundaki referans aralıkları ve acil senaryolar sadeleştirilmiş örneklerdir.
 
-## Çalıştırma
+## Tamamen özgün grafikler
 
-`index.html` dosyasını tarayıcıda açın ya da yerel bir sunucu başlatın:
+Oyunda **hiçbir harici görsel dosyası yoktur**. Zemin dokuları, duvarlar, 80'i aşkın eşya ve cihaz türü, karakterler, ambulans ve kampüs (yollar, otopark, ağaçlar, banklar, lambalar, tabela) HTML5 Canvas üzerinde kodla çizilir.
 
-```bash
-npx serve .
-# veya
-python -m http.server 8000
-```
+Çizim kiti (`js/art.js`) her nesneyi kutu, silindir, küre ve yüzey süslerinden kurar. Nesneler dünya koordinatında tanımlandığı için 4 kamera açısında da doğru yüzleri görünür.
 
-Görsel yükleme öz-testi için adrese `?selftest` ekleyin. Sayfada `VH_SELFTEST {...}` satırı çıkar ve tüm PNG'lerin yüklenip yüklenmediği burada raporlanır.
-
-## Klasör yapısı
-
-```
-index.html, style.css
-js/asset-manifest.js   assets/ altındaki tüm PNG'lerin listesi
-js/assets.js           Asset Preloader (yükleme + kırık yol raporu)
-js/audio.js            Web Audio ile sentezlenen ses efektleri
-js/save.js             localStorage kayıt sistemi (doğrulamalı)
-js/map.js              İzometrik harita motoru ve kamera
-js/entities.js         Başhekim, personel ve hasta karakterleri
-js/cases.js            Klinik vaka senaryoları
-js/ui.js               HUD, paneller, mobil kontroller
-js/main.js             Açılış ve oyun döngüsü
-assets/core/           Modern Hospital 2D Props Pack (Tiles)
-assets/lab/            ThirdAngle Hospital Surgery & Lab Starter
-assets/ward/           ThirdAngle Hospital Starter
-```
-
-## Yol haritası
-
-1. Depo, görseller ve iskelet ✔
-2. İzometrik harita motoru, kamera, 7 başlangıç bölümü ✔
-3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller ✔
-4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (14 vaka) ✔
-5. Acil servis zaman yönetimi, eczane, hastane büyütme ✔
-6. Ses efektleri, kayıt sistemi, son kalite kontrolü ✔
-
-## Görsel lisansları
-
-- **ThirdAngle** (Hospital Starter, Surgery & Lab Starter): oyunlarda kullanılabilir. Asset paketi olarak yeniden dağıtılamaz. Atıf: "ThirdAngle".
-- **Modern Hospital 2D Props Pack** (nacl1234): oyun içinde gömülü kullanılabilir. Orijinal dosyalar tek başına indirilebilir şekilde paylaşılamaz.
-
-## Kamera kontrolleri
-
-| İşlem | Masaüstü | Mobil |
-|---|---|---|
-| Kaydırma | Fare ile sürükle | Tek parmakla sürükle |
-| Yakınlaştırma | Tekerlek, `+` / `-` | İki parmak (pinch), ＋ / － düğmeleri |
-| 90° döndürme | `Q` / `R`, ⟲ ⟳ düğmeleri | ⟲ ⟳ düğmeleri |
-| Başhekimi takip | `F`, ◎ düğmesi | ◎ düğmesi |
-| Oda etiketleri | `L`, Aa düğmesi | Aa düğmesi |
-
-Test parametreleri: `?rot=0-3&zoom=0.55&x=17&y=12&follow=0&labels=0&selftest`
-
-## Oyun kontrolleri
+## Nasıl oynanır
 
 | İşlem | Masaüstü | Mobil |
 |---|---|---|
 | Yürüme | `WASD` / ok tuşları (`Shift` ile koşma) | Sol alttaki joystick |
-| Etkileşim | `E` / `Enter` veya karaktere/cihaza tıklama | Sağ alttaki dinamik eylem düğmesi veya dokunma |
-| Diyaloğu kapat | `Esc` / `E` | Tamam / ✕ |
+| Etkileşim | `E` / `Enter` veya karaktere/cihaza tıklama | Sağ alttaki dinamik eylem düğmesi |
+| Kamera | Sürükle, tekerlek, `Q` / `R` ile 90° döndürme, `F` ile takip | Sürükle, iki parmakla yakınlaştırma, düğmeler |
+| Yönetim paneli | `P` veya 🏗️ | 🏗️ |
+| Ses | `M` veya 🔊 | 🔊 |
 
-Eylem düğmeleri yakındaki hedefe göre değişir: Doktorla Konuş, Hastayı Muayene Et, Tahlil İncele, Acil Müdahale, İlaç Onayla, Kayıtları Gör, Vaka Arşivi.
+### Oyun döngüsü
 
-## Klinik vaka sistemi
+- **Aktif Vaka Akış Şeması** (sol üst): Seçili hastanın tedavi zinciri kutucuklar ve oklarla gösterilir. Tamamlanan adımlar yeşil tikle işaretlenir, aktif adım parlar ve net bir talimat yazar.
+  - Acil vaka: Ambulans Karşılama ➔ Triyaj & Tetkik ➔ İlgili Ünite Müdahalesi ➔ Eczane İlaç Teslimi & Taburcu
+  - Poliklinik vakası: Geliş ➔ Kayıt ➔ Muayene & Sorgulama ➔ Laboratuvar ➔ Klinik Karar ➔ Sonuç
+- **Yön çizgisi ve hedef vurgusu:** Gidilecek istasyonun üstünde zıplayan bir ikon ve zemin halkası belirir. Başhekimden oraya doğru, yere kesikli bir yol çizilir. Hedef başka kattaysa çizgi asansöre yönlendirir; hedef ekran dışındaysa kenarda bir ok çıkar.
+- **Acil servis:** Siren çalar ve ambulans gelir. Yaşamsal bulgulara bakıp doğru üniteyi seçin (Sedye + Monitör, Oksijen ya da Serum). Ardından cihazın yanında stabilize edin, son olarak eczanede ilaç bilgilendirmesini yapıp taburcu edin.
+- **Gizli bilgi sorgulama:** 14 çok katmanlı klinik vaka vardır. Doğru sorular gizli ipuçlarını açar; tahliller görsel bir raporla incelenir; sonunda 3 stratejik karardan biri seçilir.
+- **Sabır / stabilite barları:** Hastaların üstündeki bar zamanla yeşilden sarıya, sonra kırmızıya döner. Çok bekleyen hasta hastaneyi terk eder.
+- **Kombo zinciri:** Hastaları bekletmeden peş peşe doğru tedavi edince 2x ve 3x kombo kazanılır; bütçe ve itibar ödülleri katlanır.
+- **Nöbet (vardiya) döngüsü:** Gündüz ve gece nöbetleri dönüşümlü ilerler; gece nöbetinde sokak lambaları yanar. Her nöbet sonunda bir **Nöbet Özeti** kartı açılır. Bu kartın geliştirme mağazasından koşu hızı, tedavi hızı, hastane kapasitesi ve yeni servis katları yükseltilebilir.
+- **Hastaneyi büyütme:** Cihaz yükseltmeleri, personel alımı ve asansörle erişilen 3 yeni kat açılabilir: Cerrahi & Ameliyathane, Yatan Hasta & Pediatri, Radyoloji & İleri Tanı.
+- **Kayıt:** İlerleme tarayıcıda (`localStorage`) otomatik saklanır ve yüklenirken doğrulanır.
 
-Her vaka 6 adımdan oluşur: **Geliş → Kayıt → Muayene & Sorgulama → Laboratuvar Analizi → Klinik Karar → Sonuç ve İtibar**.
+## Dosyalar
 
-- ★ işaretli vaka hastası kapıdan girer, resepsiyonda kayıt olur ve muayene sırasında öncelik alır.
-- Hastalar başta her şeyi anlatmaz. Doğru sorular gizli beslenme, uyku ve yaşam tarzı ipuçlarını açar. Bazı sorular ancak önceki bir ipucundan sonra görünür. Hastanın sabrı sınırlıdır.
-- Kan tahlili istenince hasta kan alma birimine gider. Sonuçlar laboratuvardaki analizörde görsel bir raporla incelenir.
-- Üç karar seçeneği vardır: [1] daha fazla tetkik, [2] uzmana yönlendirme, [3] eksik bilgileri tamamlama (yaşam tarzı ve takip planı).
-- Aceleci ya da riskli kararlar İtibar ve Hasta Güvenliği puanını düşürür. Tüm ipuçlarını toplayan oyuncu daha fazla itibar ve bütçe kazanır.
+```
+index.html, style.css
+js/assets.js    Açılış hazırlayıcı (harici görsel yok)
+js/audio.js     Web Audio ile sentezlenen ses efektleri
+js/art.js       Prosedürel 2.5D izometrik çizim kiti (eşya, cihaz, kampüs)
+js/map.js       İzometrik motor, kamera, katlar, prosedürel zemin/duvar, dış dünya
+js/entities.js  Karakterler, yürüyüş, A* yol bulma, hasta/personel yapay zekâsı, sabır
+js/cases.js     14 klinik vaka ve 6 adımlı vaka döngüsü
+js/hospital.js  Acil servis, eczane, kombo, nöbet, yönetim paneli, katlar
+js/guide.js     Akış şeması, hedef vurgusu, zemin yön çizgisi
+js/save.js      Doğrulamalı localStorage kaydı
+js/ui.js        HUD, paneller, joystick, diyaloglar
+js/main.js      Açılış ve oyun döngüsü
+```
 
-> Vita Hospital gerçek hayatta tıbbi teşhis koymaz. Klinik düşünme, doğru soru sorma ve sağlık okuryazarlığı öğretir. Oyundaki referans aralıkları örnek değerlerdir.
+Test parametreleri: `?nosave` kaydı kapatır, `?nointro` açılış hikâyesini atlar, `?touch` mobil kontrolleri zorlar, `?selftest` çizim kiti raporunu sayfaya yazar.
 
-## Acil servis, eczane ve hastane büyütme
+## Lisans
 
-- **Acil servis:** Belirli aralıklarla siren çalar ve ambulans gelir. Hastanın yaşamsal bulgularına bakıp doğru üniteyi seçin: Sedye + Monitör, Oksijen ya da Serum (IV). Ardından ilgili cihazın yanında stabilizasyonu tamamlayın. Süre dolarsa hasta sevk edilir ve İtibar ile Hasta Güvenliği düşer.
-- **Eczane:** İşlemi biten hastalar eczane kuyruğuna girer. "İlaç Onayla" ile doğru kullanım bilgisini seçen oyuncu bonus kazanır.
-- **Başhekim Yönetim & İnşa Paneli** (`P` tuşu, 🏗️ düğmesi ya da Başhekim masası):
-  - Yükseltmeler: hızlı tahlil analizörü, gelişmiş mikroskop, konforlu bekleme salonu, acil ekipman paketi, dijital eczane
-  - Personel: acil hemşiresi, acil tıp uzmanı, ek laborant, eczane teknisyeni
-  - Yeni katlar (asansörle): 1. Kat Cerrahi & Ameliyathane, 2. Kat Yatan Hasta & Pediatri, 3. Kat Radyoloji & İleri Tanı. Her kat pasif gelir ve oyun içi avantaj sağlar.
-
-## Ses ve kayıt
-
-- **Ses:** Bütün efektler Web Audio API ile üretilir, ses dosyası yoktur: adım, kapı, tıklama, ipucu, tahlil hazır sinyali, acil siren ve alarm, başarı ve hata sesleri. 🔊 düğmesi veya `M` tuşu sesi açıp kapatır; tercih hatırlanır.
-- **Kayıt:** İlerleme `localStorage` içinde (`vitaHospital.save.v1`) her 15 saniyede bir ve önemli olaylardan sonra otomatik saklanır. Kapsananlar: hastane seviyesi, açılan katlar ve servisler, yükseltmeler, personel, itibar, hasta güvenliği, bütçe, çözülen vaka arşivi ve ayarlar. Yüklenen veri doğrulanır; bozuk ya da geçersiz kayıtlar yok sayılır. Yönetim Paneli → Genel sekmesinden elle kaydedebilir veya ilerlemeyi sıfırlayabilirsiniz.
-
-## Test parametreleri
-
-`?nosave` kayıt sistemini kapatır, `?nointro` açılış hikâyesini atlar, `?touch` mobil kontrolleri zorlar, `?selftest` görsel yükleme raporunu sayfaya yazar.
+Kod ve grafiklerin tamamı bu proje için özgün olarak yazılmıştır; üçüncü taraf görsel, ses ya da kütüphane kullanılmaz.

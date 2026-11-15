@@ -42,6 +42,7 @@
       reputation: st.reputation,
       safety: st.safety,
       upgrades: st.upgrades, hires: st.hires, services: st.services,
+      dev: st.dev, shiftN: st.shiftN, shiftT: st.shiftT, shiftLog: (st.shiftLog || []).slice(-10),
       solved: st.solved.slice(-300),
       order: st.order, idx: st.idx,
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
@@ -71,6 +72,13 @@
       upgrades: flags(d.upgrades, H.UPGRADES.map((x) => x.id)),
       hires: flags(d.hires, H.HIRES.map((x) => x.id)),
       services: flags(d.services, H.SERVICES.map((x) => x.id)),
+      dev: (() => { const o = {}; ["speed", "treat", "capacity"].forEach((k) => { const v = d.dev && d.dev[k]; if (isNum(v)) o[k] = int(v, 0, 0, 3); }); return o; })(),
+      shiftN: int(d.shiftN, 1, 1, 1e6),
+      shiftT: int(d.shiftT, 300, 20, 300),
+      shiftLog: (Array.isArray(d.shiftLog) ? d.shiftLog : []).slice(-10).filter((s) => s && typeof s === "object").map((s) => ({
+        n: int(s.n, 1, 1, 1e6), night: s.night === true, treated: int(s.treated, 0, 0, 1e5), er: int(s.er, 0, 0, 1e5), erFail: int(s.erFail, 0, 0, 1e5),
+        cases: int(s.cases, 0, 0, 1e5), pharmacy: int(s.pharmacy, 0, 0, 1e5), angry: int(s.angry, 0, 0, 1e5), rep: int(s.rep, 0, -100, 100),
+        income: int(s.income, 0, -1e9, 1e9), bestCombo: int(s.bestCombo, 1, 1, 3) })),
       solved, order,
       idx: int(d.idx, 0, 0, order.length),
       stats: {
@@ -101,6 +109,7 @@
     const st = VH.cases.state;
     st.budget = c.budget; st.reputation = c.reputation; st.safety = c.safety;
     st.upgrades = c.upgrades; st.hires = c.hires; st.services = c.services;
+    st.dev = c.dev; st.shiftN = c.shiftN; st.shiftT = c.shiftT; st.shiftLog = c.shiftLog;
     st.solved = c.solved; st.order = c.order; st.idx = c.idx;
     Object.assign(VH.entities.stats, c.stats);
     VH.cases.introSeen = c.introSeen;
