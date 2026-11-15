@@ -245,6 +245,15 @@
       default: return [W - y, x];
     }
   }
+  /** Döndürülmüş uzaydaki bir yön vektörünü dünya uzayına çevirir. */
+  function unrotVec(vx, vy, r = rot) {
+    switch (r & 3) {
+      case 0: return [vx, vy];
+      case 1: return [vy, -vx];
+      case 2: return [-vx, -vy];
+      default: return [-vy, vx];
+    }
+  }
   const iso = (rx, ry) => [(rx - ry) * HW, (rx + ry) * HH];
   const worldToIso = (x, y) => { const [rx, ry] = rotPt(x, y); return iso(rx, ry); };
   function isoToWorld(ix, iy) {
@@ -674,7 +683,7 @@
     rotate,
     setRotation(r) { while (rot !== (r & 3)) rotate(1); },
     draw,
-    worldToIso, isoToWorld, depthAt, rotPt,
+    worldToIso, isoToWorld, depthAt, rotPt, unrotVec,
     roomAt(x, y) { x = Math.floor(x); y = Math.floor(y); return inBounds(x, y) && grid[y][x] ? ROOMS[grid[y][x]] : null; },
     roomIdAt(x, y) { x = Math.floor(x); y = Math.floor(y); return inBounds(x, y) ? grid[y][x] : null; },
     isBlocked(x, y) { return !inBounds(x, y) || blocked[y][x]; },

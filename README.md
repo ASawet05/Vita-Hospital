@@ -36,7 +36,7 @@ assets/ward/           ThirdAngle Hospital Starter
 
 1. Depo, görseller ve iskelet ✔
 2. İzometrik harita motoru, kamera, 7 başlangıç bölümü ✔
-3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller
+3. Başhekim kontrolü, NPC yapay zekâsı, mobil ve masaüstü kontroller ✔
 4. Hikâye, gizli bilgi sorgulama, 6 adımlı vaka sistemi (12+ vaka)
 5. Acil servis zaman yönetimi, eczane, hastane büyütme
 6. Ses efektleri, kayıt sistemi, son kalite kontrolü
@@ -57,3 +57,13 @@ assets/ward/           ThirdAngle Hospital Starter
 | Oda etiketleri | `L`, Aa düğmesi | Aa düğmesi |
 
 Test parametreleri: `?rot=0-3&zoom=0.55&x=17&y=12&follow=0&labels=0&selftest`
+
+## Oyun kontrolleri
+
+| İşlem | Masaüstü | Mobil |
+|---|---|---|
+| Yürüme | `WASD` / ok tuşları (`Shift` ile koşma) | Sol alttaki joystick |
+| Etkileşim | `E` / `Enter` veya karaktere/cihaza tıklama | Sağ alttaki dinamik eylem düğmesi veya dokunma |
+| Diyaloğu kapat | `Esc` / `E` | Tamam / ✕ |
+
+Eylem düğmeleri yakındaki hedefe göre değişir: Doktorla Konuş, Hastayı Muayene Et, Tahlil İncele, Acil Müdahale, İlaç Onayla, Kayıtları Gör, Vaka Arşivi.

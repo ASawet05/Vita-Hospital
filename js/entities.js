@@ -1,69 +1,803 @@
-// Vita Hospital — Karakterler
-// Aşama 2: kamera takibi için Başhekim figürü (yürüme, NPC'ler ve animasyon Aşama 3'te).
+// Vita Hospital — Karakterler, hareket, yapay zekâ (NPC) ve etkileşim hedefleri
+//
+// - Oyuncu (Başhekim): ekran yönüne göre WASD / ok tuşları / joystick ile yürür,
+//   duvar ve mobilyalara karşı daire-ızgara çarpışması yapılır.
+// - Personel: resepsiyon görevlisi, 2 muayene doktoru, laborant, eczacı; kendi
+//   alanlarında çalışma noktaları arasında dolaşır, oyuncu yaklaşınca selam verir.
+// - Hastalar: kapı → resepsiyon kuyruğu → bekleme koltuğu → muayene → (kan alma)
+//   → eczane → çıkış akışını A* yol bulma ile yürür.
 (function () {
   const VH = (window.VH = window.VH || {});
+  const M = () => VH.map;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-  /** Basit 2.5D insan figürü; (sx, sy) ayakların yere bastığı izo nokta. */
-  function drawPerson(ctx, sx, sy, look) {
-    // gölge
-    ctx.fillStyle = 'rgba(10,30,40,0.25)';
-    ctx.beginPath(); ctx.ellipse(sx, sy, 9, 4.5, 0, 0, Math.PI * 2); ctx.fill();
-    // bacaklar
-    ctx.fillStyle = look.pants;
-    ctx.fillRect(sx - 5, sy - 13, 4, 12);
-    ctx.fillRect(sx + 1, sy - 13, 4, 12);
-    ctx.fillStyle = '#2b2b2b';
-    ctx.fillRect(sx - 6, sy - 2, 5, 2);
-    ctx.fillRect(sx + 1, sy - 2, 5, 2);
-    // gövde / önlük
-    ctx.fillStyle = look.coat;
-    ctx.beginPath();
-    ctx.moveTo(sx - 8, sy - 11); ctx.lineTo(sx - 7, sy - 29); ctx.quadraticCurveTo(sx, sy - 33, sx + 7, sy - 29);
-    ctx.lineTo(sx + 8, sy - 11); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1; ctx.stroke();
-    if (look.shirt) { ctx.fillStyle = look.shirt; ctx.fillRect(sx - 2, sy - 30, 4, 10); }
-    // kollar
-    ctx.fillStyle = look.coat;
-    ctx.fillRect(sx - 10, sy - 28, 3, 13);
-    ctx.fillRect(sx + 7, sy - 28, 3, 13);
-    ctx.fillStyle = look.skin;
-    ctx.fillRect(sx - 10, sy - 16, 3, 3);
-    ctx.fillRect(sx + 7, sy - 16, 3, 3);
-    // stetoskop
-    if (look.stethoscope) {
-      ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(sx, sy - 27, 5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-      ctx.fillStyle = '#9aa7b0'; ctx.beginPath(); ctx.arc(sx + 3, sy - 21, 1.6, 0, Math.PI * 2); ctx.fill();
-    }
-    // baş
-    ctx.fillStyle = look.skin;
-    ctx.beginPath(); ctx.arc(sx, sy - 37, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = look.hair;
-    ctx.beginPath(); ctx.arc(sx, sy - 39, 6.2, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
-  }
+  // ================================================================ Görünüm
+  const SKINS = ['#f3cfb1', '#e8b48f', '#c98d62', '#9c6b47', '#f6dcc7', '#b9825a'];
+  const HAIRS = ['#2b1d14', '#4a3121', '#7a5230', '#c9a25a', '#1c1c1c', '#8f8f8f', '#a0522d'];
+  const CLOTHES = ['#d1495b', '#edae49', '#00798c', '#30638e', '#66a182', '#8e6c8a', '#e07a5f', '#3d405b', '#f2cc8f', '#5c946e'];
+  const PANTS = ['#2f3e46', '#354f52', '#3d405b', '#5a4a42', '#283618', '#6b705c', '#22223b'];
 
   const LOOKS = {
-    chief: { coat: '#f7fafc', shirt: '#2e6f95', pants: '#34495e', skin: '#e9b98f', hair: '#3b2a20', stethoscope: true },
+    chief:        { coat: '#fbfdff', shirt: '#2e6f95', tie: '#b83b3b', pants: '#2f3e4e', skin: '#e9b98f', hair: '#3b2a20', hairStyle: 'short', stethoscope: true, badge: '#e6c66e' },
+    receptionist: { coat: '#2a9d8f', shirt: '#e9f5f3', pants: '#264653', skin: '#f3cfb1', hair: '#4a3121', hairStyle: 'bun' },
+    doctorA:      { coat: '#fbfdff', shirt: '#5aa9e6', pants: '#5aa9e6', skin: '#e8b48f', hair: '#1c1c1c', hairStyle: 'long', stethoscope: true },
+    doctorB:      { coat: '#fbfdff', shirt: '#7fc8a9', pants: '#7fc8a9', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', stethoscope: true },
+    laborant:     { coat: '#f4f7fb', shirt: '#7b5ea7', pants: '#7b5ea7', skin: '#f6dcc7', hair: '#a0522d', hairStyle: 'short', gloves: '#7b5ea7', goggles: true },
+    pharmacist:   { coat: '#fbfdff', shirt: '#3a7d44', pants: '#3a5a40', skin: '#e8b48f', hair: '#7a5230', hairStyle: 'long', cross: true },
   };
 
-  const player = { id: 'chief', name: 'Başhekim', x: 4.5, y: 6.6, look: LOOKS.chief };
+  function randomPatientLook() {
+    return {
+      coat: pick(CLOTHES), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS),
+      hairStyle: pick(['short', 'long', 'bun', 'short', 'bald']), patient: true,
+    };
+  }
 
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+
+  /**
+   * 2.5D insan figürü. (sx, sy) ayakların yere bastığı izo nokta.
+   * pose: { t, moving, flip, back, sitting, lift, ring }
+   */
+  function drawPerson(ctx, sx, sy, look, pose) {
+    pose = pose || {};
+    const t = pose.t || 0;
+    const moving = !!pose.moving, back = !!pose.back, sit = !!pose.sitting;
+    const swing = moving ? Math.sin(t) : 0;
+    const bob = moving ? -Math.abs(Math.cos(t)) * 1.3 : 0;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    // gölge + oyuncu halkası
+    ctx.fillStyle = 'rgba(10,30,40,0.28)';
+    ctx.beginPath(); ctx.ellipse(0, 0, 9, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    if (pose.ring) {
+      ctx.strokeStyle = 'rgba(46,196,182,0.95)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.ellipse(0, 0, 13, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.translate(0, -(pose.lift || 0) + bob);
+    if (pose.flip) ctx.scale(-1, 1);
+
+    const hip = sit ? -9 : -12;
+    // ---- bacaklar
+    if (sit) {
+      ctx.fillStyle = look.pants;
+      rr(ctx, -5, hip - 1, 12, 5, 2);           // uyluk (öne doğru)
+      ctx.fillRect(3, hip + 2, 4, 7);           // baldır
+      ctx.fillStyle = '#2b2b2b';
+      ctx.fillRect(3, hip + 8, 6, 2);
+    } else {
+      const lx = swing * 2, ly = Math.max(0, swing) * 1.6;
+      const rx = -swing * 2, ry = Math.max(0, -swing) * 1.6;
+      ctx.fillStyle = look.pants;
+      ctx.fillRect(-5 + lx, hip - 1, 4, 12 - ly);
+      ctx.fillRect(1 + rx, hip - 1, 4, 12 - ry);
+      ctx.fillStyle = '#2b2b2b';
+      ctx.fillRect(-6 + lx, -2 - ly, 5, 2);
+      ctx.fillRect(1 + rx, -2 - ry, 5, 2);
+    }
+
+    // ---- gövde / önlük
+    const top = hip - 18;
+    ctx.fillStyle = look.coat;
+    ctx.beginPath();
+    ctx.moveTo(-8, hip + 1);
+    ctx.lineTo(-7, top + 2);
+    ctx.quadraticCurveTo(0, top - 2, 7, top + 2);
+    ctx.lineTo(8, hip + 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    if (!back) {
+      if (look.shirt) { ctx.fillStyle = look.shirt; ctx.fillRect(-2, top + 1, 4, 9); }
+      if (look.tie) { ctx.fillStyle = look.tie; ctx.fillRect(-0.8, top + 2, 1.6, 7); }
+      if (!look.patient) { ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.moveTo(0, top + 9); ctx.lineTo(0, hip); ctx.stroke(); }
+      if (look.badge) { ctx.fillStyle = look.badge; ctx.fillRect(3, top + 4, 3, 2); }
+      if (look.cross) { ctx.fillStyle = '#2f9e44'; ctx.fillRect(3.5, top + 3, 1.5, 4.5); ctx.fillRect(2.5, top + 4.5, 3.5, 1.5); }
+      if (look.stethoscope) {
+        ctx.strokeStyle = '#1f2a33'; ctx.lineWidth = 1.3;
+        ctx.beginPath(); ctx.arc(0, top + 3, 5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+        ctx.fillStyle = '#9aa7b0'; ctx.beginPath(); ctx.arc(3, top + 9, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // ---- kollar
+    const ay = moving ? swing * 2 : 0;
+    ctx.fillStyle = look.coat;
+    ctx.fillRect(-10, top + 2 - ay, 3, 12);
+    ctx.fillRect(7, top + 2 + ay, 3, 12);
+    ctx.fillStyle = look.gloves || look.skin;
+    ctx.fillRect(-10, top + 13 - ay, 3, 3);
+    ctx.fillRect(7, top + 13 + ay, 3, 3);
+
+    // ---- baş
+    const hy = top - 7;
+    ctx.fillStyle = look.skin;
+    ctx.fillRect(-1.5, top - 2, 3, 3); // boyun
+    ctx.beginPath(); ctx.arc(0, hy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = look.hair;
+    if (back) {
+      if (look.hairStyle !== 'bald') { ctx.beginPath(); ctx.arc(0, hy - 0.5, 6.2, 0, Math.PI * 2); ctx.fill(); }
+      if (look.hairStyle === 'long') ctx.fillRect(-6, hy, 12, 8);
+      if (look.hairStyle === 'bun') { ctx.beginPath(); ctx.arc(0, hy - 6, 3, 0, Math.PI * 2); ctx.fill(); }
+    } else {
+      if (look.hairStyle === 'long') { ctx.fillRect(-6.5, hy - 2, 3, 9); ctx.fillRect(3.5, hy - 2, 3, 9); }
+      if (look.hairStyle !== 'bald') { ctx.beginPath(); ctx.arc(0, hy - 1.5, 6.3, Math.PI * 1.02, Math.PI * 1.98); ctx.fill(); }
+      if (look.hairStyle === 'bun') { ctx.beginPath(); ctx.arc(-2, hy - 7, 2.8, 0, Math.PI * 2); ctx.fill(); }
+      // yüz (bakış yönüne hafif kaydırılmış)
+      ctx.fillStyle = '#1d2329';
+      ctx.fillRect(0.5, hy - 0.5, 1.4, 1.6);
+      ctx.fillRect(3.4, hy - 0.5, 1.4, 1.6);
+      if (look.goggles) { ctx.strokeStyle = 'rgba(120,200,230,0.9)'; ctx.lineWidth = 1; ctx.strokeRect(-0.2, hy - 1.6, 6, 3.4); }
+      ctx.fillStyle = 'rgba(160,70,60,0.55)';
+      ctx.fillRect(1.8, hy + 2.5, 2.2, 0.9);
+    }
+    ctx.restore();
+  }
+
+  // ================================================================ Varlık temel işlemleri
+  let uid = 1;
+  function makeEntity(kind, props) {
+    return Object.assign({
+      id: uid++, kind, x: 0, y: 0, path: [], speed: 2.1, anim: 0, moving: false,
+      flip: false, back: false, sitting: false, lift: 0, bubble: null, onArrive: null,
+    }, props);
+  }
+
+  function face(e, dx, dy) {
+    // dünya yön vektörünü ekran yönüne çevir
+    const [ax, ay] = M().worldToIso(e.x, e.y);
+    const [bx, by] = M().worldToIso(e.x + dx, e.y + dy);
+    const ix = bx - ax, iy = by - ay;
+    if (Math.abs(ix) > 0.01) e.flip = ix < 0;
+    if (Math.abs(iy) > 0.01) e.back = iy < 0;
+  }
+  const faceToward = (e, x, y) => face(e, x - e.x, y - e.y);
+
+  function say(e, text, dur) {
+    e.bubble = { text, until: performance.now() + (dur || 3200) };
+  }
+
+  // ---------------------------------------------------------------- A* yol bulma
+  function findPath(sx, sy, tx, ty) {
+    const map = M();
+    const W = map.W, H = map.H;
+    const idx = (x, y) => y * W + x;
+    if (sx === tx && sy === ty) return [];
+    const g = new Float32Array(W * H).fill(Infinity);
+    const came = new Int32Array(W * H).fill(-1);
+    const closed = new Uint8Array(W * H);
+    const open = [idx(sx, sy)];
+    g[idx(sx, sy)] = 0;
+    const h = (x, y) => { const dx = Math.abs(x - tx), dy = Math.abs(y - ty); return Math.max(dx, dy) + 0.414 * Math.min(dx, dy); };
+    const goal = idx(tx, ty);
+    while (open.length) {
+      let bi = 0, bf = Infinity;
+      for (let i = 0; i < open.length; i++) {
+        const n = open[i], f = g[n] + h(n % W, (n / W) | 0);
+        if (f < bf) { bf = f; bi = i; }
+      }
+      const cur = open.splice(bi, 1)[0];
+      if (cur === goal) break;
+      closed[cur] = 1;
+      const cx = cur % W, cy = (cur / W) | 0;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = cx + dx, ny = cy + dy;
+          let ok;
+          if (dx && dy) {
+            ok = map.canStep(cx, cy, nx, cy) && map.canStep(nx, cy, nx, ny) &&
+                 map.canStep(cx, cy, cx, ny) && map.canStep(cx, ny, nx, ny);
+          } else ok = map.canStep(cx, cy, nx, ny) || (nx === tx && ny === ty && !map.edgeBetween(cx, cy, nx, ny));
+          if (!ok) continue;
+          const ni = idx(nx, ny);
+          if (closed[ni]) continue;
+          const ng = g[cur] + (dx && dy ? 1.414 : 1);
+          if (ng < g[ni]) {
+            g[ni] = ng; came[ni] = cur;
+            if (!open.includes(ni)) open.push(ni);
+          }
+        }
+    }
+    if (came[goal] === -1) return null;
+    const out = [];
+    for (let n = goal; n !== idx(sx, sy); n = came[n]) out.push([(n % W) + 0.5, ((n / W) | 0) + 0.5]);
+    return out.reverse();
+  }
+
+  /** Varlığı (tx,ty) noktasına yürüt. via: önce ulaşılacak yürünebilir hücre (koltuk/sedye için). */
+  function goTo(e, tx, ty, onArrive, via) {
+    e.sitting = false; e.lift = 0;
+    const vx = via ? via[0] : Math.floor(tx), vy = via ? via[1] : Math.floor(ty);
+    const p = findPath(Math.floor(e.x), Math.floor(e.y), vx, vy);
+    if (p === null) { e.x = tx; e.y = ty; e.path = []; e.onArrive = null; if (onArrive) onArrive(e); return; }
+    if (p.length) p.pop();
+    p.push([vx + 0.5, vy + 0.5]);
+    if (via) p.push([tx, ty]); else p[p.length - 1] = [tx, ty];
+    e.path = p;
+    e.onArrive = onArrive || null;
+  }
+
+  function stepPath(e, dt) {
+    if (!e.path.length) { e.moving = false; return; }
+    const [tx, ty] = e.path[0];
+    const dx = tx - e.x, dy = ty - e.y;
+    const d = Math.hypot(dx, dy);
+    const step = e.speed * dt;
+    if (d > 0.001) face(e, dx, dy);
+    if (d <= step) {
+      e.x = tx; e.y = ty; e.path.shift();
+      if (!e.path.length) {
+        e.moving = false;
+        const cb = e.onArrive; e.onArrive = null;
+        if (cb) cb(e);
+        return;
+      }
+    } else {
+      e.x += (dx / d) * step; e.y += (dy / d) * step;
+    }
+    e.moving = true;
+    e.anim += dt * 11;
+  }
+
+  // ================================================================ Oyuncu
+  const player = makeEntity('player', { id: 'chief', name: 'Başhekim', role: 'Başhekim', x: 4.5, y: 6.6, look: LOOKS.chief });
+  const RADIUS = 0.27;
+  const input = { x: 0, y: 0, run: false };
+
+  function collides(px, py) {
+    const map = M();
+    const cx = Math.floor(px), cy = Math.floor(py);
+    if (map.isBlocked(cx, cy)) return true;
+    const fx = px - cx, fy = py - cy, r = RADIUS;
+    const L = fx < r, R = fx > 1 - r, U = fy < r, D = fy > 1 - r;
+    if (L && !map.canStep(cx, cy, cx - 1, cy)) return true;
+    if (R && !map.canStep(cx, cy, cx + 1, cy)) return true;
+    if (U && !map.canStep(cx, cy, cx, cy - 1)) return true;
+    if (D && !map.canStep(cx, cy, cx, cy + 1)) return true;
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      if (!((dx < 0 ? L : R) && (dy < 0 ? U : D))) continue;
+      const kx = cx + (dx > 0 ? 1 : 0), ky = cy + (dy > 0 ? 1 : 0);
+      if (Math.hypot(px - kx, py - ky) >= r) continue;
+      const nx = cx + dx, ny = cy + dy;
+      const ok = map.canStep(cx, cy, nx, cy) && map.canStep(nx, cy, nx, ny) &&
+                 map.canStep(cx, cy, cx, ny) && map.canStep(cx, ny, nx, ny);
+      if (!ok) return true;
+    }
+    return false;
+  }
+
+  function updatePlayer(dt) {
+    const mag = Math.min(1, Math.hypot(input.x, input.y));
+    if (mag < 0.12 || (VH.ui.isDialogOpen && VH.ui.isDialogOpen())) { player.moving = false; return; }
+    // ekran yönü → döndürülmüş dünya köşegeni → dünya
+    let rx = input.x + input.y, ry = input.y - input.x;
+    const l = Math.hypot(rx, ry) || 1;
+    [rx, ry] = M().unrotVec(rx / l, ry / l);
+    const speed = 3.1 * (input.run ? 1.6 : 1) * mag;
+    const mx = rx * speed * dt, my = ry * speed * dt;
+    face(player, rx, ry);
+    const ox = player.x, oy = player.y;
+    if (!collides(player.x + mx, player.y)) player.x += mx;
+    if (!collides(player.x, player.y + my)) player.y += my;
+    player.moving = Math.abs(player.x - ox) + Math.abs(player.y - oy) > 1e-5;
+    if (player.moving) player.anim += dt * 11 * (input.run ? 1.4 : 1);
+  }
+
+  // ================================================================ Personel
+  const STAFF_DEF = [
+    { id: 'receptionist', name: 'Selin Aksoy', role: 'Resepsiyon Görevlisi', look: 'receptionist', room: 'reception',
+      action: 'Personelle Konuş', points: [[2.5, 13.4], [3.5, 13.4], [1.6, 13.4]],
+      greet: ['Hoş geldiniz Başhekim!', 'Kayıtlar düzenli ilerliyor.', 'Bekleme salonu bugün kalabalık.'] },
+    { id: 'doctor1', name: 'Dr. Elif Kaya', role: 'Muayene Doktoru · Oda 1', look: 'doctorA', room: 'exam1',
+      action: 'Doktorla Konuş', points: [[8.0, 1.5], [9.5, 4.4], [8.5, 5.6]], exam: 0,
+      greet: ['Başhekimim, buyurun.', 'Sıradaki hastayı bekliyorum.', 'Muayene odası hazır.'] },
+    { id: 'doctor2', name: 'Dr. Kerem Demir', role: 'Muayene Doktoru · Oda 2', look: 'doctorB', room: 'exam2',
+      action: 'Doktorla Konuş', points: [[13.0, 1.5], [14.5, 4.4], [13.5, 5.6]], exam: 1,
+      greet: ['Merhaba Başhekimim!', 'Bugün vakalar ilginç.', 'Bir şey danışmak ister misiniz?'] },
+    { id: 'laborant', name: 'Murat Yıldız', role: 'Laborant', look: 'laborant', room: 'lab',
+      action: 'Tahlil İncele', points: [[21.5, 2.6], [23.5, 3.5], [23.5, 5.5], [19.5, 4.5]],
+      greet: ['Numuneler sırada, Başhekimim.', 'Analizör kalibre edildi.', 'Tüpler etiketlendi.'] },
+    { id: 'pharmacist', name: 'Ecz. Zeynep Arslan', role: 'Eczacı', look: 'pharmacist', room: 'pharmacy',
+      action: 'İlaç Onayla', points: [[27.5, 3.8], [26.5, 2.4], [29.5, 3.5]],
+      greet: ['Reçeteler hazır, onayınızı bekliyor.', 'Stoklar yeterli.', 'Hoş geldiniz!'] },
+  ];
+
+  const staff = STAFF_DEF.map((d) => makeEntity('staff', {
+    def: d, id: d.id, name: d.name, role: d.role, look: LOOKS[d.look],
+    x: d.points[0][0], y: d.points[0][1], speed: 1.7, timer: rand(2, 6), busy: false, greeted: false,
+  }));
+  const staffById = (id) => staff.find((s) => s.id === id);
+
+  function updateStaff(s, dt) {
+    stepPath(s, dt);
+    // Oyuncu yaklaşınca selam
+    const near = Math.hypot(player.x - s.x, player.y - s.y) < 2.2;
+    if (near && !s.greeted) { s.greeted = true; say(s, pick(s.def.greet)); if (!s.path.length) faceToward(s, player.x, player.y); }
+    if (!near && Math.hypot(player.x - s.x, player.y - s.y) > 3.5) s.greeted = false;
+    if (s.busy || s.path.length) return;
+    s.timer -= dt;
+    if (s.timer <= 0) {
+      s.timer = rand(4, 9);
+      const [px, py] = pick(s.def.points);
+      goTo(s, px, py, (e) => { if (e.def.id === 'receptionist') e.back = false; });
+    }
+  }
+
+  // ================================================================ Hastalar
+  const FIRST = ['Ayşe', 'Mehmet', 'Fatma', 'Mustafa', 'Emine', 'Ahmet', 'Hatice', 'Ali', 'Zehra', 'Hüseyin', 'Elif', 'Can', 'Deniz', 'Burak', 'Merve', 'Emre', 'Selin', 'Kemal', 'Yasemin', 'Oğuz', 'Derya', 'Tolga', 'Sibel', 'Hakan'];
+  const LAST = ['Y.', 'K.', 'D.', 'Ş.', 'A.', 'T.', 'Ç.', 'Ö.', 'B.', 'E.'];
+  const COMPLAINTS = [
+    'Sürekli yorgunluk ve halsizlik', 'Sık baş ağrısı', 'Baş dönmesi', 'Uyku bozukluğu',
+    'Saç dökülmesi', 'Kas krampları', 'Eklem ağrısı', 'Çabuk nefes nefese kalma',
+    'Dikkat dağınıklığı', 'Mide yanması', 'El ve ayaklarda uyuşma', 'İştahsızlık',
+  ];
+  const ENTRANCE = [4.5, 25.4];
+  const RECEPTION_SLOTS = [[2.5, 15.5], [2.5, 16.5], [2.5, 17.5], [2.5, 18.5], [3.5, 18.5], [4.5, 18.5], [5.5, 18.5], [5.5, 17.5]];
+  const PHARMACY_SLOTS = [[27.5, 6.5], [27.5, 7.4], [28.5, 7.4], [26.5, 7.4], [29.5, 7.4]];
+  const SEATS = [
+    ...[11, 12, 13].map((x) => ({ seat: [x + 0.5, 14.55], via: [x, 15] })),
+    ...[11, 12, 13].map((x) => ({ seat: [x + 0.5, 17.55], via: [x, 18] })),
+    ...[16, 17].map((x) => ({ seat: [x + 0.5, 14.55], via: [x, 15] })),
+    ...[16, 17].map((x) => ({ seat: [x + 0.5, 17.55], via: [x, 18] })),
+  ].map((s) => Object.assign(s, { occ: null }));
+  const EXAMS = [
+    { name: 'Muayene 1', bed: [10.75, 5.5], via: [10, 6], doctor: 'doctor1', docSpot: [9.5, 5.5], patient: null },
+    { name: 'Muayene 2', bed: [15.75, 5.5], via: [15, 6], doctor: 'doctor2', docSpot: [14.5, 5.5], patient: null },
+  ];
+  const LAB_CHAIRS = [
+    { seat: [17.5, 3.5], via: [18, 3], tech: [17.6, 4.45], patient: null },
+    { seat: [17.5, 5.5], via: [18, 5], tech: [17.6, 4.55], patient: null },
+  ];
+  const LAB_WAIT = [[18.5, 9.5], [19.5, 9.5], [18.5, 10.4], [19.5, 10.4]];
+
+  const patients = [];
+  const receptionQueue = [];
+  const pharmacyQueue = [];
+  const stats = { registered: 0, served: 0, ticket: 0 };
+  let spawnTimer = 2;
+  const MAX_PATIENTS = 8;
+
+  const STATUS = {
+    queue: 'Resepsiyon kuyruğunda', registering: 'Kayıt yaptırıyor', toSeat: 'Bekleme salonuna gidiyor',
+    waiting: 'Bekleme salonunda sırasını bekliyor', toExam: 'Muayene odasına çağrıldı', exam: 'Muayene ediliyor',
+    labWait: 'Kan alma sırası bekliyor', toLab: 'Kan alma odasına gidiyor', lab: 'Kan veriyor',
+    toPharmacy: 'Eczaneye gidiyor', pharmacy: 'Eczanede ilaç/bilgilendirme bekliyor', leaving: 'Hastaneden ayrılıyor',
+  };
+
+  function spawnPatient() {
+    const age = Math.floor(rand(18, 78));
+    const p = makeEntity('patient', {
+      name: pick(FIRST) + ' ' + pick(LAST), age, complaint: pick(COMPLAINTS),
+      look: randomPatientLook(), x: ENTRANCE[0] + rand(-0.3, 0.3), y: ENTRANCE[1],
+      speed: rand(1.5, 2.0), state: 'queue', timer: 0, needsLab: Math.random() < 0.6, waitSince: 0,
+    });
+    patients.push(p);
+    receptionQueue.push(p);
+    refreshQueue(receptionQueue, RECEPTION_SLOTS);
+    say(p, 'Merhaba, kayıt yaptırmak istiyorum.', 2500);
+  }
+
+  function refreshQueue(queue, slots) {
+    queue.forEach((p, i) => {
+      const slot = slots[Math.min(i, slots.length - 1)];
+      if (p.slot === slot) return;
+      p.slot = slot;
+      goTo(p, slot[0], slot[1], (e) => { e.arrivedSlot = true; });
+      p.arrivedSlot = false;
+    });
+  }
+
+  function sitAt(p, seatPos, lift) {
+    p.sitting = true;
+    p.lift = lift;
+    p.x = seatPos[0]; p.y = seatPos[1];
+  }
+
+  function leaveQueue(queue, p, slots) {
+    const i = queue.indexOf(p);
+    if (i >= 0) queue.splice(i, 1);
+    p.slot = null;
+    queue.forEach((q) => { q.slot = null; });
+    refreshQueue(queue, slots);
+  }
+
+  function updatePatient(p, dt) {
+    stepPath(p, dt);
+    p.timer -= dt;
+    switch (p.state) {
+      case 'queue':
+        if (receptionQueue[0] === p && p.arrivedSlot) {
+          p.state = 'registering'; p.timer = rand(2.5, 4);
+          const rec = staffById('receptionist');
+          faceToward(p, 2.5, 13.5);
+          say(rec, `Hoş geldiniz ${p.name.split(' ')[0]}, şikâyetiniz nedir?`, 2600);
+        }
+        break;
+      case 'registering':
+        if (p.timer <= 0) {
+          const seat = SEATS.find((s) => !s.occ);
+          if (!seat) { p.timer = 1; break; }
+          stats.registered++; stats.ticket++;
+          p.ticket = 'A-' + String(stats.ticket).padStart(3, '0');
+          say(p, `Şikâyetim: ${p.complaint.toLowerCase()}.`, 2600);
+          leaveQueue(receptionQueue, p, RECEPTION_SLOTS);
+          seat.occ = p; p.seatRef = seat; p.state = 'toSeat';
+          goTo(p, seat.seat[0], seat.seat[1], (e) => {
+            sitAt(e, seat.seat, 7); e.state = 'waiting'; e.waitSince = performance.now();
+            e.back = false; e.flip = false;
+          }, seat.via);
+        }
+        break;
+      case 'exam':
+        if (p.timer <= 0) finishExam(p);
+        break;
+      case 'lab':
+        if (p.timer <= 0) finishLab(p);
+        break;
+      case 'pharmacy':
+        if (pharmacyQueue[0] === p && p.arrivedSlot) {
+          if (p.timer > 90) p.timer = rand(3, 5);
+          if (p.timer <= 0) {
+            say(staffById('pharmacist'), 'Geçmiş olsun, kullanım bilgilerini anlattım.', 2600);
+            leaveQueue(pharmacyQueue, p, PHARMACY_SLOTS);
+            leave(p);
+          }
+        } else p.timer = 999;
+        break;
+      case 'leaving':
+        break;
+    }
+  }
+
+  function callNextPatients() {
+    // Boş muayene odası varsa en uzun bekleyen hastayı çağır
+    for (const ex of EXAMS) {
+      if (ex.patient) continue;
+      const waiting = patients.filter((p) => p.state === 'waiting').sort((a, b) => a.waitSince - b.waitSince);
+      if (!waiting.length) break;
+      const p = waiting[0];
+      ex.patient = p;
+      p.seatRef.occ = null; p.seatRef = null;
+      p.state = 'toExam'; p.examRef = ex;
+      say(staffById('receptionist'), `${p.ticket} numaralı hasta, ${ex.name}!`, 3000);
+      goTo(p, ex.bed[0], ex.bed[1], (e) => {
+        sitAt(e, ex.bed, 13); e.state = 'exam'; e.timer = rand(7, 11);
+        const doc = staffById(ex.doctor);
+        doc.busy = true;
+        goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
+      }, ex.via);
+    }
+    // Kan alma koltuğu boşsa bekleyeni al
+    for (const ch of LAB_CHAIRS) {
+      if (ch.patient) continue;
+      const p = patients.find((q) => q.state === 'labWait');
+      if (!p) break;
+      ch.patient = p; p.state = 'toLab'; p.labRef = ch;
+      goTo(p, ch.seat[0], ch.seat[1], (e) => {
+        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8);
+        const tech = staffById('laborant');
+        tech.busy = true;
+        goTo(tech, ch.tech[0], ch.tech[1], (t) => { faceToward(t, ch.seat[0], ch.seat[1]); say(t, 'Küçük bir iğne batması hissedeceksiniz.', 2400); });
+      }, ch.via);
+    }
+  }
+
+  function finishExam(p) {
+    const ex = p.examRef;
+    ex.patient = null; p.examRef = null;
+    const doc = staffById(ex.doctor);
+    doc.busy = false; doc.timer = 0.5;
+    if (p.needsLab) {
+      say(doc, 'Kan tahlili isteyelim.', 2400);
+      const spot = LAB_WAIT[patients.filter((q) => q.state === 'labWait').length % LAB_WAIT.length];
+      p.state = 'labWait';
+      goTo(p, spot[0], spot[1]);
+    } else {
+      say(doc, 'Eczaneye uğrayıp bilgilendirme alın.', 2400);
+      toPharmacy(p);
+    }
+  }
+
+  function finishLab(p) {
+    const ch = p.labRef;
+    ch.patient = null; p.labRef = null;
+    const tech = staffById('laborant');
+    tech.busy = false;
+    goTo(tech, 21.5, 2.6, (t) => { t.back = true; });
+    p.labDone = true;
+    toPharmacy(p);
+  }
+
+  function toPharmacy(p) {
+    p.state = 'pharmacy'; p.timer = 999;
+    pharmacyQueue.push(p);
+    refreshQueue(pharmacyQueue, PHARMACY_SLOTS);
+  }
+
+  function leave(p) {
+    p.state = 'leaving';
+    stats.served++;
+    goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
+  }
+
+  function updatePatients(dt) {
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnTimer = rand(7, 13);
+      const busySeats = SEATS.filter((s) => s.occ).length;
+      if (patients.length < MAX_PATIENTS && busySeats < SEATS.length - 1) spawnPatient();
+    }
+    patients.forEach((p) => updatePatient(p, dt));
+    callNextPatients();
+    for (let i = patients.length - 1; i >= 0; i--) if (patients[i].gone) patients.splice(i, 1);
+  }
+
+  // ================================================================ Etkileşim hedefleri
+  const DEVICES = {
+    reception_desk:   { name: 'Hasta Kayıt Bankosu', action: 'Kayıtları Gör', icon: '📋' },
+    queue_display:    { name: 'Sıra Ekranı', action: 'Sırayı Gör', icon: '🔢' },
+    exam_bed:         { name: 'Muayene Sedyesi', action: 'Hastayı Muayene Et', icon: '🩺' },
+    analyzer:         { name: 'Hematoloji Analizörü', action: 'Tahlil İncele', icon: '🧪' },
+    centrifuge:       { name: 'Santrifüj', action: 'Tahlil İncele', icon: '🧪' },
+    microscope:       { name: 'Mikroskop İstasyonu', action: 'Tahlil İncele', icon: '🔬' },
+    gurney:           { name: 'Acil Sedyesi', action: 'Acil Müdahale', icon: '🚑' },
+    monitor:          { name: 'Hasta Monitörü', action: 'Acil Müdahale', icon: '💓' },
+    ventilator:       { name: 'Ventilatör', action: 'Acil Müdahale', icon: '🫁' },
+    defibrillator:    { name: 'Defibrilatör', action: 'Acil Müdahale', icon: '⚡' },
+    oxygen:           { name: 'Oksijen Tüpleri', action: 'Acil Müdahale', icon: '🫧' },
+    triage:           { name: 'Triyaj Bankosu', action: 'Acil Müdahale', icon: '🚨' },
+    pharmacy_counter: { name: 'Eczane Bankosu', action: 'İlaç Onayla', icon: '💊' },
+    chief_desk:       { name: 'Başhekim Masası', action: 'Yönetim Masası', icon: '🏥' },
+    archive_terminal: { name: 'Vaka Arşiv Terminali', action: 'Vaka Arşivi', icon: '🗂️' },
+  };
+  let devices = [];
+  function buildDevices() {
+    devices = M().OBJECTS.filter((o) => DEVICES[o.tag]).map((o) => Object.assign({
+      type: 'device', tag: o.tag, obj: o,
+      x0: o.x, y0: o.y, x1: o.x + (o.w || 1), y1: o.y + (o.h || 1),
+      x: o.x + (o.w || 1) / 2, y: o.y + (o.h || 1) / 2,
+    }, DEVICES[o.tag]));
+  }
+
+  const RANGE_ENT = 1.7, RANGE_DEV = 1.15;
+  function rectDist(px, py, d) {
+    const dx = Math.max(d.x0 - px, 0, px - d.x1);
+    const dy = Math.max(d.y0 - py, 0, py - d.y1);
+    return Math.hypot(dx, dy);
+  }
+
+  function targetOfEntity(e) {
+    if (e.kind === 'staff') return { type: 'staff', ref: e, name: e.name, action: e.def.action, x: e.x, y: e.y };
+    return { type: 'patient', ref: e, name: e.name, action: 'Hastayı Muayene Et', x: e.x, y: e.y };
+  }
+
+  /** Oyuncunun yakınındaki etkileşim hedefleri (en yakın önce, eylem başına tek). */
+  function nearbyTargets() {
+    const out = [];
+    for (const e of staff.concat(patients)) {
+      if (e.state === 'leaving') continue;
+      const d = Math.hypot(e.x - player.x, e.y - player.y);
+      if (d <= RANGE_ENT) out.push(Object.assign(targetOfEntity(e), { dist: d }));
+    }
+    for (const dv of devices) {
+      const d = rectDist(player.x, player.y, dv);
+      if (d <= RANGE_DEV) out.push({ type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y, dist: d + 0.3 });
+    }
+    out.sort((a, b) => a.dist - b.dist);
+    const seen = new Set();
+    return out.filter((t) => { if (seen.has(t.action)) return false; seen.add(t.action); return true; });
+  }
+
+  // ---------------------------------------------------------------- Diyalog içerikleri
+  function describe(t) {
+    const waiting = patients.filter((p) => p.state === 'waiting').length;
+    if (t.type === 'staff') {
+      const s = t.ref;
+      faceToward(s, player.x, player.y);
+      let text;
+      switch (s.id) {
+        case 'receptionist':
+          text = `Bugün ${stats.registered} hasta kaydettik. Kuyrukta ${receptionQueue.length}, bekleme salonunda ${waiting} kişi var.`;
+          break;
+        case 'doctor1': case 'doctor2': {
+          const ex = EXAMS[s.def.exam];
+          text = ex.patient
+            ? `Şu an ${ex.patient.name} (${ex.patient.age}) ile ilgileniyorum. Şikâyeti: ${ex.patient.complaint.toLowerCase()}. Hastalar başta her şeyi anlatmıyor; doğru sorular sormak gerekiyor.`
+            : 'Odam hazır, sıradaki hastayı bekliyorum. Zor bir vaka gelirse sizi çağıracağım Başhekimim.';
+          break;
+        }
+        case 'laborant': {
+          const n = patients.filter((p) => p.state === 'lab' || p.state === 'labWait' || p.state === 'toLab').length;
+          text = `Kan alma sırasında ${n} hasta var. Hemogram, ferritin, B12, D vitamini panelleri çalışılabiliyor.`;
+          break;
+        }
+        case 'pharmacist':
+          text = `Teslim bekleyen ${pharmacyQueue.length} hasta var. Her hastaya ilacın nasıl kullanılacağını anlatıyoruz.`;
+          break;
+      }
+      return { icon: '👩‍⚕️', title: s.name, subtitle: s.role, text };
+    }
+    if (t.type === 'patient') {
+      const p = t.ref;
+      faceToward(p, player.x, player.y);
+      say(p, pick(['Merhaba doktor bey.', 'Ne zaman sıra gelir?', 'Biraz yorgunum…', 'Teşekkürler.']), 2200);
+      return {
+        icon: '🧑', title: `${p.name}, ${p.age} yaş`, subtitle: (p.ticket ? p.ticket + ' · ' : '') + STATUS[p.state],
+        text: `Şikâyet: ${p.complaint}.\n"Son zamanlarda kendimi pek iyi hissetmiyorum doktor bey…"`,
+      };
+    }
+    const dv = t.ref;
+    let text;
+    switch (dv.tag) {
+      case 'reception_desk': text = `Bugün kayıt: ${stats.registered} · Taburcu: ${stats.served} · Kuyruk: ${receptionQueue.length}`; break;
+      case 'queue_display': text = stats.ticket ? `Son verilen sıra numarası: A-${String(stats.ticket).padStart(3, '0')}` : 'Henüz sıra numarası verilmedi.'; break;
+      case 'exam_bed': text = 'Muayene sedyesi temiz ve hazır.'; break;
+      case 'analyzer': case 'centrifuge': case 'microscope': {
+        const n = patients.filter((p) => p.labDone && p.state !== 'leaving').length;
+        text = `${dv.name} hazır. İşlenen numune: ${n}. Referans aralığı dışındaki değerler burada görüntülenecek.`;
+        break;
+      }
+      case 'pharmacy_counter': text = `Onay bekleyen reçete/bilgilendirme: ${pharmacyQueue.length}.`; break;
+      case 'chief_desk': text = 'Başhekim Yönetim & İnşa Paneli: bütçe ve itibar biriktikçe yeni servisler açabileceksiniz.'; break;
+      case 'archive_terminal': text = 'Vaka arşivi: henüz çözülmüş vaka yok.'; break;
+      default: text = 'Acil serviste şu an kritik hasta yok. Ambulans geldiğinde siren duyacaksınız.';
+    }
+    return { icon: dv.icon, title: dv.name, subtitle: dv.action, text };
+  }
+
+  function interact(t) {
+    if (!t) return;
+    if (VH.ui.isDialogOpen()) { VH.ui.closeDialog(); return; }
+    const spec = describe(t);
+    VH.ui.openDialog(spec);
+  }
+
+  /** Ekrandaki tıklamayı bir hedefe çevirir (karakter gövdesi veya cihaz ayak izi). */
+  function hitTest(px, py, vw, vh) {
+    const cam = M().camera;
+    let best = null, bestD = Infinity;
+    for (const e of staff.concat(patients)) {
+      const [ix, iy] = M().worldToIso(e.x, e.y);
+      const [sx, sy] = cam.toScreen(ix, iy - (e.lift || 0), vw, vh);
+      const z = cam.zoom;
+      if (px > sx - 11 * z && px < sx + 11 * z && py > sy - 48 * z && py < sy + 4 * z) {
+        const d = Math.abs(px - sx) + Math.abs(py - (sy - 22 * z));
+        if (d < bestD) { bestD = d; best = targetOfEntity(e); }
+      }
+    }
+    if (best) return best;
+    const [ix, iy] = cam.toIso(px, py, vw, vh);
+    const [wx, wy] = M().isoToWorld(ix, iy);
+    for (const dv of devices) if (rectDist(wx, wy, dv) < 0.35) return { type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y };
+    return null;
+  }
+
+  function inRange(t) {
+    if (t.type === 'device') return rectDist(player.x, player.y, t.ref) <= RANGE_DEV;
+    return Math.hypot(t.ref.x - player.x, t.ref.y - player.y) <= RANGE_ENT;
+  }
+
+  // ================================================================ Çizim
+  function drawables(map) {
+    const all = [player].concat(staff, patients);
+    return all.map((e) => {
+      const [sx, sy] = map.worldToIso(e.x, e.y);
+      return {
+        // Oturan karakter, üzerine oturduğu koltuk/sedyeden sonra çizilmeli (ön hücre anahtarını geçer)
+        kind: 'ent', key: map.depthAt(e.x, e.y) + (e.sitting ? 0.9 : 0.02), cx: sx, cy: sy,
+        draw: (ctx) => drawPerson(ctx, sx, sy, e.look, {
+          t: e.anim, moving: e.moving, flip: e.flip, back: e.back, sitting: e.sitting, lift: e.lift, ring: e === player,
+        }),
+      };
+    });
+  }
+
+  function bubble(ctx, x, y, text, accent) {
+    ctx.font = '600 12px system-ui, -apple-system, "Segoe UI", sans-serif';
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > 170 && line) { lines.push(line); line = w; } else line = test;
+    }
+    lines.push(line);
+    const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+    const h = lines.length * 15 + 10;
+    const bx = x - w / 2, by = y - h - 8;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.strokeStyle = accent || 'rgba(15,42,58,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, w, h, 8); else ctx.rect(bx, by, w, h);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 5, by + h - 0.5); ctx.lineTo(x, by + h + 6); ctx.lineTo(x + 5, by + h - 0.5); ctx.fill();
+    ctx.fillStyle = '#16323f';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    lines.forEach((l, i) => ctx.fillText(l, x, by + 6 + i * 15));
+  }
+
+  /** Ekran-uzayı katmanı: konuşma balonları ve etkileşim ikonu. */
+  function drawOverlay(ctx, vw, vh, focus, touch) {
+    const cam = M().camera, z = cam.zoom, now = performance.now();
+    const head = (e) => {
+      const [ix, iy] = M().worldToIso(e.x, e.y);
+      return cam.toScreen(ix, iy - (e.lift || 0) - 50, vw, vh);
+    };
+    for (const e of staff.concat(patients, [player])) {
+      if (!e.bubble) continue;
+      if (now > e.bubble.until) { e.bubble = null; continue; }
+      const [sx, sy] = head(e);
+      if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
+      bubble(ctx, sx, sy + 2 * z, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
+    }
+    if (focus) {
+      let sx, sy;
+      if (focus.type === 'device') {
+        const [ix, iy] = M().worldToIso(focus.x, focus.y);
+        [sx, sy] = cam.toScreen(ix, iy - 46, vw, vh);
+      } else {
+        if (focus.ref.bubble) return;
+        [sx, sy] = head(focus.ref);
+      }
+      const pulse = 1 + Math.sin(now / 220) * 0.08;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.scale(pulse, pulse);
+      ctx.fillStyle = '#2ec4b6';
+      ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#062026';
+      ctx.font = '700 13px system-ui, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(touch ? '!' : 'E', 0, 1);
+      ctx.restore();
+    }
+  }
+
+  // ================================================================ Dışa aktarılan API
   VH.entities = {
-    player,
+    player, staff, patients, LOOKS, drawPerson, input, stats,
     list: [player],
-    LOOKS,
-    drawPerson,
-    init() {},
-    update(/* dt */) { /* Aşama 3 */ },
-    /** Harita derinlik listesine eklenecek çizilebilirler. */
-    drawables(map) {
-      return this.list.map((e) => {
-        const [sx, sy] = map.worldToIso(e.x, e.y);
-        return {
-          kind: 'ent', key: map.depthAt(e.x, e.y), cx: sx, cy: sy,
-          draw: (ctx) => drawPerson(ctx, sx, sy, e.look),
-        };
-      });
+    init() {
+      buildDevices();
+      // Başlangıçta birkaç hasta: biri kuyrukta, ikisi bekleme salonunda
+      spawnPatient();
+      for (let i = 0; i < 2; i++) {
+        const p = makeEntity('patient', {
+          name: pick(FIRST) + ' ' + pick(LAST), age: Math.floor(rand(20, 70)), complaint: pick(COMPLAINTS),
+          look: randomPatientLook(), speed: rand(1.5, 2.0), state: 'waiting', needsLab: Math.random() < 0.6,
+          waitSince: performance.now() + i * 10000, timer: 0,
+        });
+        stats.registered++; stats.ticket++;
+        p.ticket = 'A-' + String(stats.ticket).padStart(3, '0');
+        const seat = SEATS[i * 3 + 1];
+        seat.occ = p; p.seatRef = seat;
+        sitAt(p, seat.seat, 7); p.back = false;
+        patients.push(p);
+      }
     },
+    update(dt) {
+      updatePlayer(dt);
+      staff.forEach((s) => updateStaff(s, dt));
+      updatePatients(dt);
+    },
+    drawables,
+    drawOverlay,
+    nearbyTargets,
+    interact,
+    hitTest,
+    inRange,
+    say,
+    // test yardımcıları
+    _collides: collides,
+    _findPath: findPath,
   };
 })();

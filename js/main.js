@@ -1,4 +1,4 @@
-// Vita Hospital — Giriş noktası, oyun döngüsü ve kamera girdileri
+// Vita Hospital — Giriş noktası, oyun döngüsü ve girdiler
 (function () {
   const VH = (window.VH = window.VH || {});
   const canvas = document.getElementById('game');
@@ -39,10 +39,12 @@
     document.body.appendChild(pre);
   }
 
-  // ---------------------------------------------------------------- Kamera girdileri
+  // ---------------------------------------------------------------- Durum
   const cam = () => VH.map.camera;
   const pointers = new Map();
+  const keys = new Set();
   let dragMoved = false, pinchDist = 0;
+  let targets = [];
 
   function setFollow(on) {
     cam().follow = on;
@@ -58,9 +60,40 @@
     VH.ui.setRoomChip(room ? (room.num ? room.num + ' · ' : '') + room.name : '');
   }
 
+  function doInteract(t) {
+    if (!t) return;
+    VH.entities.interact(t);
+  }
+
+  function clickAt(px, py) {
+    if (VH.ui.isDialogOpen()) return;
+    const t = VH.entities.hitTest(px, py, vw, vh);
+    if (!t) return;
+    if (VH.entities.inRange(t)) doInteract(t);
+    else VH.ui.toast(`${t.name}: etkileşim için yaklaşın`);
+  }
+
+  // ---------------------------------------------------------------- Girdiler
+  const MOVE_KEYS = {
+    w: [0, -1], arrowup: [0, -1], s: [0, 1], arrowdown: [0, 1],
+    a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
+  };
+
+  function readMoveInput() {
+    let x = 0, y = 0;
+    keys.forEach((k) => { const v = MOVE_KEYS[k]; if (v) { x += v[0]; y += v[1]; } });
+    const kl = Math.hypot(x, y);
+    if (kl > 0) { x /= kl; y /= kl; }
+    if (VH.ui.joy.active) { x = VH.ui.joy.x; y = VH.ui.joy.y; }
+    const inp = VH.entities.input;
+    inp.x = x; inp.y = y;
+    inp.run = keys.has('shift');
+    if ((x || y) && !cam().follow) setFollow(true);
+  }
+
   function bindInput() {
     canvas.addEventListener('pointerdown', (e) => {
-      canvas.setPointerCapture(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* etkin olmayan işaretçi */ }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       dragMoved = false;
       if (pointers.size === 2) {
@@ -74,13 +107,14 @@
       if (!p) return;
       if (pointers.size === 1) {
         const dx = e.clientX - p.x, dy = e.clientY - p.y;
-        if (dragMoved || Math.abs(dx) + Math.abs(dy) > 4) {
+        if (dragMoved || Math.abs(dx) + Math.abs(dy) > 6) {
           dragMoved = true;
           cam().pan(dx, dy);
           setFollow(false);
           p.x = e.clientX; p.y = e.clientY;
         }
       } else if (pointers.size === 2) {
+        dragMoved = true;
         p.x = e.clientX; p.y = e.clientY;
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -89,8 +123,10 @@
       }
     });
     const up = (e) => {
+      const wasSingle = pointers.size === 1;
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinchDist = 0;
+      if (e.type === 'pointerup' && wasSingle && !dragMoved) clickAt(e.clientX, e.clientY);
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
@@ -103,16 +139,30 @@
 
     window.addEventListener('keydown', (e) => {
       if (e.target && /input|textarea/i.test(e.target.tagName)) return;
-      switch (e.key.toLowerCase()) {
+      const k = e.key.toLowerCase();
+      if (MOVE_KEYS[k] || k === 'shift') {
+        keys.add(k);
+        if (k.startsWith('arrow')) e.preventDefault();
+        return;
+      }
+      if (e.repeat) return;
+      switch (k) {
+        case 'e': case 'enter': case ' ':
+          e.preventDefault();
+          if (VH.ui.isDialogOpen()) VH.ui.closeDialog(); else doInteract(targets[0]);
+          break;
+        case 'escape': VH.ui.closeDialog(); break;
         case 'q': VH.map.rotate(-1); break;
         case 'r': VH.map.rotate(1); break;
         case '+': case '=': cam().zoomAt(1.2, vw / 2, vh / 2, vw, vh); break;
         case '-': case '_': cam().zoomAt(1 / 1.2, vw / 2, vh / 2, vw, vh); break;
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
-        default: return;
+        default: break;
       }
     });
+    window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+    window.addEventListener('blur', () => keys.clear());
   }
 
   function toggleLabels() {
@@ -122,13 +172,29 @@
 
   // ---------------------------------------------------------------- Döngü
   let last = performance.now();
+  let hudTimer = 0;
+  function updateHud() {
+    const E = VH.entities;
+    const waiting = E.patients.filter((p) => p.state === 'waiting').length;
+    VH.ui.setChip('chip-patients', `Hastalar: ${E.patients.length} · Bekleyen: ${waiting}`);
+    VH.ui.setChip('chip-served', `Taburcu: ${E.stats.served}`);
+    const room = VH.map.roomAt(E.player.x, E.player.y);
+    VH.ui.setChip('chip-where', '📍 ' + (room ? room.name : 'Hastane bahçesi'));
+  }
+
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    readMoveInput();
     VH.entities.update(dt);
     cam().update(dt);
+    targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
+    VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map));
+    VH.entities.drawOverlay(ctx, vw, vh, targets[0], VH.ui.isTouch());
+    hudTimer -= dt;
+    if (hudTimer <= 0) { hudTimer = 0.25; updateHud(); }
     requestAnimationFrame(frame);
   }
 
@@ -151,13 +217,22 @@
     // Hata ayıklama / test parametreleri: ?rot=1&zoom=0.6&x=15&y=11&follow=0&labels=0
     if (params.has('rot')) VH.map.setRotation(+params.get('rot'));
     if (params.has('zoom')) c.zoom = +params.get('zoom');
+    if (params.has('px') && params.has('py')) { VH.entities.player.x = +params.get('px'); VH.entities.player.y = +params.get('py'); }
     if (params.has('x') && params.has('y')) { c.follow = false; c.centerOnWorld(+params.get('x'), +params.get('y')); }
     else c.centerOnWorld(c.target.x, c.target.y);
     if (params.get('follow') === '0') c.follow = false;
     if (params.get('labels') === '0') VH.map.labels = false;
+    if (params.has('touch')) document.body.classList.add('touch');
 
     VH.ui.hideLoader();
-    VH.ui.showHud(['✚ Vita Hospital', 'Bütçe: ₺50.000', 'İtibar: ★ 50']);
+    VH.ui.showHud([
+      ['chip-brand', '✚ Vita Hospital'],
+      ['chip-budget', 'Bütçe: ₺50.000'],
+      ['chip-rep', 'İtibar: ★ 50'],
+      ['chip-patients', ''],
+      ['chip-served', ''],
+      ['chip-where', ''],
+    ]);
     VH.ui.buildCameraControls({
       rotL: () => VH.map.rotate(-1),
       rotR: () => VH.map.rotate(1),
@@ -166,9 +241,11 @@
       follow: () => setFollow(!c.follow),
       labels: toggleLabels,
     });
+    VH.ui.buildGameControls((i) => doInteract(targets[i]));
     VH.ui.setToggle('btn-follow', c.follow);
     VH.ui.setToggle('btn-labels', VH.map.labels);
     bindInput();
+    updateHud();
     selftest({ map: VH.map.stats(), rot: VH.map.rot, viewport: [vw, vh] });
     requestAnimationFrame(frame);
   }
