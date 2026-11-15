@@ -91,6 +91,7 @@
     mci:        { icon: '🚑', name: 'Zincirleme Trafik Kazası', dur: 220, desc: 'Arka arkaya 2 acil vaka geliyor! Her başarılı müdahale +₺1.500 ek ödül.' },
     inspection: { icon: '📋', name: 'Sağlık Bakanlığı Denetimi', dur: 100, desc: 'Denetçiler yolda! Süre bitince hastane puanınız değerlendirilecek: çöpleri toplayın, cihaz bakımlarını yapın.' },
     donation:   { icon: '🎁', name: 'Hayırsever Bağışı', dur: 6, desc: 'Bir hayırsever hastaneye bağış yaptı. Bağış miktarı hastane puanına göre belirlenir.' },
+    surprise:   { icon: '🕵️', name: 'Habersiz Müfettiş Denetimi', dur: 60, desc: 'Takım elbiseli biri koridorlarda not alıyor… Habersiz bir Sağlık Müfettişi denetimi olabilir!' },
   };
   const ev = { id: null, t: 0, n: 0 };
   let eventTimer = 75;
@@ -101,6 +102,7 @@
     sound('notify');
     UI().toast(`${d.icon} ${d.name}: ${d.desc}`, 5200);
     if (id === 'mci' && H().er && !H().er.active && !H().er.amb) H().er.nextIn = Math.min(H().er.nextIn, 8);
+    if (id === 'surprise') spawnInspector();
     if (id === 'donation') {
       const r = rating();
       const amount = r >= 4 ? 8000 : r >= 3 ? 5000 : 2500;
@@ -113,8 +115,27 @@
     const id = ev.id;
     ev.id = null; ev.t = 0;
     if (id === 'inspection') inspect();
+    if (id === 'surprise') { inspect(true); if (inspector) inspector.gone = true; }
   }
-  function inspect() {
+  let inspector = null;
+  function spawnInspector() {
+    const look = { coat: '#2b333b', shirt: '#ffffff', tie: '#30638e', pants: '#22223b', skin: '#e8b48f', hair: '#5a4a42', hairStyle: 'short', glasses: true, carry: 'clipboard', longCoat: true };
+    inspector = E().makeEntity('extra', { name: 'Müfettiş', look, x: 4.5, y: 25.3, speed: 1.3, floor: 0, route: [[4.5, 15.5], [14.5, 16], [24.5, 15.5], [26.5, 9.6], [12.5, 9.6], [4.5, 24.6]], ri: 0, pause: 0 });
+    E().extraPeople.push(inspector);
+  }
+  function updateInspector(dt) {
+    const m = inspector;
+    if (!m) return;
+    if (m.gone) { const i = E().extraPeople.indexOf(m); if (i >= 0) E().extraPeople.splice(i, 1); inspector = null; return; }
+    if (m.path.length) { E().stepPath(m, dt); return; }
+    if (m.pause > 0) { m.pause -= dt; return; }
+    const wp = m.route[m.ri++];
+    if (!wp) return;
+    m.pause = 3;
+    if (Math.random() < 0.6) E().say(m, pick(['Hmm, not alıyorum…', 'Temizlik nasıl acaba?', 'Bekleme süreleri…', 'Cihaz bakım kayıtları?']), 2200);
+    E().goTo(m, wp[0], wp[1]);
+  }
+  function inspect(surprise) {
     const r = rating();
     let budget, rep, grade;
     if (r >= 3.5) { budget = 6000; rep = 6; grade = 'Mükemmel'; }
@@ -133,7 +154,7 @@
     deltas.appendChild(el('span', { className: 'delta ' + (budget >= 0 ? 'up' : 'down') }, `Bütçe ${budget >= 0 ? '+' : ''}${money(budget)}`));
     deltas.appendChild(el('span', { className: 'delta ' + (rep >= 0 ? 'up' : 'down') }, `İtibar ${rep >= 0 ? '+' : ''}${rep}`));
     node.appendChild(deltas);
-    UI().openDialog({ icon: '📋', title: 'Denetim Raporu', subtitle: 'Sağlık Bakanlığı · Hastane Değerlendirmesi', wide: true, node });
+    UI().openDialog({ icon: surprise ? '🕵️' : '📋', title: surprise ? 'Habersiz Müfettiş Raporu' : 'Denetim Raporu', subtitle: surprise ? 'Az önce koridorlarda dolaşan kişi bir Sağlık Müfettişiydi!' : 'Sağlık Bakanlığı · Hastane Değerlendirmesi', wide: true, node });
     persist();
   }
   function updateEvents(dt) {
@@ -145,7 +166,7 @@
     eventTimer -= dt;
     if (eventTimer <= 0) {
       eventTimer = 200 + Math.random() * 160;
-      const pool = ['flu', 'heat', 'mci', 'inspection', 'donation', 'inspection'];
+      const pool = ['flu', 'heat', 'mci', 'inspection', 'donation', 'surprise', 'surprise'];
       startEvent(pick(pool));
     }
   }
@@ -251,6 +272,10 @@
     { id: 'shifts10', icon: '🌙', name: 'Nöbet Ustası', desc: '10 nöbet tamamla.', test: (c) => (c.shifts || 0) >= 10 },
     { id: 'inspection', icon: '📋', name: 'Denetimden Tam Not', desc: 'Bakanlık denetiminden 3,5★ ve üstüyle geç.', test: (c) => (c.inspectionPass || 0) >= 1 },
     { id: 'rich', icon: '💰', name: 'Bütçe Sihirbazı', desc: 'Bütçeyi ₺100.000\'e çıkar.', test: () => S().budget >= 100000 },
+    { id: 'surgeon', icon: '🩻', name: 'Neşter Ustası', desc: 'İlk ameliyatı bizzat yap.', test: (c) => (c.surgery || 0) >= 1 },
+    { id: 'radiologist', icon: '🧲', name: 'İleri Tanı', desc: '3 görüntülemeyi bizzat yap.', test: (c) => (c.imaging || 0) >= 3 },
+    { id: 'logistics', icon: '🚚', name: 'Tedarik Zinciri', desc: 'İlk ilaç siparişini teslim al.', test: (c) => (c.delivered || 0) >= 1 },
+    { id: 'wardCare', icon: '🛏️', name: 'Şefkatli Bakım', desc: 'Serviste 10 bakım uygula.', test: (c) => (c.ward || 0) >= 10 },
   ];
   let achCheckT = 0;
   function checkAch() {
@@ -351,7 +376,7 @@
     const out = { counters: {}, ach: {}, daily: null, streak: 0, lastFull: '', price: 'normal', inspections: 0 };
     if (!d || typeof d !== 'object') return out;
     const n = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
-    const keys = ['served', 'er', 'cases', 'caseBest', 'counsel', 'combo3', 'clean', 'decor', 'repair', 'refresh', 'shiftClean', 'train', 'hire', 'shifts', 'inspectionPass'];
+    const keys = ['surgery', 'imaging', 'delivered', 'ward', 'served', 'er', 'cases', 'caseBest', 'counsel', 'combo3', 'clean', 'decor', 'repair', 'refresh', 'shiftClean', 'train', 'hire', 'shifts', 'inspectionPass'];
     keys.forEach((k) => { if (d.counters && n(d.counters[k], 0, 1e7)) out.counters[k] = Math.round(d.counters[k]); });
     ACH.forEach((a) => { if (d.ach && n(d.ach[a.id], 1, 9e15)) out.ach[a.id] = d.ach[a.id]; });
     if (d.daily && typeof d.daily.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.daily.day) && Array.isArray(d.daily.list)) {
@@ -368,6 +393,10 @@
 
   // ---------------------------------------------------------------- Olay dinleyicileri
   VH.on('served', () => bump('served'));
+  VH.on('surgeryDone', (d) => { if (d.byPlayer) bump('surgery'); });
+  VH.on('imagingDone', (d) => { if (d.byPlayer) bump('imaging'); });
+  VH.on('delivered', () => bump('delivered'));
+  VH.on('wardCare', (d) => { if (d.byPlayer) bump('ward'); });
   VH.on('erSuccess', () => {
     bump('er');
     if (ev.id === 'mci') {
@@ -414,6 +443,7 @@
     init() { ensureDaily(); checkAch(); },
     update(dt) {
       updateEvents(dt);
+      updateInspector(dt);
       // ara sıra kuyruktaki / eczanedeki hastalar yere çöp düşürür
       litterT -= dt;
       if (litterT <= 0) {

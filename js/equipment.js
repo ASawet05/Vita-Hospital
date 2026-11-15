@@ -36,21 +36,26 @@
     { id: 'pharmacy', icon: '💊', name: 'Eczane Otomasyonu', kinds: ['med_cabinet'], tagKinds: ['pharmacy_counter'], time: { pharmacyWait: [1, 0.85, 0.7] }, autoBonus: [0, 100, 200],
       models: ['Manuel Raf Sistemi', 'Barkodlu Stok Sistemi', 'Robotik Eczane'], costs: [0, 4000, 9000], rep: [0, 30, 50],
       effects: ['', 'Eczane teslimi %15 hızlı, otomatik teslimde +₺100.', 'Teslim %30 hızlı, otomatik teslimde +₺200.'] },
-    { id: 'imaging', icon: '📡', name: 'Görüntüleme & İleri Tanı', kinds: ['xray', 'ultrasound', 'ct_scanner'], needs: 'radiology', testsBonus: [0, 500, 1000],
-      models: ['Röntgen & Ultrason', 'Dijital Röntgen (DR)', 'Bilgisayarlı Tomografi (BT)'], costs: [0, 9000, 20000], rep: [0, 50, 70],
-      effects: ['', '"Daha fazla tetkik" kararlarında ek +₺500.', 'Ek +₺1.000; Radyoloji katına BT tarayıcı kurulur.'] },
+    { id: 'imaging', icon: '📡', name: 'Röntgen, MR & İleri Tanı', kinds: ['xray', 'ultrasound', 'ct_scanner', 'mri'], needs: 'radiology', testsBonus: [0, 500, 1000], scan: [1, 1.3, 1.6],
+      models: ['Röntgen, Ultrason & 1,5T MR', 'Dijital Röntgen + Hızlı MR', 'BT Tarayıcı + 3T MR'], costs: [0, 9000, 20000], rep: [0, 50, 70], floor: 3,
+      effects: ['', 'Tetkik kararlarında +₺500; görüntüleme mini oyununda tarama penceresi %30 geniş.', 'Ek +₺1.000, pencere %60 geniş; Radyoloji katına BT tarayıcı kurulur.'] },
+    { id: 'surgery', icon: '🩻', name: 'Ameliyathane Ekipmanı', kinds: ['or_table', 'surgical_lamp', 'anesthesia'], needs: 'surgery', surg: [1, 1.25, 1.5], reward: [1, 1.2, 1.4],
+      models: ['Standart Ameliyat Masası', 'Hibrit Ameliyathane Seti', 'Robot Destekli Ameliyathane'], costs: [0, 12000, 26000], rep: [0, 60, 75], floor: 1,
+      effects: ['', 'Cerrahi mini oyunlarda başarı aralıkları %25 geniş, ameliyat ödülü +%20.', 'Aralıklar %50 geniş, ödül +%40; cerrahın otomatik ameliyat puanı artar.'] },
   ];
   const byId = (id) => CATS.find((c) => c.id === id);
 
   const data = () => {
     const st = S();
     st.equip = st.equip || {};
-    CATS.forEach((c) => { if (!st.equip[c.id]) st.equip[c.id] = { lvl: 1, cond: 100 }; });
+    CATS.forEach((c) => { if (!st.equip[c.id]) st.equip[c.id] = { lvl: 1, cond: 100, broken: false }; });
     return st.equip;
   };
   const lvl = (id) => data()[id].lvl;
   const cond = (id) => data()[id].cond;
-  const wearMult = (id) => (cond(id) >= 50 ? 1 : 1 + (50 - cond(id)) / 100);
+  const broken = (id) => !!data()[id].broken;
+  const wearMult = (id) => (broken(id) ? 1.8 : cond(id) >= 50 ? 1 : 1 + (50 - cond(id)) / 100);
+  const partCost = (id) => 1500 + 600 * lvl(id);
   const catOfTag = (tag) => CATS.find((c) => (c.tags || []).includes(tag));
 
   // ---------------------------------------------------------------- Etkiler
@@ -85,9 +90,29 @@
     const before = d.cond;
     d.cond = clamp(d.cond - amount, 0, 100);
     if (before >= 50 && d.cond < 50) UI().toast(`🔧 ${byId(id).name} yıprandı (%${Math.round(d.cond)}): işlemler yavaşlıyor. Bakım yapın ya da teknisyen alın.`, 3600);
+    // Arıza: durum sıfırlanınca ya da çok düşükken rastgele bozulur; onarım için yedek parça gerekir
+    if (!d.broken && (d.cond <= 0 || (d.cond < 18 && Math.random() < 0.25))) {
+      d.broken = true;
+      sound('alarm');
+      if (VH.notify) VH.notify('⚠️', `ARIZA: ${byId(id).name}. Terminalden yedek parça sipariş edin; teslimattan sonra teknisyen onarır.`, byId(id).floor || 0, 'broken');
+      if (VH.emit) VH.emit('breakdown', { id });
+    }
+  }
+  /** Arızalı cihazı yedek parçayla onar (teknisyen ya da Başhekim). */
+  function fixBroken(id, silent) {
+    const d = data()[id];
+    if (!d.broken) return false;
+    if (!VH.logistics || !VH.logistics.useParts(id)) { if (!silent) UI().toast('Yedek parça yok: önce terminalden sipariş verin.', 2400); return false; }
+    d.broken = false; d.cond = Math.max(d.cond, 70);
+    sound('success');
+    UI().toast(`🔧 ${byId(id).name} onarıldı.`, 2200);
+    if (VH.emit) VH.emit('repair', { id, fixed: true });
+    persist();
+    return true;
   }
   function repair(id, amount, silent) {
     const d = data()[id];
+    if (d.broken) { fixBroken(id, silent); return; }
     d.cond = clamp(d.cond + amount, 0, 100);
     if (!silent) sound('ok');
     if (VH.emit) VH.emit('repair', { id });
@@ -95,8 +120,9 @@
   const repairCost = (id) => Math.round((100 - cond(id)) * 12);
   function payRepair(id) {
     const cost = repairCost(id);
+    if (broken(id)) { fixBroken(id); return; }
     if (cost <= 0) return;
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return; }
+    if (S().budget < cost || S().budget <= 0) { UI().toast('Bütçe yetersiz', 1800); return; }
     S().budget -= cost;
     repair(id, 100);
     UI().toast(`🔧 ${byId(id).name} bakımı yapıldı (${money(cost)})`, 2200);
@@ -106,7 +132,9 @@
   function needsRepair() {
     let best = null;
     for (const c of CATS) {
-      if (cond(c.id) >= 80 || c.id === 'imaging') continue;
+      if (c.floor) continue;
+      if (broken(c.id)) { if (VH.logistics && VH.logistics.parts[c.id]) { best = c; break; } continue; }
+      if (cond(c.id) >= 80) continue;
       if (!best || cond(c.id) < cond(best.id)) best = c;
     }
     if (!best) return null;
@@ -118,11 +146,12 @@
     const c = byId(id), L = lvl(id);
     if (L >= 3) return false;
     const cost = c.costs[L], rep = c.rep[L];
-    if (c.needs && !(S().services && S().services[c.needs])) { UI().toast('Önce Radyoloji katını açın', 2000); return false; }
+    if (c.needs && !(S().services && S().services[c.needs])) { UI().toast(c.needs === 'surgery' ? 'Önce Cerrahi katını açın' : 'Önce Radyoloji katını açın', 2000); return false; }
     if (S().reputation < rep) { UI().toast(`İtibar ${rep} gerekli`, 2000); return false; }
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return false; }
+    if (S().budget < cost || S().budget <= 0) { UI().toast('Bütçe yetersiz', 1800); return false; }
     S().budget -= cost;
     data()[id].lvl = L + 1;
+    data()[id].broken = false;
     data()[id].cond = 100;
     applyVisuals();
     sound('success');
@@ -165,6 +194,14 @@
         k.box(W - 0.45, 0.28, W - 0.15, 0.72, 25, 27, col);
         k.box(0.3, 0.3, W - 0.55, 0.7, 21.6, 22.2, '#ffffff', { edge: false });
         if (L >= 3) { k.pole(0.15, 0.25, 0, 46, 2, '#6f7d87'); k.box(0.05, 0.2, 0.35, 0.28, 42, 56, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 44, 54, '#0f5e66')] }); }
+        break;
+      case 'or_table': case 'anesthesia': case 'surgical_lamp':
+        k.box(0.1, 0.1, 0.9, 0.18, 0, 4, col);
+        if (L >= 3 && kind === 'or_table') { k.pole(0.9, 0.2, 0, 50, 3, '#9aa7b0'); k.line(0.9, 0.2, 50, 0.55, 0.5, 34, 3, '#9aa7b0'); k.box(0.45, 0.4, 0.65, 0.6, 28, 34, '#eef2f4'); }
+        if (L >= 2 && kind === 'anesthesia') k.box(0.25, 0.4, 0.75, 0.48, 46, 58, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 48, 56, '#0f5e66')] });
+        break;
+      case 'mri':
+        k.box(0.1, 0.1, 1.6, 0.2, 54, 60, col);
         break;
       case 'xray': case 'ultrasound':
         k.box(0.05, 0.05, 0.3, 0.15, 30, 46, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 32, 44, '#0b3a5a')] });
@@ -218,17 +255,23 @@
     const seen = new Set();
     for (const o of objs) {
       const c = catOfObj(o);
-      if (!c || seen.has(c.id) || cond(c.id) >= 60) continue;
+      if (!c || seen.has(c.id) || (cond(c.id) >= 60 && !broken(c.id))) continue;
       const d = E().rectDist(player.x, player.y, { x0: o.x, y0: o.y, x1: o.x + (o.w || 1), y1: o.y + (o.h || 1) });
       if (d > 1.15) continue;
       seen.add(c.id);
+      if (broken(c.id)) {
+        const hasPart = VH.logistics && VH.logistics.parts[c.id];
+        out.push({ type: 'repair', name: `${c.name} · ARIZALI`, action: hasPart ? '🔧 Arızayı Onar (parça hazır)' : '⚠️ Arızalı: parça gerekli', x: o.x + 0.5, y: o.y + 0.5, dist: d + 0.5, cat: c.id,
+          handler: (t) => { if (hasPart) fixBroken(t.cat); else if (VH.terminal) VH.terminal.open('bakim'); } });
+        continue;
+      }
       out.push({ type: 'repair', name: `${c.name} · %${Math.round(cond(c.id))}`, action: `🔧 Bakım Yap ${money(repairCost(c.id))}`, x: o.x + 0.5, y: o.y + 0.5, dist: d + 0.6, cat: c.id, handler: (t) => payRepair(t.cat) });
     }
     return out;
   }
   function drawOverlay(ctx, vw, vh) {
     const cam = M().camera, now = performance.now();
-    const bad = new Set(CATS.filter((c) => cond(c.id) < 50).map((c) => c.id));
+    const bad = new Set(CATS.filter((c) => cond(c.id) < 50 || broken(c.id)).map((c) => c.id));
     if (!bad.size) return;
     const shown = new Set();
     ctx.font = '13px system-ui, "Segoe UI Emoji", sans-serif';
@@ -241,9 +284,9 @@
       const [sx, sy] = cam.toScreen(ix, iy - 58, vw, vh);
       if (sx < -20 || sy < -20 || sx > vw + 20 || sy > vh + 20) continue;
       const b = Math.sin(now / 260) * 2;
-      ctx.fillStyle = cond(c.id) < 25 ? 'rgba(229,72,77,0.92)' : 'rgba(242,169,59,0.92)';
+      ctx.fillStyle = broken(c.id) || cond(c.id) < 25 ? 'rgba(229,72,77,0.92)' : 'rgba(242,169,59,0.92)';
       ctx.beginPath(); ctx.arc(sx, sy + b, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.fillText('🔧', sx, sy + b + 1);
+      ctx.fillStyle = '#fff'; ctx.fillText(broken(c.id) ? '⚠️' : '🔧', sx, sy + b + 1);
     }
   }
 
@@ -274,13 +317,15 @@
       if (L < 3) {
         acts.appendChild(el('span', { className: 'opt-desc eq-next' }, `Sonraki: ${c.models[L]} · ${c.effects[L]}`));
         const locked = c.needs && !(S().services && S().services[c.needs]);
-        const why = locked ? 'Radyoloji katı gerekli' : S().reputation < c.rep[L] ? `İtibar ${c.rep[L]} gerekli` : S().budget < c.costs[L] ? 'Bütçe yetersiz' : null;
+        const why = locked ? (c.needs === 'surgery' ? 'Cerrahi katı gerekli' : 'Radyoloji katı gerekli') : S().budget <= 0 ? 'Bütçe ekside' : S().reputation < c.rep[L] ? `İtibar ${c.rep[L]} gerekli` : S().budget < c.costs[L] ? 'Bütçe yetersiz' : null;
         const b = el('button', { type: 'button', className: 'dlg-btn' + (why ? ' ghost' : '') }, why || `⬆️ Yükselt ${money(c.costs[L])}`);
         b.disabled = !!why;
         b.addEventListener('click', () => { upgrade(c.id); rerender(); });
         acts.appendChild(b);
       } else acts.appendChild(el('span', { className: 'opt-desc eq-next' }, '✓ En üst model kurulu'));
-      if (d.cond < 100) {
+      if (d.broken) {
+        acts.appendChild(el('span', { className: 'pill', style: 'background:rgba(229,72,77,.35)' }, `⚠️ Arızalı · stokta parça: ${(VH.logistics && VH.logistics.parts[c.id]) || 0}`));
+      } else if (d.cond < 100) {
         const rb = el('button', { type: 'button', className: 'mini-btn' }, `🔧 Bakım ${money(repairCost(c.id))}`);
         rb.disabled = S().budget < repairCost(c.id);
         rb.addEventListener('click', () => { payRepair(c.id); rerender(); });
@@ -291,13 +336,40 @@
     });
   }
 
+  // ---------------------------------------------------------------- Bakım & Parça (terminal uygulaması)
+  function renderParts(list, rerender) {
+    const can = VH.logistics ? VH.logistics.deskGate(list) : true;
+    const techs = VH.staff ? VH.staff.hired.filter((h) => h.role === 'tech').length : 0;
+    list.appendChild(el('p', { className: 'muted' }, `Arızalı cihazlar yedek parça olmadan onarılamaz. Parça lojistik aracıyla gelir; ${techs ? techs + ' teknisyeniniz onarımı kendiliğinden yapar.' : 'teknisyen yoksa cihazın yanına gidip "Arızayı Onar" seçin.'}`));
+    CATS.forEach((c) => {
+      const d = data()[c.id];
+      const row = el('div', { className: 'stock-row' + (d.broken ? ' low' : '') });
+      row.appendChild(el('span', { className: 'shop-icon' }, c.icon));
+      const body = el('div', { className: 'shop-body' });
+      body.appendChild(el('strong', {}, c.name + (d.broken ? ' · ⚠️ ARIZALI' : '')));
+      const tr = el('span', { className: 'mb-track' }), fill = el('span', { className: 'mb-fill' });
+      fill.style.width = d.cond + '%'; fill.style.background = d.broken ? '#ff5a5f' : d.cond > 60 ? '#46c46a' : d.cond > 30 ? '#f2c94c' : '#ff5a5f';
+      tr.appendChild(fill); body.appendChild(tr);
+      body.appendChild(el('span', { className: 'shop-meta' }, `Durum %${Math.round(d.cond)} · Depoda parça: ${(VH.logistics && VH.logistics.parts[c.id]) || 0} · Parça ${money(partCost(c.id))}`));
+      row.appendChild(body);
+      const acts = el('div', { className: 'sc-acts' });
+      const ob = el('button', { type: 'button', className: 'mini-btn' }, '🔩 Parça sipariş et');
+      ob.disabled = !can || S().budget < partCost(c.id) || S().budget <= 0;
+      ob.addEventListener('click', () => { if (VH.logistics) VH.logistics.orderPart(c.id, partCost(c.id)); rerender(); });
+      acts.appendChild(ob);
+      if (!d.broken && d.cond < 100) { const mb = el('button', { type: 'button', className: 'mini-btn' }, `🔧 Bakım ${money(repairCost(c.id))}`); mb.disabled = S().budget < repairCost(c.id) || S().budget <= 0; mb.addEventListener('click', () => { payRepair(c.id); rerender(); }); acts.appendChild(mb); }
+      row.appendChild(acts);
+      list.appendChild(row);
+    });
+  }
+
   function sanitize(d) {
     const out = {};
     CATS.forEach((c) => {
       const v = d && d[c.id];
       const L = v && typeof v.lvl === 'number' ? Math.round(clamp(v.lvl, 1, 3)) : 1;
       const C = v && typeof v.cond === 'number' && isFinite(v.cond) ? clamp(v.cond, 0, 100) : 100;
-      out[c.id] = { lvl: L, cond: C };
+      out[c.id] = { lvl: L, cond: C, broken: !!(v && v.broken === true) };
     });
     return out;
   }
@@ -311,11 +383,16 @@
   VH.on('caseSolved', (d) => { if (d.choice === 'tests') wear('imaging', 4); });
 
   VH.panelTabs.push({ id: 'ekipman', label: '🔧 Ekipman', order: 20, render: renderTab });
+  VH.panelTabs.push({ id: 'bakim', label: '🔩 Bakım & Parça', order: 21, render: renderParts });
   VH.targetProviders.push(targets);
 
   VH.equipment = {
     CATS, factor, stabFactor, erBonus, casePatienceBonus, imagingBonus, pharmacyBonus, triageHint,
-    lvl, cond, wear, repair, repairCost, payRepair, upgrade, needsRepair, sanitize, drawOverlay, renderTab,
+    lvl, cond, wear, repair, repairCost, payRepair, upgrade, needsRepair, sanitize, drawOverlay, renderTab, renderParts,
+    broken, fixBroken, partCost,
+    surgTolerance: () => byId('surgery').surg[lvl('surgery') - 1] * (broken('surgery') ? 0.7 : 1),
+    surgReward: () => byId('surgery').reward[lvl('surgery') - 1],
+    scanWindow: () => byId('imaging').scan[lvl('imaging') - 1] * (broken('imaging') ? 0.7 : 1),
     avgCondition: () => CATS.reduce((s, c) => s + cond(c.id), 0) / CATS.length,
     init() { data(); wrapArt(); applyVisuals(); },
   };

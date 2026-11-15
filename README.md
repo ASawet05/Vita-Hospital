@@ -22,12 +22,48 @@ Oyunda **hiçbir harici görsel ya da ses dosyası yoktur**. Her şey HTML5 Canv
 |---|---|---|
 | Yürüme | `WASD` / ok tuşları (`Shift` ile koşma) | Sol alttaki joystick |
 | Etkileşim | `E` / `Enter` veya karaktere/cihaza tıklama | Sağ alttaki dinamik eylem düğmesi |
-| Kamera | Sürükle, tekerlek, `Q` / `R` ile 90° döndürme, `F` ile takip | Sürükle, iki parmakla yakınlaştırma, düğmeler |
-| Yönetim paneli | `P` veya sağdaki **Yönetim** | Sağdaki 🏗️ |
-| Personel yönetimi | `K` | Sağdaki 👥 |
-| Düzenleme modu | `B`; içinde `T` döndürür, `Esc` iptal eder, `Delete` dekoru satar | Sağdaki 🛋️ |
-| Görevler & başarımlar | `G` | Sağdaki 🎯 |
-| Ses | `M` veya 🔊 | 🔊 |
+| Kamera | Sürükle, tekerlek, `Q` / `R` ile 90° döndürme, `F` ile takip | Sürükle, iki parmakla yakınlaştırma |
+| Yönetim terminali | `P` ya da Başhekimlik odasındaki bilgisayar | ☰ Menü |
+| Personel yönetimi | `K` | ☰ Menü |
+| Düzenleme modu | `B`; içinde `T` döndürür, `Esc` iptal eder, `Delete` dekoru satar | ☰ Menü |
+| Görevler & başarımlar | `G` | ☰ Menü |
+| Görünüm: zoom, döndürme, oda odak kamerası, etiketler, yazı boyutu, ses | `+` / `-`, `L`, `M` | ⚙️ Görünüm |
+
+Sağ üstte yalnızca iki düğme vardır: **☰ Menü** tüm yönetim uygulamalarını, **⚙️ Görünüm** kamera ve ayarları toplar. Mobilde akış şeması tek satırlık bir şeride küçülür (dokununca açılır).
+
+## Aşamalı otomasyon ve çok katlı hastane
+
+- **Başlangıç:** Yeni oyunda resepsiyon görevlisi, eczacı ve 2. muayene doktoru yoktur. Hasta kaydını resepsiyon bankosunda ("📋 Hastayı Kaydet"), ilaç teslimini eczanede siz yaparsınız. Yetişemezseniz hastalar sabrını yitirip gider.
+- **Otomasyon:** İş İlanları portalından çekirdek kadroyu, uzmanları, hemşireleri, teknisyenleri ve temizlik görevlilerini aldıkça rutin işler kendiliğinden yürür. Acil Tıp Uzmanı triyajı, acil hemşiresi stabilizasyonu üstlenir. Böylece üst katlara ve yönetime odaklanabilirsiniz.
+- **Başhekimlik bilgisayarı (Yönetim Terminali):** Şu uygulamaları içerir:
+  - Özet (uyarı merkezi), Stok & Lojistik, Bakım & Parça, İş İlanları
+  - Personel, Ekipman, Servisler, Karne
+
+  Sipariş ve işe alım yalnızca bilgisayar başında yapılır; menüdeki "Başhekimlik Odasına Git" yön çizgisi çizer.
+- **İş İlanları:** Her nöbet en fazla 2 ilan yenileme ve 3 işe alım hakkı vardır.
+- **Canlı ilaç stoku:** Eczanede 5 ilaç grubu her teslimde azalır; kritik seviyede eczacı haber verir. Sipariş verilince:
+  1. Lojistik kamyonu caddeden gelir.
+  2. Araç bariyeri açılır.
+  3. Kamyon lojistik kapısına yanaşır.
+  4. Kurye kolileri eczaneye taşır.
+- **Cihaz arızaları:** Yıpranan cihaz arızalanabilir; arızalı cihaz işlemleri ciddi yavaşlatır. Terminalden yedek parça sipariş edilir, parça gelince teknisyen (ya da siz) onarır.
+- **Kat açma zorluğu:** Bütçe eksideyken kat, personel, ekipman ve sipariş satın alımı kilitlidir. Her katın yüksek bir maliyeti ile "minimum itibar + çözülmüş vaka sayısı" şartı vardır.
+- **1. Kat · Cerrahi:** Acilde stabilize edilen travma, akut apandisit ve kalça kırığı hastaları ameliyathaneye taşınır. Ameliyatı etkileşimli mini oyunlarla bizzat yapabilirsiniz:
+  1. Cerrahi Güvenlik Kontrol Listesi
+  2. Anestezi dengesi
+  3. Kesi takibi
+  4. Dikiş ritmi
+
+  45 sn içinde gelmezseniz cerrah üstlenir. Ardından hasta uyandırma odasına, sonra servise geçer.
+- **2. Kat · Yatan Hasta & Pediatri:** Yatırılan hastaların serum, ilaç ve ateş takibini zamanında yaparsınız (servis hemşiresi gecikince üstlenir). Pediatri odasındaki oyuncaklar çocukların moralini yükseltir.
+- **3. Kat · Radyoloji & İleri Tanı:** "Daha fazla tetkik" kararı verilen vakalar ve inme şüphesindeki acil hastalar burada görüntülenir (röntgen, ultrason, EKG, MR). Her görüntülemede güvenlik sorusu (MR'da implant kontrolü, röntgende radyasyon koruması) ve tarama mini oyunu vardır. Diyaliz seansları da bu katta izlenir.
+- **B1 · Yemekhane & Kafeterya:** Başhekimin enerji barı zamanla ve koşarken azalır; düşükken hız ve tedavi yavaşlar. Yemekhane tezgâhından yemek, kafeteryadan kahve alınır.
+- **Katlar arası bildirimler:** Başka kattayken acil, stok, arıza, ameliyat ya da servis olayları sağ üstte kat rozetiyle bildirilir.
+- **Oda odak kamerası:** Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır, çıkınca geri döner. Kat değişiminde yakınlaşma geçişi yapılır.
+- **Dış cephe evrimi:** Servis katları açıldıkça dış duvarlar cam giydirme, LED bant ve kornişle modernleşir. Kuzeydeki şantiye vinçli inşaattan helikopter pistli ek bloğa dönüşür.
+- **Güvenli yerleşke:** Kampüs taş kaideli ferforje korkulukla çevrilidir. Ana girişte nizamiye ve yaya kapısı, ambulans/lojistik girişinde açılır-kapanır bariyer vardır. Dışarıda apartmanlar, çocuk parkı, yayalar ve trafik bulunur.
+- **Vardiya sonu Başhekim Karnesi:** Hasta memnuniyeti, acil servis, klinik kalite, finans, temizlik ve personel A–F arası notlanır.
+- **Habersiz Sağlık Müfettişi:** Koridorlarda not alarak dolaşır, ardından raporunu verir.
 
 ## Oyun döngüsü
 
@@ -137,6 +173,11 @@ js/equipment.js  Ekipman modelleri, yıpranma, bakım ve görsel seviye farkı
 js/build.js      Düzenleme modu: taşıma, döndürme, dekor, bağlantı denetimi, konfor
 js/progress.js   Hastane puanı, temizlik, ücret politikası, olaylar, görevler, başarımlar
 js/world.js      Trafik, yayalar, güvercinler, kuşlar, yağmur, far ışıkları
+js/art_city.js   Korkuluk, nizamiye, bariyer, apartman, çocuk parkı, ek bina, yemekhane eşyaları, MR, kamyon
+js/logistics.js  Eczane stoku, sipariş, lojistik kamyonu ve kurye, yedek parça teslimatı
+js/terminal.js   Başhekimlik bilgisayarı (Yönetim Terminali), uyarı merkezi, Başhekim Karnesi
+js/surgery.js    Ameliyathane akışı ve cerrahi mini oyunlar
+js/floors.js     Yatan hasta takibi, radyoloji görüntüleme, diyaliz, yemekhane ve Başhekim enerjisi
 js/guide.js      Akış şeması, hedef vurgusu, zemin yön çizgisi
 js/save.js       Doğrulamalı localStorage kaydı
 js/ui.js         HUD, yönetim menüsü, paneller, joystick, diyaloglar
@@ -145,6 +186,7 @@ js/main.js       Açılış ve oyun döngüsü
 
 Test parametreleri:
 - `?nosave` kaydı kapatır.
+- `?allstaff` yeni oyuna tam çekirdek kadroyla başlar (test için).
 - `?nointro` açılış hikâyesini atlar.
 - `?touch` mobil kontrolleri zorlar.
 - `?selftest` çizim kiti raporunu sayfaya yazar.
@@ -152,6 +194,25 @@ Test parametreleri:
 ## Tıbbi içerik hakkında
 
 Vaka ve acil senaryoları, genel kabul görmüş temel klinik bilgilere dayanır: uyarı işaretleri, ilk yaklaşım ve doğru yönlendirme. Değerler eğitim amaçlı sadeleştirilmiştir. Bu içerik bir hekim değerlendirmesinin yerini tutmaz.
+
+Bazı senaryolar PubMed'de yer alan kaynaklarla desteklenmiştir. İlgili sonuç ekranlarında DOI bağlantısıyla gösterilir:
+
+- Uyku apnesi ve trafik kazası riski: J Clin Sleep Med 2009 ([PMID 20465027](https://pubmed.ncbi.nlm.nih.gov/20465027/))
+- Çölyak hastalığı kılavuzları:
+  - ESsCD 2019 ([10.1177/2050640619844125](https://doi.org/10.1177/2050640619844125))
+  - ACG 2013 ([10.1038/ajg.2013.79](https://doi.org/10.1038/ajg.2013.79))
+- Yaşlılarda idrar yolu enfeksiyonuna bağlı deliryum: Cureus 2022 ([10.7759/cureus.32321](https://doi.org/10.7759/cureus.32321))
+- Karbonmonoksit zehirlenmesi: Crit Care Clin 2021 ([10.1016/j.ccc.2021.03.010](https://doi.org/10.1016/j.ccc.2021.03.010))
+- Surviving Sepsis Campaign 2021 ([10.1097/CCM.0000000000005337](https://doi.org/10.1097/CCM.0000000000005337))
+- İnmede hastane öncesi ve hastane içi gecikmeler: Australas Emerg Care 2019 ([10.1016/j.auec.2019.01.008](https://doi.org/10.1016/j.auec.2019.01.008))
+- Akut apandisit, WSES Kudüs kılavuzu 2020 ([10.1186/s13017-020-00306-3](https://doi.org/10.1186/s13017-020-00306-3))
+- Kalça kırığı cerrahisinin zamanlaması:
+  - Injury 2021 ([10.1016/j.injury.2021.02.049](https://doi.org/10.1016/j.injury.2021.02.049))
+  - Hip Int 2024 ([10.1177/11207000241248836](https://doi.org/10.1177/11207000241248836))
+- DSÖ Cerrahi Güvenlik Kontrol Listesi: NEJM 2009 ([10.1056/NEJMsa0810119](https://doi.org/10.1056/NEJMsa0810119))
+- Kalp cihazı olan hastada MR güvenliği: Eur Heart J 2022 ([10.1093/eurheartj/ehab469](https://doi.org/10.1093/eurheartj/ehab469))
+- Varfarin ile besin ve takviye etkileşimleri: Br J Clin Pharmacol 2020 ([10.1111/bcp.14404](https://doi.org/10.1111/bcp.14404))
+- Çocuklarda ameliyat öncesi açlık, ESAIC 2022 ([10.1097/EJA.0000000000001599](https://doi.org/10.1097/EJA.0000000000001599))
 
 ## Lisans
 

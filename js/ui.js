@@ -54,27 +54,87 @@
     },
 
     // ------------------------------------------------------------ Kamera düğmeleri
+    /**
+     * Sağ üst: tek "☰ Menü" (yönetim uygulamaları) + "⚙️ Görünüm" (döndürme, zoom, takip,
+     * etiketler, yazı boyutu, ses, oda odak kamerası). İkisi de açılır-kapanır.
+     * h: { rotL, rotR, zoomIn, zoomOut, follow, labels, sound, focus, textSize, menu: [[icon, label, key, fn]] }
+     */
     buildCameraControls(h) {
-      const box = el('div', { id: 'cam-controls' });
-      const btn = (id, icon, title, fn) => {
-        const b = el('button', { id, className: 'cam-btn', title, type: 'button' }, icon);
+      const bar = el('div', { id: 'top-right' });
+      const mk = (id, icon, label, title) => {
+        const b = el('button', { id, className: 'tr-btn', type: 'button', title });
+        b.appendChild(el('span', { className: 'tr-icon' }, icon));
+        b.appendChild(el('span', { className: 'tr-label' }, label));
         b.setAttribute('aria-label', title);
-        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); b.blur(); });
-        box.appendChild(b);
+        return b;
       };
-      btn('btn-rot-l', '⟲', 'Sola döndür (Q)', h.rotL);
-      btn('btn-rot-r', '⟳', 'Sağa döndür (R)', h.rotR);
-      btn('btn-zoom-in', '＋', 'Yakınlaştır (+)', h.zoomIn);
-      btn('btn-zoom-out', '－', 'Uzaklaştır (−)', h.zoomOut);
-      btn('btn-follow', '◎', 'Başhekimi takip et (F)', h.follow);
-      btn('btn-labels', 'Aa', 'Oda etiketleri (L)', h.labels);
-      if (h.panel) btn('btn-panel', '🏗️', 'Yönetim & İnşa Paneli (P)', h.panel);
-      if (h.sound) btn('btn-sound', VH.audio && VH.audio.muted ? '🔇' : '🔊', 'Ses aç/kapat (M)', h.sound);
+      const viewBtn = mk('btn-view', '⚙️', 'Görünüm', 'Görünüm ve ayarlar');
+      const menuBtn = mk('btn-menu', '☰', 'Menü', 'Yönetim menüsü');
+      bar.appendChild(viewBtn); bar.appendChild(menuBtn);
+      const view = el('div', { id: 'view-pop', className: 'pop', hidden: true });
+      const vbtn = (id, icon, title, fn, keep) => {
+        const b = el('button', { id, className: 'cam-btn', title, type: 'button' });
+        b.appendChild(el('span', { className: 'cb-icon' }, icon));
+        b.appendChild(el('span', { className: 'cb-label' }, title.replace(/ \(.*\)$/, '')));
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); if (!keep) b.blur(); });
+        view.appendChild(b);
+      };
+      vbtn('btn-rot-l', '⟲', 'Sola döndür (Q)', h.rotL, true);
+      vbtn('btn-rot-r', '⟳', 'Sağa döndür (R)', h.rotR, true);
+      vbtn('btn-zoom-in', '＋', 'Yakınlaştır (+)', h.zoomIn, true);
+      vbtn('btn-zoom-out', '－', 'Uzaklaştır (−)', h.zoomOut, true);
+      vbtn('btn-follow', '◎', 'Başhekimi takip et (F)', h.follow);
+      vbtn('btn-focus', '🎥', 'Oda odak kamerası', h.focus);
+      vbtn('btn-labels', '🏷️', 'Oda etiketleri (L)', h.labels);
+      vbtn('btn-text', 'Aa', 'Yazı boyutu', h.textSize, true);
+      if (h.sound) vbtn('btn-sound', VH.audio && VH.audio.muted ? '🔇' : '🔊', 'Ses (M)', h.sound);
+      const menu = el('nav', { id: 'menu-pop', className: 'pop', hidden: true });
+      menu.setAttribute('aria-label', 'Yönetim menüsü');
+      (h.menu || []).forEach(([icon, label, key, fn]) => {
+        const b = el('button', { type: 'button', className: 'menu-item', title: label + (key ? ' (' + key + ')' : '') });
+        b.appendChild(el('span', { className: 'mi-icon' }, icon));
+        b.appendChild(el('span', { className: 'mi-label' }, label));
+        if (key) b.appendChild(el('kbd', {}, key));
+        b.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = true; menuBtn.classList.remove('on'); fn(); b.blur(); });
+        menu.appendChild(b);
+      });
+      const toggle = (pop, btn, other, otherBtn) => { pop.hidden = !pop.hidden; btn.classList.toggle('on', !pop.hidden); other.hidden = true; otherBtn.classList.remove('on'); };
+      viewBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(view, viewBtn, menu, menuBtn); });
+      menuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(menu, menuBtn, view, viewBtn); });
+      document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#top-right, .pop')) { view.hidden = true; menu.hidden = true; viewBtn.classList.remove('on'); menuBtn.classList.remove('on'); } });
       // Arayüz düğmelerinde hafif tıklama sesi
       $('ui-root').addEventListener('click', (e) => { if (e.target.closest('button') && VH.audio) VH.audio.play('click'); });
-      $('ui-root').appendChild(box);
+      $('ui-root').appendChild(bar);
+      $('ui-root').appendChild(view);
+      $('ui-root').appendChild(menu);
+      $('ui-root').appendChild(el('div', { id: 'notes', 'aria-live': 'polite' }));
       $('ui-root').appendChild(el('div', { id: 'help-hint' },
-        'WASD: yürü · Shift: koş · E: etkileşim · Q/R: döndür · P: panel · K: personel · B: düzenle · G: görevler · M: ses'));
+        'WASD: yürü · Shift: koş · E: etkileşim · Q/R: döndür · P: terminal · K: personel · B: düzenle · G: görevler · M: ses'));
+    },
+    closeMenus() { ['view-pop', 'menu-pop'].forEach((id) => { const p = $(id); if (p) p.hidden = true; }); ['btn-view', 'btn-menu'].forEach((id) => { const b = $(id); if (b) b.classList.remove('on'); }); },
+
+    /**
+     * Katlar arası akıllı bildirim (sağ üst yığın). floor: olayın katı; oyuncu başka kattaysa
+     * kat rozeti gösterilir. Aynı türden bildirim 5 sn içinde tekrarlanmaz.
+     */
+    notify(icon, text, floor, kind) {
+      const box = $('notes');
+      if (!box) return;
+      const now = performance.now();
+      VH.ui._noteLast = VH.ui._noteLast || {};
+      if (kind && VH.ui._noteLast[kind] && now - VH.ui._noteLast[kind] < 5000) return;
+      if (kind) VH.ui._noteLast[kind] = now;
+      const P = VH.entities && VH.entities.player;
+      const other = P && floor !== undefined && floor !== null && floor !== P.floor;
+      const n = el('div', { className: 'note' + (other ? ' other' : '') });
+      n.appendChild(el('span', { className: 'note-icon' }, icon));
+      const body = el('span', { className: 'note-text' }, text);
+      if (other) body.appendChild(el('span', { className: 'note-floor' }, '↗ ' + VH.map.floorName(floor).split(' · ')[0]));
+      n.appendChild(body);
+      n.addEventListener('click', () => n.remove());
+      box.prepend(n);
+      while (box.children.length > 4) box.lastChild.remove();
+      setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 400); }, other ? 9000 : 6500);
     },
     setSoundButton(muted) {
       const b = $('btn-sound');
@@ -243,6 +303,7 @@
         });
         $('ui-root').appendChild(box);
       }
+      if (!box._init) { box._init = true; if (window.innerWidth <= 640 || document.body.classList.contains('touch')) box.classList.add('min'); }
       box._onTab = onTab;
       const hud = $('hud');
       if (hud) { const top = hud.getBoundingClientRect().bottom + 8; if (box._top !== top) { box._top = top; box.style.top = top + 'px'; } }
@@ -351,4 +412,5 @@
       t._h = setTimeout(() => t.classList.remove('show'), ms || 1800);
     },
   };
+  VH.notify = (icon, text, floor, kind) => VH.ui.notify(icon, text, floor, kind);
 })();

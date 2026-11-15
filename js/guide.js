@@ -77,7 +77,8 @@
     let cur = 0, instr = '', target = null;
     const examName = p.examRef ? p.examRef.name : 'Muayene odası';
     switch (p.state) {
-      case 'queue': cur = 0; instr = '★ Vaka hastası geldi ve resepsiyon kuyruğunda. Kayıt otomatik yapılır.'; target = entTarget(p, 'Vaka hastası', '★'); break;
+      case 'queue': cur = 0; instr = E().core('receptionist') ? '★ Vaka hastası geldi ve resepsiyon kuyruğunda. Kayıt otomatik yapılır.' : '★ Vaka hastası kuyrukta. Resepsiyon bankosunda kaydını siz yapacaksınız.'; target = entTarget(p, 'Vaka hastası', '★'); break;
+      case 'regWait': cur = 1; instr = 'Resepsiyon görevlisi yok: bankoya gidip "Hastayı Kaydet" seçin.'; target = entTarget(p, 'Hastayı kaydet', '📋'); break;
       case 'registering': cur = 1; instr = 'Resepsiyonda şikâyet ve yaş kaydediliyor…'; target = entTarget(p, 'Kayıt', '📋'); break;
       case 'toSeat': case 'waiting': cur = 2; instr = 'Kayıt tamam. Hasta öncelikli olarak ilk boş muayene odasına çağrılacak.'; break;
       case 'toExam': cur = a.labsReady ? 3 : 2; instr = a.labsReady ? 'Hasta odaya dönüyor. Laboratuvar analizöründe tahlili inceleyin.' : `Hasta ${examName}'na gidiyor. Siz de oraya geçin.`;
@@ -108,6 +109,26 @@
       instruction: 'Eczane tezgâhında "İlaç Onayla": doğru kullanım bilgisi bonus ve kombo kazandırır.',
       target: deviceTarget(['pharmacy_counter'], 'İlaç Onayla', '💊'), patientRef: p,
     };
+  }
+
+  // Serbest hedef (ör. "Başhekimlik bilgisayarına git"): varılınca kendiliğinden kapanır
+  let goal = null;
+  function goalFlow() {
+    if (!goal) return null;
+    const P = E().player;
+    if (P.floor === goal.floor && Math.hypot(P.x - goal.x, P.y - goal.y) < (goal.reach || 1.7)) { const g = goal; goal = null; if (g.onReach) g.onReach(); return null; }
+    return { id: 'goal', tab: '🧭 Hedef', title: goal.title || 'Hedef', patient: goal.label, timer: null, bar: null, urgent: false,
+      steps: [{ label: goal.label, state: 'active' }], instruction: goal.instruction || 'Yön çizgisini takip edin.', target: goal };
+  }
+  // Kayıt bekleyen hasta (resepsiyon görevlisi yokken)
+  function registerFlow() {
+    if (E().core('receptionist')) return null;
+    const p = E().receptionQueue.find((q) => q.state === 'regWait');
+    if (!p || p.caseRef) return null;
+    return { id: 'reg', tab: '📋 Kayıt', title: 'Hasta Kaydı', patient: `${p.name} · kuyrukta ${E().receptionQueue.length} hasta`, timer: null, bar: p.patience !== undefined ? p.patience / 100 : null, urgent: false,
+      steps: ['Geliş', 'Kayıt', 'Bekleme'].map((l, i) => ({ label: l, state: i < 1 ? 'done' : i === 1 ? 'active' : 'todo' })),
+      instruction: 'Resepsiyon görevlisi henüz yok: bankoda "Hastayı Kaydet" (E). İş İlanlarından görevli alınca kayıt otomatikleşir.',
+      target: deviceTarget(['reception_desk'], 'Hastayı Kaydet', '📋'), patientRef: p };
   }
 
   /** Hedef başka kattaysa oyuncunun katındaki asansöre yönlendir. */
@@ -251,6 +272,9 @@
     get flows() { return flows; },
     get path() { return path; },
     select(id) { selected = id; },
+    /** Serbest hedef: { floor, x, y, label, icon, title, instruction, onReach } */
+    setGoal(g) { goal = g; selected = g ? 'goal' : selected; },
+    get goal() { return goal; },
     /** Hastaya tıklanınca o hastanın akışını seç. */
     selectPatient(p) {
       if (p && p.erRef) selected = 'er';
@@ -258,7 +282,7 @@
     },
     update(dt) {
       const hadEr = flows.some((f) => f.id === 'er');
-      flows = [erFlow(), caseFlow(), pharmacyFlow()].filter(Boolean);
+      flows = [erFlow(), caseFlow(), pharmacyFlow(), registerFlow(), goalFlow()].concat((VH.flowProviders || []).map((f) => f())).filter(Boolean);
       // Yeni acil vaka geldiğinde akış şeması otomatik olarak aciline geçer
       if (!hadEr && flows.some((f) => f.id === 'er')) selected = 'er';
       if (!flows.find((f) => f.id === selected)) selected = flows.length ? flows[0].id : null;

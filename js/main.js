@@ -164,7 +164,7 @@
         case '-': case '_': cam().zoomAt(1 / 1.2, vw / 2, vh / 2, vw, vh); break;
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
-        case 'p': VH.hospital.openPanel(); break;
+        case 'p': VH.terminal.open(); break;
         case 'k': VH.hospital.openPanel('kadro'); break;
         case 'g': VH.hospital.openPanel('gorevler'); break;
         case 'b': if (VH.build.active) VH.build.exit(); else VH.build.enter(); break;
@@ -203,6 +203,27 @@
     lastCell = { x: cx, y: cy, f: P.floor };
   }
 
+  // ---------------------------------------------------------------- Oda odak kamerası ve yazı boyutu
+  const store = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* yoksay */ } };
+  const load = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+  let focusCam = load('vh.focusCam') !== '0';
+  let textSize = +(load('vh.textSize') || 1) % 3;
+  function applyTextSize() { document.body.classList.remove('ts-0', 'ts-1', 'ts-2'); document.body.classList.add('ts-' + textSize); }
+  // Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır, çıkınca geri döner
+  const FOCUS = new Set(['office', 'pharmacy', 'exam1', 'exam2', 'lab', 'or1', 'recovery', 'scrub', 'peds', 'nurse', 'xray', 'us', 'ecg', 'report', 'kitchen']);
+  let lastRoomKey = '';
+  function updateFocus() {
+    const c = cam(), P = VH.entities.player;
+    if (!focusCam || !c.follow) return;
+    const room = VH.map.roomIdAt(P.x, P.y);
+    const key = VH.map.floor + ':' + room;
+    if (key === lastRoomKey) return;
+    lastRoomKey = key;
+    const f = FOCUS.has(room) ? 1.45 : 1;
+    c.focusF = f;
+    c.glide(Math.min(2.8, (c.base || 1.2) * f));
+  }
+
   // ---------------------------------------------------------------- Döngü
   let last = performance.now();
   let hudTimer = 0;
@@ -211,9 +232,13 @@
     const waiting = E.patients.filter((p) => p.state === 'waiting').length;
     const S = VH.cases.state;
     VH.ui.setChip('chip-budget', `💰 ₺${Math.round(S.budget).toLocaleString('tr-TR')}`);
-    VH.ui.setChip('chip-rep', `★ İtibar ${S.reputation}`);
+    VH.ui.setChip('chip-rep', `💎 ${S.reputation}`);
+    const en = Math.round(VH.floors.energy);
+    VH.ui.setChip('chip-energy', `${en < 30 ? '🥱' : '⚡'} %${en}`);
+    const ce = document.getElementById('chip-energy'); if (ce) ce.classList.toggle('low', en < 30);
     VH.ui.setChip('chip-safety', `🛡️ Güvenlik ${S.safety}`);
     VH.ui.setChip('chip-level', `🏥 Sv. ${VH.hospital.level()}`);
+    VH.map.facadeTier = Object.keys(S.services || {}).filter((k) => S.services[k]).length;
     VH.progress.hud();
     const sh = VH.hospital.shift, ss = Math.max(0, Math.ceil(sh.t));
     VH.ui.setChip('chip-shift', `${VH.hospital.isNightShift ? '🌙' : '☀️'} Nöbet ${sh.n} · ${Math.floor(ss / 60)}:${String(ss % 60).padStart(2, '0')}`);
@@ -237,15 +262,19 @@
       VH.staff.update(dt);
       VH.progress.update(dt);
       VH.world.update(dt, vw, vh);
+      VH.logistics.update(dt);
+      VH.surgery.update(dt);
+      VH.floors.update(dt);
       VH.save.update(dt);
       footstepsAndDoors();
     }
     VH.guide.update(dt);
+    updateFocus();
     cam().update(dt);
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map)),
+    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map), VH.logistics.drawables(VH.map)),
       { ground: VH.world.drawGround, lights: VH.world.drawLights, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
     VH.world.drawSky(ctx, vw, vh);
     VH.build.drawOverlay(ctx, vw, vh);
@@ -278,6 +307,8 @@
     VH.staff.init();
     VH.progress.init();
     VH.world.init();
+    VH.logistics.init();
+    VH.floors.init();
     const c = cam();
     c.target = VH.entities.player;
 
@@ -292,18 +323,18 @@
     if (params.has('touch')) document.body.classList.add('touch');
 
     VH.ui.hideLoader();
+    // Sade HUD: Seviye · Bütçe · İtibar (💎) · Enerji önde; diğerleri masaüstünde ikincil
     VH.ui.showHud([
-      ['chip-brand', '✚ Vita Hospital'],
+      ['chip-level', ''],
       ['chip-budget', ''],
       ['chip-rep', ''],
-      ['chip-safety', ''],
-      ['chip-level', ''],
+      ['chip-energy', ''],
       ['chip-rating', ''],
-      ['chip-event', ''],
       ['chip-shift', ''],
+      ['chip-event', ''],
       ['chip-combo', ''],
+      ['chip-safety', ''],
       ['chip-patients', ''],
-      ['chip-served', ''],
       ['chip-where', ''],
     ]);
     VH.ui.buildCameraControls({
@@ -313,17 +344,24 @@
       zoomOut: () => c.zoomAt(1 / 1.25, vw / 2, vh / 2, vw, vh),
       follow: () => setFollow(!c.follow),
       labels: toggleLabels,
-      panel: () => VH.hospital.openPanel(),
       sound: toggleSound,
+      focus: () => { focusCam = !focusCam; VH.ui.setToggle('btn-focus', focusCam); lastRoomKey = ''; if (!focusCam) { c.focusF = 1; c.glide(c.base); } store('vh.focusCam', focusCam ? '1' : '0'); },
+      textSize: () => { textSize = (textSize + 1) % 3; applyTextSize(); store('vh.textSize', String(textSize)); },
+      menu: [
+        ['🖥️', 'Yönetim Terminali', 'P', () => VH.terminal.open()],
+        ['📦', 'Stok & Lojistik', '', () => VH.hospital.openPanel('stok')],
+        ['🔩', 'Bakım & Parça', '', () => VH.hospital.openPanel('bakim')],
+        ['📋', 'İş İlanları', '', () => VH.hospital.openPanel('ilan')],
+        ['👥', 'Personel', 'K', () => VH.hospital.openPanel('kadro')],
+        ['🔧', 'Ekipman', '', () => VH.hospital.openPanel('ekipman')],
+        ['🛋️', 'Düzenleme Modu', 'B', () => (VH.build.active ? VH.build.exit() : VH.build.enter())],
+        ['🎯', 'Görevler & Başarımlar', 'G', () => VH.hospital.openPanel('gorevler')],
+        ['🧭', 'Başhekimlik Odasına Git', '', () => VH.terminal.guide()],
+      ],
     });
     VH.ui.buildGameControls((i) => doInteract(targets[i]));
-    VH.ui.buildDock([
-      ['🏗️', 'Yönetim', 'P', () => VH.hospital.openPanel('genel')],
-      ['👥', 'Personel', 'K', () => VH.hospital.openPanel('kadro')],
-      ['🔧', 'Ekipman', '', () => VH.hospital.openPanel('ekipman')],
-      ['🛋️', 'Düzenle', 'B', () => (VH.build.active ? VH.build.exit() : VH.build.enter())],
-      ['🎯', 'Görevler', 'G', () => VH.hospital.openPanel('gorevler')],
-    ]);
+    VH.ui.setToggle('btn-focus', focusCam);
+    applyTextSize();
     VH.ui.setToggle('btn-follow', c.follow);
     VH.ui.setToggle('btn-labels', VH.map.labels);
     VH.ui.setSoundButton(VH.audio.muted);

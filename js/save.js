@@ -48,6 +48,7 @@
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
       introSeen: VH.cases.introSeen,
       staffData: st.staffData, equip: st.equip, layout: st.layout, prog: st.prog,
+      core: st.core, stock: st.stock, pending: st.pending, parts: st.parts, energy: st.energy, lastCard: st.lastCard, cards: st.cards,
       settings: { labels: VH.map.labels, rot: VH.map.rot },
     };
   }
@@ -92,6 +93,11 @@
       equip: VH.equipment ? VH.equipment.sanitize(d.equip) : null,
       layout: VH.build ? VH.build.sanitize(d.layout) : null,
       prog: VH.progress ? VH.progress.sanitize(d.prog) : null,
+      core: d.core && typeof d.core === 'object' ? flags(d.core, ['receptionist', 'pharmacist', 'doctor2']) : null,
+      logi: VH.logistics ? VH.logistics.sanitize(null, d) : null,
+      energy: num(d.energy, 100, 0, 100),
+      lastCard: VH.terminal ? VH.terminal.sanitizeCard(d.lastCard) : null,
+      cards: (Array.isArray(d.cards) ? d.cards : []).slice(-10).filter((x) => x && /^[A-F][+−]?$/.test(String(x.overall))).map((x) => ({ n: int(x.n, 1, 1, 1e6), overall: x.overall })),
       settings: {
         labels: !(d.settings && d.settings.labels === false),
         rot: int(d.settings && d.settings.rot, 0, 0, 3),
@@ -120,6 +126,12 @@
     if (c.equip) st.equip = c.equip;
     if (c.layout) st.layout = c.layout;
     if (c.prog) st.prog = c.prog;
+    // Eski kayıtlarda çekirdek kadro alanı yoksa tam kadro kabul edilir (ilerleme kaybolmasın)
+    st.core = c.core || { receptionist: true, pharmacist: true, doctor2: true };
+    if (c.logi) { st.stock = c.logi.stock; st.pending = c.logi.pending; st.parts = c.logi.parts; }
+    st.energy = c.energy;
+    if (c.lastCard) st.lastCard = c.lastCard;
+    st.cards = c.cards;
     Object.assign(VH.entities.stats, c.stats);
     VH.cases.introSeen = c.introSeen;
     VH.map.labels = c.settings.labels;

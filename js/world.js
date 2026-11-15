@@ -25,12 +25,20 @@
     cars.push({ lane, x: L.start, v: 0, vmax: kind === 'bus' ? 3.2 : rand(3.6, 5.2), color: pick(COLORS), kind, len: kind === 'bus' ? 3 : 2 });
   }
   const crossing = () => peds.some((p) => p.crossing);
+  // Özel araçlar: ambulans ve lojistik kamyonu (trafik bunlara yol verir, bariyer bunlar için açılır)
+  const specials = () => [H().er && H().er.amb, VH.logistics && VH.logistics.truck].filter(Boolean);
   function ambOnLane(lane) {
-    const a = H().er && H().er.amb;
-    if (!a) return null;
-    if (lane === 'W' && Math.abs(a.y - 27.95) < 0.3) return a.x;
-    if (lane === 'E' && Math.abs(a.y - 29.05) < 0.3) return a.x;
-    return null;
+    let best = null;
+    for (const a of specials()) {
+      if (lane === 'W' && Math.abs(a.y - 27.95) < 0.3) best = a.x;
+      if (lane === 'E' && Math.abs(a.y - 29.05) < 0.3) best = a.x;
+    }
+    return best;
+  }
+  let barrier = 0;
+  function updateBarrier(dt) {
+    const want = specials().some((a) => a.x > 29 && a.x < 36 && a.y > 21 && a.y < 30.5) ? 1 : 0;
+    barrier += Math.sign(want - barrier) * Math.min(Math.abs(want - barrier), dt * 1.6);
   }
   function updateCars(dt) {
     for (const lane of ['W', 'E']) {
@@ -49,8 +57,7 @@
       const ax = ambOnLane(c.lane);
       if (ax !== null) { const d = (ax - c.x) * L.dir; if (d > 0) gap = Math.min(gap, d - 2.4); }
       // Ambulans caddeye girerken kavşakta yol ver
-      const a = H().er && H().er.amb;
-      if (a && a.phase !== 'parked' && Math.abs(a.x - 33) < 0.2 && a.y > 24) { const d = (33 - c.x) * L.dir; if (d > 0 && d < 5) gap = Math.min(gap, d - 2.2); }
+      for (const a of specials()) if (a.phase !== 'parked' && a.phase !== 'unload' && a.x > 31 && a.x < 34 && a.y > 24) { const d = (a.x - c.x) * L.dir; if (d > 0 && d < 5) gap = Math.min(gap, d - 2.2); }
       // Yaya geçidi (x 3..7)
       const front = c.x + (L.dir * c.len) / 2;
       if (cw) { const d = L.dir > 0 ? 2.6 - front : front - 7.4; if (d > -0.2) gap = Math.min(gap, d); }
@@ -331,7 +338,8 @@
       for (let i = 0; i < 3; i++) { spawnCar('W'); cars[cars.length - 1].x = rand(-6, 44); spawnCar('E'); cars[cars.length - 1].x = rand(-6, 44); }
       cars.forEach((c) => { c.v = c.vmax; });
     },
-    update(dt, vw, vh) { updateCars(dt); updatePeds(dt); updatePigeons(dt); updateSky(dt, vw || 800, vh || 600); },
+    get barrier() { return barrier; },
+    update(dt, vw, vh) { updateBarrier(dt); updateCars(dt); updatePeds(dt); updatePigeons(dt); updateSky(dt, vw || 800, vh || 600); },
     drawables, drawGround, drawSky, drawLights,
   };
 })();

@@ -30,4 +30,6 @@
   VH.targetProviders = VH.targetProviders || [];
   // Yönetim paneline modüllerin eklediği sekmeler: { id, label, order, render(list, rerender) }
   VH.panelTabs = VH.panelTabs || [];
+  // Akış şemasına modüllerin eklediği akışlar (ameliyat, görüntüleme, servis bakımı...)
+  VH.flowProviders = VH.flowProviders || [];
 })();

@@ -199,6 +199,55 @@
     inme: { name: 'İnme uyarı işaretleri bilgilendirmesi', opts: [['İlaçlarınızı aksatmayın; yüzde kayma, kolda güçsüzlük ya da konuşma bozukluğu olursa hemen 112\'yi arayın.', true], ['Belirti olursa birkaç saat dinlenip geçmesini bekleyin.', false], ['Tansiyon ilacını kendinizi nasıl hissettiğinize göre alın.', false]] },
   };
 
+  // ---------------------------------------------------------------- PubMed kaynakları (DOI bağlantılı)
+  const SOURCES = {
+    osa: { t: 'Obstructive sleep apnea and risk of motor vehicle crash: systematic review and meta-analysis', j: 'J Clin Sleep Med', y: 2009, pmid: '20465027' },
+    celiacESsCD: { t: 'European Society for the Study of Coeliac Disease (ESsCD) guideline for coeliac disease and other gluten-related disorders', j: 'United European Gastroenterol J', y: 2019, pmid: '31210940', doi: '10.1177/2050640619844125' },
+    celiacACG: { t: 'ACG clinical guidelines: diagnosis and management of celiac disease', j: 'Am J Gastroenterol', y: 2013, pmid: '23609613', doi: '10.1038/ajg.2013.79' },
+    deliriumUTI: { t: 'Urinary Tract Infection Induced Delirium in Elderly Patients: A Systematic Review', j: 'Cureus', y: 2022, pmid: '36632270', doi: '10.7759/cureus.32321' },
+    coPoisoning: { t: 'Carbon Monoxide Poisoning', j: 'Crit Care Clin', y: 2021, pmid: '34053712', doi: '10.1016/j.ccc.2021.03.010' },
+    sepsis: { t: 'Surviving Sepsis Campaign: International Guidelines for Management of Sepsis and Septic Shock 2021', j: 'Crit Care Med', y: 2021, pmid: '34605781', doi: '10.1097/CCM.0000000000005337' },
+    stroke: { t: 'Prehospital and hospital delays for stroke patients treated with thrombolysis', j: 'Australas Emerg Care', y: 2019, pmid: '31042530', doi: '10.1016/j.auec.2019.01.008' },
+    appendicitis: { t: 'Diagnosis and treatment of acute appendicitis: 2020 update of the WSES Jerusalem guidelines', j: 'World J Emerg Surg', y: 2020, pmid: '32295644', doi: '10.1186/s13017-020-00306-3' },
+    hipfxInjury: { t: 'Hip fracture surgery performed out-of-hours: A systematic review and meta-analysis', j: 'Injury', y: 2021, pmid: '33648740', doi: '10.1016/j.injury.2021.02.049' },
+    hipfx48: { t: 'Early surgery within 48 hours of admission for hip fracture did not improve 1-year mortality in Japan', j: 'Hip Int', y: 2024, pmid: '38770922', doi: '10.1177/11207000241248836' },
+    surgicalChecklist: { t: 'A surgical safety checklist to reduce morbidity and mortality in a global population', j: 'N Engl J Med', y: 2009, pmid: '19144931', doi: '10.1056/NEJMsa0810119' },
+    fasting: { t: 'Pre-operative fasting in children: A guideline from the European Society of Anaesthesiology and Intensive Care', j: 'Eur J Anaesthesiol', y: 2022, pmid: '34857683', doi: '10.1097/EJA.0000000000001599' },
+    mriImplant: { t: 'Reconsidering safety and reducing barriers to MRI in patients with cardiac implantable electronic devices', j: 'Eur Heart J', y: 2022, pmid: '34472581', doi: '10.1093/eurheartj/ehab469' },
+    warfarin: { t: 'Warfarin and food, herbal or dietary supplement interactions: A systematic review', j: 'Br J Clin Pharmacol', y: 2020, pmid: '32478963', doi: '10.1111/bcp.14404' },
+  };
+  function sourcesNode(keys) {
+    const box = document.createElement('div');
+    box.className = 'sources';
+    const h = document.createElement('div');
+    h.className = 'src-title'; h.textContent = '📚 Kaynak (PubMed)';
+    box.appendChild(h);
+    (keys || []).forEach((k) => {
+      const s = SOURCES[k];
+      if (!s) return;
+      const a = document.createElement('a');
+      a.href = s.doi ? 'https://doi.org/' + s.doi : 'https://pubmed.ncbi.nlm.nih.gov/' + s.pmid + '/';
+      a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.textContent = `${s.t}. ${s.j}, ${s.y}. ${s.doi ? 'DOI: ' + s.doi : 'PMID: ' + s.pmid}`;
+      box.appendChild(a);
+    });
+    return box;
+  }
+
+  // Ameliyat gerektiren ve görüntüleme gerektiren acil senaryolar
+  ER.push(
+    { id: 'appendicitis', name: 'Deniz Kara', age: 24, sex: 'E', complaint: 'Göbek çevresinden başlayıp sağ alt karına kayan ağrı, bulantı, hafif ateş', vitals: { pulse: 104, bp: '122/78', spo2: 98, temp: 38.2, mind: 'Açık, ağrılı' }, need: 'iv', time: 75,
+      why: 'Sağ alt karın ağrısı, bulantı ve ateş akut apandisiti düşündürür: damar yolu, sıvı ve ağrı kontrolünün ardından cerrahi değerlendirme gerekir.',
+      surgery: { name: 'Apendektomi (laparoskopik)', lesson: 'Akut apandisit tanısında klinik bulgular, kan değerleri ve görüntüleme birlikte değerlendirilir; tedavi çoğunlukla cerrahidir. Ameliyat öncesi açlık süresinin sorgulanması ve güvenlik kontrol listesi komplikasyon riskini azaltır.' },
+      sources: ['appendicitis', 'surgicalChecklist'] },
+    { id: 'hipfx', name: 'Saadet Öz', age: 82, sex: 'K', complaint: 'Evde düşme sonrası sol kalçada ağrı, bacakta kısalma ve dışa dönme', vitals: { pulse: 98, bp: '145/80', spo2: 95, temp: 36.6, mind: 'Açık, ağrılı' }, need: 'monitor', time: 80,
+      why: 'Yaşlı hastada düşme sonrası kalça kırığı: ağrı kontrolü, yaşamsal bulgu izlemi ve düşmeye yol açabilecek nedenlerin (ritim bozukluğu, ilaçlar) araştırılması gerekir.',
+      surgery: { name: 'Kalça kırığı tespiti', lesson: 'Yaşlılarda kalça kırığı ciddi bir durumdur; ağrı kontrolü, deliryumun önlenmesi ve uygun ameliyat zamanlaması önemlidir. Araştırmalar ameliyat zamanlamasının sonuçlara etkisini farklı bulabilmektedir; karar hastanın genel durumuna göre verilir.' },
+      sources: ['hipfxInjury', 'hipfx48'] },
+  );
+  const byId = (id) => H0().ER_TYPES.find((x) => x.id === id) || ER.find((x) => x.id === id);
+  const H0 = () => VH.hospital;
+
   // ---------------------------------------------------------------- Kayıt
   VH.cases.CASES.push(...CASES);
   const H = VH.hospital;
@@ -207,5 +256,21 @@
   Object.assign(H.ER_RX, { copd: 'koah', pneumonia: 'antibiyotik', co: 'karbon', sepsis: 'antibiyotik', bleed: 'sevk', stroke: 'inme', electric: 'sevk' });
   Object.assign(H.CASE_RX, { c15: 'sevk', c16: 'sevk', c17: 'sevk', c18: 'sevk', c19: 'laktoz', c20: 'sevk', c21: 'kafein', c22: 'gut' });
 
-  VH.content = { cases: CASES.length, er: ER.length, rx: Object.keys(RX).length };
+  // Mevcut senaryolara cerrahi / görüntüleme bağlantısı ve kaynaklar
+  Object.assign(byId('trauma'), { surgery: { name: 'Kırık tespiti (ortopedik cerrahi)', lesson: 'Uzun kemik kırığında kanama ve dolaşım izlenir; tespit ameliyatından önce ekipçe güvenlik kontrol listesi uygulanır. Kontrol listesi kullanımı ameliyat komplikasyonlarını azaltmıştır.' }, sources: ['surgicalChecklist'] });
+  Object.assign(byId('stroke'), { imaging: 'mri', sources: ['stroke'], imagingFinding: 'Beyin görüntülemesinde kanama izlenmedi; bulgular akut iskemik inmeyle uyumlu. Nöroloji ekibi zamana duyarlı tedavi kararını değerlendiriyor: belirtilerin başlangıç saati kritik bilgidir.' });
+  Object.assign(byId('co'), { sources: ['coPoisoning'] });
+  Object.assign(byId('sepsis'), { sources: ['sepsis'] });
+  const cs = (id) => VH.cases.CASES.find((c) => c.id === id);
+  if (cs('c15')) cs('c15').sources = ['osa'];
+  if (cs('c18')) cs('c18').sources = ['celiacESsCD', 'celiacACG'];
+  if (cs('c20')) cs('c20').sources = ['deliriumUTI'];
+  if (cs('c17')) cs('c17').imagingFinding = 'EKG\'de sol ventrikül hipertrofisini düşündüren bulgular; göz dibi muayenesinde damar değişiklikleri. Tansiyon tedavisinin yeniden düzenlenmesi gerekiyor.';
+  if (cs('c21')) cs('c21').imagingFinding = '24 saatlik ritim kaydında tehlikeli bir ritim bozukluğu saptanmadı; kafeinle ilişkili ek atımlar izlendi.';
+  if (cs('c04')) cs('c04').imagingFinding = 'Kemik yoğunluğu ölçümü düşük kemik kütlesiyle uyumlu; düşme önleme ve tedavi planı geriatri ile yapılmalı.';
+
+  H.RX.antikoagulan = { name: 'Kan sulandırıcı (varfarin) bilgilendirmesi', sources: ['warfarin'], opts: [['Her gün aynı saatte alın, INR kontrollerine gidin; yeni ilaç, bitkisel ürün ya da takviyeye başlamadan hekime danışın, yeşil yapraklı sebze miktarını aniden değiştirmeyin.', true], ['Kanama olmadıkça bitkisel çay ve takviyelerin bir etkisi olmaz.', false], ['Unuttuğunuz dozu ertesi gün iki doz birden alarak telafi edin.', false]] };
+  Object.assign(H.ER_RX, { arrhythmia: 'antikoagulan', appendicitis: 'antibiyotik', hipfx: 'agri' });
+
+  VH.content = { cases: CASES.length, er: ER.length, rx: Object.keys(RX).length, SOURCES, sourcesNode };
 })();

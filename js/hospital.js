@@ -51,12 +51,12 @@
   ];
 
   const SERVICES = [
-    { id: 'surgery', floor: 1, icon: '🩻', name: 'Cerrahi & Ameliyathane Servisi', income: 600, cost: 25000, rep: 60,
-      desc: 'Yeni kat: ameliyathane, cerrahi hazırlık, uyandırma odası. Acil travma ödülü +%50, pasif gelir +₺600/dk.' },
-    { id: 'ward', floor: 2, icon: '🛏️', name: 'Yatan Hasta & Pediatri Servisi', income: 400, cost: 18000, rep: 55,
-      desc: 'Yeni kat: servis yatakları, pediatri, küvöz. Stabilize edilen acil hastalar yatırılır (+₺500), çocuk vakalarında ek ödül, pasif gelir +₺400/dk.' },
-    { id: 'radiology', floor: 3, icon: '📡', name: 'Radyoloji & İleri Tanı Katı', income: 500, cost: 15000, rep: 50,
-      desc: 'Yeni kat: röntgen, ultrason, EKG, diyaliz. "Daha fazla tetkik" kararları hastane içinde yapılır (+₺1.000), pasif gelir +₺500/dk.' },
+    { id: 'surgery', floor: 1, icon: '🩻', name: 'Cerrahi & Ameliyathane Servisi', income: 250, cost: 45000, rep: 62, cases: 6,
+      desc: 'Yeni kat: ameliyathane, cerrahi hazırlık, uyandırma odası. Acilden gelen ağır travma/apandisit/kalça kırığı hastaları burada ameliyat edilir; ameliyatı mini oyunlarla bizzat yapabilirsiniz.' },
+    { id: 'ward', floor: 2, icon: '🛏️', name: 'Yatan Hasta & Pediatri Servisi', income: 200, cost: 35000, rep: 55, cases: 4,
+      desc: 'Yeni kat: servis yatakları, pediatri, küvöz. Yatırılan hastaların serum/ilaç takibini yaparsınız; pediatri oyun alanı çocukların moralini yükseltir.' },
+    { id: 'radiology', floor: 3, icon: '📡', name: 'Radyoloji & İleri Tanı Katı', income: 220, cost: 40000, rep: 65, cases: 8,
+      desc: 'Yeni kat: röntgen, ultrason, EKG, MR ve diyaliz. "Daha fazla tetkik" kararları ve inme şüphesindeki görüntülemeler bu katta yapılır.' },
   ];
 
   const FLOOR_STAFF = {
@@ -74,7 +74,7 @@
     ],
     radiology: [
       { id: 'radiologist', name: 'Dr. Ece Tunç', role: 'Radyolog', look: look('#fbfdff', '#30638e', '#2f3e46', '#f6dcc7', '#4a3121', 'long'),
-        points: [[4.5, 4.5], [17.5, 11.5], [10.5, 4.5]], action: 'Doktorla Konuş', info: 'Gereksiz görüntüleme radyasyon ve maliyet demek; doğru endikasyon çok önemli.', greet: ['Raporlar hazır.', 'Röntgen kalibre edildi.', 'Hoş geldiniz.'] },
+        points: [[4.5, 4.5], [19.5, 12.5], [10.5, 4.5]], action: 'Doktorla Konuş', info: 'Gereksiz görüntüleme radyasyon ve maliyet demek; doğru endikasyon çok önemli.', greet: ['Raporlar hazır.', 'Röntgen kalibre edildi.', 'Hoş geldiniz.'] },
       { id: 'dialysisNurse', name: 'Hem. Gökhan Uz', role: 'Diyaliz Hemşiresi', look: look('#5aa9e6', '#5aa9e6', '#3d6a8e', '#9c6b47', '#1c1c1c', 'short'),
         points: [[4.5, 11.5], [9.5, 11.5], [12.5, 12.5]], action: 'Personelle Konuş', info: 'Diyaliz hastalarında sıvı ve potasyum takibi hayati.', greet: ['Seanslar sorunsuz.', 'Makineler temizlendi.', 'Merhaba!'] },
     ],
@@ -114,7 +114,7 @@
    */
   function mod(k) {
     let v = baseMod(k);
-    for (const m of [VH.staff, VH.equipment, VH.progress, VH.build]) if (m && m.factor) v *= m.factor(k);
+    for (const m of [VH.staff, VH.equipment, VH.progress, VH.build, VH.floors]) if (m && m.factor) v *= m.factor(k);
     return v;
   }
 
@@ -196,8 +196,8 @@
 
   // Ambulans rotası (araç merkezi, dünya koordinatı): ana caddenin kuzey şeridinden gelir,
   // ambulans yoluna döner, acil kapısının önünde durur; dönüşte güney şeridinden ayrılır.
-  const AMB_IN = [[47, 27.95], [33, 27.95], [33, 16.5]];
-  const AMB_OUT = [[33, 16.5], [33, 29.05], [47, 29.05]];
+  const AMB_IN = [[47, 27.95], [33.3, 27.95], [33.3, 16.5]];
+  const AMB_OUT = [[33.3, 16.5], [33.3, 29.05], [47, 29.05]];
   function startEmergency(forced) {
     const pool = (VH.progress && VH.progress.erPool) ? VH.progress.erPool(ER_TYPES) : ER_TYPES;
     const def = forced ? (ER_TYPES.find((d) => d.id === forced) || pick(pool)) : pick(pool);
@@ -325,9 +325,10 @@
     UI().openDialog({ icon: '🚨', title: `${d.name}, ${d.age} yaş`, subtitle: 'Acil Servis · Triyaj', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
   }
 
-  function triage(k) {
+  function triage(k, auto) {
     const a = er.active;
     if (!a) return;
+    if (auto && UI().isDialogOpen() && document.querySelector('#dialog .er-timer')) UI().closeDialog(true);
     if (k !== a.def.need) {
       a.wrong.add(k);
       a.timeLeft -= 12;
@@ -336,7 +337,7 @@
       openTriage(`Yanlış ünite! −12 sn. Yaşamsal bulgulara tekrar bakın: hangisi en çok bozulmuş?`);
       return;
     }
-    UI().closeDialog();
+    if (!auto) UI().closeDialog();
     const bay = BAYS.find((b) => !b.occ) || BAYS[0];
     bay.occ = a.p; a.bay = bay; a.phase = 'toBay';
     sound('ok');
@@ -381,8 +382,9 @@
     deltas.appendChild(el('span', { className: 'delta' }, `Kalan süre: ${fmtTime(a.timeLeft)}`));
     node.appendChild(deltas);
     node.appendChild(el('p', { className: 'lesson' }, d.why));
+    if (d.sources && VH.content) node.appendChild(VH.content.sourcesNode(d.sources));
     if (surgeryBonus) node.appendChild(el('p', { className: 'lesson' }, '🩻 Cerrahi servis: travma hastası ameliyathane değerlendirmesine alındı (ödül +%50).'));
-    node.appendChild(el('p', { className: 'lesson' }, '💊 Son adım: hasta eczaneye geçiyor. Tezgâhta "İlaç Onayla" ile doğru bilgilendirmeyi yapıp taburcu edin.' + (ward ? ' Ardından gözlem için yatan hasta servisine alınacak (+₺500 dahil).' : '')));
+    node.appendChild(el('p', { className: 'lesson' }, (VH.surgery && VH.surgery.wants(d) ? '🩻 Son adım: hasta ameliyat için 1. kattaki ameliyathaneye alınıyor. Asansörle çıkıp ameliyatı yapın (ya da cerrah üstlensin).' : VH.floors && VH.floors.wantsImagingER(d) ? '📡 Sonraki adım: hasta görüntüleme için 3. kattaki radyoloji birimine alınıyor.' : '💊 Son adım: hasta eczaneye geçiyor. Tezgâhta "İlaç Onayla" ile doğru bilgilendirmeyi yapıp taburcu edin.') + (ward ? ' Ardından gözlem için yatan hasta servisine alınacak (+₺500 dahil).' : '')));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı sadeleştirilmiş senaryodur.'));
     UI().openDialog({ icon: '🚑', title: 'Acil Müdahale Başarılı', subtitle: `${d.name}, ${d.age} yaş`, wide: true, node, actions: [{ label: 'Devam' }] });
     finishEmergency('pharmacy');
@@ -424,6 +426,9 @@
       const { a, p, kind } = L;
       if (a.bay) a.bay.occ = null;
       p.sitting = false; p.lying = false; p.lift = 0; p.chair = false;
+      // Ağır vakalar ameliyathaneye, inme şüphesi radyolojiye yönlenir (katlar açıksa)
+      if (kind === 'pharmacy' && VH.surgery && VH.surgery.wants(a.def)) { er.follow = null; VH.surgery.admit(p, a.def); continue; }
+      if (kind === 'pharmacy' && VH.floors && VH.floors.wantsImagingER(a.def)) { er.follow = null; VH.floors.sendImaging(p, { er: a.def }); continue; }
       if (kind === 'pharmacy') {
         // 4. adım: eczanede ilaç teslimi ve taburcu (Başhekim onayı)
         p.erStage = 'pharmacy';
@@ -468,11 +473,22 @@
     }
     a.timeLeft -= dt;
     if (a.timeLeft <= 10 && !er.warned) { er.warned = true; sound('alarm'); }
+    // Otomasyon: Acil Tıp Uzmanı triyajı, acil hemşiresi stabilizasyonu kendiliğinden üstlenir
+    const nurses = (has('hires', 'erNurse') ? 1 : 0) + (VH.staff ? VH.staff.hired.filter((h) => h.role === 'nurse').length : 0);
+    if (a.phase === 'wait' && has('hires', 'erDoctor')) {
+      a.autoT = (a.autoT || 0) + dt;
+      if (a.autoT > 9) { UI().toast('🧑‍⚕️ Acil Tıp Uzmanı triyajı yaptı.', 2200); triage(a.def.need, true); return; }
+    }
+    if (a.phase === 'bay' && nurses) {
+      a.autoB = (a.autoB || 0) + dt;
+      if (a.autoB > 6) { const dv = E().devices.find((d) => d.floor === 0 && UNITS[a.def.need].tags.includes(d.tag)); if (dv) { startStabilize(dv); a.auto = true; } }
+    }
     if (a.phase === 'stab') {
       const P = E().player;
       const near = P.floor === 0 && E().rectDist(P.x, P.y, a.device) <= 1.4;
-      if (near) {
-        a.stab -= dt;
+      const rate = near ? 1 : nurses ? 0.45 + 0.1 * Math.min(3, nurses) : 0;
+      if (rate) {
+        a.stab -= dt * rate;
         if (a.stab <= 0) { erSuccess(); return; }
       }
     }
@@ -498,15 +514,31 @@
   const CASE_RX = { c01: 'demir', c02: 'b12', c03: 'magnezyum', c04: 'dvit', c05: 'sevk', c06: 'folat', c07: 'cinko', c08: 'sevk', c09: 'magnezyum', c10: 'sevk', c11: 'sevk', c12: 'sevk', c13: 'sevk', c14: 'dvit' };
   const COMPLAINT_RX = [[/yorgun|halsiz/i, 'demir'], [/kramp|uyku|baş ağrı/i, 'magnezyum'], [/eklem|ağrı/i, 'agri'], [/saç/i, 'cinko'], [/uyuşma|dikkat/i, 'b12'], [/mide|iştah/i, 'sivi']];
 
+  // Şikâyete uygun reçete adayları; son verilen 3 bilgilendirme tekrar edilmez
+  const COMPLAINT_POOL = [[/yorgun|halsiz/i, ['demir', 'b12', 'dvit', 'folat']], [/kramp/i, ['magnezyum', 'sivi']], [/uyku/i, ['magnezyum', 'kafein']], [/baş ağrı/i, ['agri', 'sivi', 'kafein']],
+    [/eklem|ağrı/i, ['agri', 'dvit']], [/saç/i, ['cinko', 'demir', 'folat']], [/uyuşma|dikkat/i, ['b12', 'folat']], [/mide|iştah/i, ['sivi', 'laktoz']], [/baş dönmesi/i, ['sivi', 'demir']], [/nefes/i, ['demir', 'inhaler']]];
+  const recentRx = [];
   function rxFor(p) {
     if (p.erRef) return ER_RX[p.erRef.id] || 'sevk';
     if (p.caseRef) return p.caseChoice && p.caseChoice !== 'complete' ? 'sevk' : CASE_RX[p.caseRef.id] || 'dvit';
-    const hit = COMPLAINT_RX.find(([re]) => re.test(p.complaint || ''));
-    return hit ? hit[1] : pick(Object.keys(RX).filter((k) => k !== 'sevk'));
+    const hit = COMPLAINT_POOL.find(([re]) => re.test(p.complaint || ''));
+    const all = Object.keys(RX).filter((k) => !['sevk', 'karbon', 'inme', 'antibiyotik', 'koah', 'alerji', 'seker', 'gut'].includes(k));
+    let cand = (hit ? hit[1] : all).filter((k) => RX[k] && !recentRx.includes(k));
+    if (!cand.length) cand = all.filter((k) => !recentRx.includes(k));
+    const k = pick(cand.length ? cand : all);
+    recentRx.push(k); if (recentRx.length > 3) recentRx.shift();
+    return k;
   }
 
   function openPharmacy(p) {
     p.rx = p.rx || rxFor(p);
+    if (VH.logistics && !VH.logistics.canDispense(p)) {
+      const cat = VH.logistics.catOf(p.rx);
+      UI().openDialog({ icon: '📦', title: 'Stokta yok', subtitle: `${RX[p.rx].name} · ${cat ? cat.name : ''}`,
+        text: `Bu hastanın ilacı stokta kalmadı. Başhekimlik bilgisayarındaki Stok & Lojistik uygulamasından sipariş verin; lojistik aracı ilacı eczaneye getirecek.\nHasta beklerken sabrı azalıyor.`,
+        actions: [{ label: '🖥️ Terminale git', fn: () => { UI().closeDialog(); if (VH.terminal) VH.terminal.guide(); } }, { label: 'Kapat', ghost: true }] });
+      return;
+    }
     p.timer = Math.max(p.timer, 25); // bilgilendirme sırasında beklesin
     const rx = RX[p.rx];
     if (!p.rxOrder) p.rxOrder = rx.opts.map((o, i) => i).sort(() => Math.random() - 0.5);
@@ -527,6 +559,7 @@
 
   function counsel(p, ok, rx) {
     const correct = rx.opts.find((o) => o[1])[0];
+    if (VH.logistics) VH.logistics.consume(p);
     let mult = 1, bonus = 0;
     if (ok) {
       mult = comboHit((p.erRef ? 1 : (p.patience === undefined ? 100 : p.patience) / 100), 'Eczane');
@@ -552,6 +585,8 @@
   function canBuy(item, owned) {
     if (owned) return 'Sahipsiniz';
     if (S().reputation < item.rep) return `İtibar ${item.rep} gerekli`;
+    if (item.cases && S().solved.length < item.cases) return `${item.cases} çözülmüş vaka gerekli (${S().solved.length})`;
+    if (S().budget <= 0) return 'Bütçe ekside';
     if (S().budget < item.cost) return 'Bütçe yetersiz';
     return null;
   }
@@ -579,7 +614,7 @@
     const body = el('div', { className: 'shop-body' });
     body.appendChild(el('strong', {}, item.name));
     body.appendChild(el('span', { className: 'opt-desc' }, item.desc));
-    body.appendChild(el('span', { className: 'shop-meta' }, `${money(item.cost)} · İtibar ≥ ${item.rep}`));
+    body.appendChild(el('span', { className: 'shop-meta' }, `${money(item.cost)} · İtibar ≥ ${item.rep}${item.cases ? ' · Vaka ≥ ' + item.cases : ''}`));
     card.appendChild(body);
     const why = canBuy(item, owned);
     const label = owned ? '✓ Aktif' : group === 'hires' ? 'İşe al' : group === 'services' ? 'İnşa et' : 'Satın al';
@@ -597,12 +632,13 @@
     const st = S();
     const node = el('div', {});
     const stats = el('div', { className: 'exam-meta' });
-    [`🏥 Hastane Seviyesi ${level()}`, `💰 ${money(st.budget)}`, `★ İtibar ${st.reputation}`, `🛡️ Güvenlik ${st.safety}`, `📈 Pasif gelir ${money(incomePerMin())}/dk`]
+    [`🏥 Hastane Seviyesi ${level()}`, `💰 ${money(st.budget)}`, `💎 İtibar ${st.reputation}`, `🛡️ Güvenlik ${st.safety}`, `📈 Pasif gelir ${money(incomePerMin())}/dk`]
       .forEach((t) => stats.appendChild(el('span', {}, t)));
     node.appendChild(stats);
     const tabs = el('div', { className: 'tabs' });
     const extTabs = (VH.panelTabs || []).slice().sort((a, b) => (a.order || 50) - (b.order || 50));
-    [['genel', 'Genel'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Uzman Kadro'], ['servis', 'Servisler & Katlar']].concat(extTabs.map((t) => [t.id, t.label])).forEach(([id, label]) => {
+    const first = extTabs.filter((t) => (t.order || 50) <= 5), rest = extTabs.filter((t) => (t.order || 50) > 5);
+    first.map((t) => [t.id, t.label]).concat([['genel', 'Genel'], ['servis', 'Servisler & Katlar'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Uzman Kadro']], rest.map((t) => [t.id, t.label])).forEach(([id, label]) => {
       const b = el('button', { type: 'button', className: 'tab' + (panelTab === id ? ' on' : '') }, label);
       b.addEventListener('click', () => openPanel(id));
       tabs.appendChild(b);
@@ -638,8 +674,9 @@
     else { const ext = extTabs.find((t) => t.id === panelTab); if (ext) ext.render(list, () => openPanel(panelTab)); else SERVICES.forEach((u) => list.appendChild(itemCard('services', u))); }
     if (panelTab === 'genel' && VH.progress && VH.progress.renderGeneral) VH.progress.renderGeneral(list, () => openPanel('genel'));
     node.appendChild(list);
-    UI().openDialog({ icon: '🏗️', title: 'Başhekim Yönetim & İnşa Paneli', subtitle: 'Personel · Ekipman · Düzenleme · Servisler', wide: true, node, scrollTop: keepScroll, actions: [{ label: 'Kapat', ghost: true }] });
-    const dlg = document.getElementById('dialog'); if (dlg) { dlg.dataset.panel = panelTab; dlg.classList.add('panel'); }
+    const atDesk = VH.terminal && VH.terminal.atDesk();
+    UI().openDialog({ icon: atDesk ? '🖥️' : '🏗️', title: atDesk ? 'Başhekimlik Bilgisayarı · Yönetim Terminali' : 'Yönetim Paneli (uzaktan)', subtitle: atDesk ? 'Stok · Bakım · İş ilanları · Personel · Servisler' : 'Sipariş ve işe alım için Başhekimlik odasındaki bilgisayara gidin', wide: true, node, scrollTop: keepScroll, actions: [{ label: 'Kapat', ghost: true }] });
+    const dlg = document.getElementById('dialog'); if (dlg) { dlg.dataset.panel = panelTab; dlg.classList.add('panel'); dlg.classList.toggle('terminal', !!atDesk); }
   }
 
   // ---------------------------------------------------------------- Geliştirme mağazası & nöbet özeti
@@ -648,7 +685,7 @@
     const lvl = devLevel(id);
     if (!d || lvl >= d.costs.length) return false;
     const cost = d.costs[lvl];
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return false; }
+    if (S().budget < cost || S().budget <= 0) { UI().toast('Bütçe yetersiz', 1800); return false; }
     S().budget -= cost;
     S().dev = S().dev || {};
     S().dev[id] = lvl + 1;
@@ -793,6 +830,7 @@
     M().setFloor(f);
     const cam = M().camera;
     cam.centerOnWorld(P.x, P.y);
+    cam.zoom = (cam.base || cam.zoom) * 0.72; cam.glide(cam.base || 1.2);
     cam.follow = true;
     UI().setToggle('btn-follow', true);
     sound('door');
@@ -804,9 +842,9 @@
     const node = el('div', { className: 'shop' });
     M().FLOOR_DEFS.forEach((d, f) => {
       const sv = SERVICES.find((s) => s.floor === f);
-      const open = f === 0 || (sv && has('services', sv.id));
+      const open = f === 0 || d.alwaysOpen || (sv && has('services', sv.id));
       const card = el('div', { className: 'shop-card' + (f === P.floor ? ' owned' : '') });
-      card.appendChild(el('div', { className: 'shop-icon' }, f === 0 ? '🏥' : sv.icon));
+      card.appendChild(el('div', { className: 'shop-icon' }, f === 0 ? '🏥' : sv ? sv.icon : '🍽️'));
       const body = el('div', { className: 'shop-body' });
       body.appendChild(el('strong', {}, d.name));
       body.appendChild(el('span', { className: 'opt-desc' }, f === P.floor ? 'Buradasınız' : open ? 'Erişime açık' : `Kilitli: Yönetim Panelinden inşa edin (${money(sv.cost)}, İtibar ≥ ${sv.rep})`));
@@ -823,7 +861,7 @@
   // ================================================================ Etkileşim yönlendirme
   function handleInteract(t) {
     if (t.type === 'device' && t.ref.tag === 'elevator') { openElevator(); return true; }
-    if (t.type === 'device' && t.ref.tag === 'chief_desk') { openPanel('genel'); return true; }
+    if (t.type === 'device' && t.ref.tag === 'chief_desk') { if (VH.terminal) VH.terminal.open(); else openPanel('genel'); return true; }
     // Eczane
     const isPharm = (t.type === 'staff' && t.ref.id === 'pharmacist') || (t.type === 'device' && t.ref.tag === 'pharmacy_counter');
     if (isPharm && E().pharmacyFront) { openPharmacy(E().pharmacyFront); return true; }
@@ -949,6 +987,9 @@
       // Kayıttan gelen alımları yeniden kur
       HIRES.forEach((h) => { if (st.hires[h.id]) E().addStaff(Object.assign({ id: h.id }, h.staff), 0); });
       SERVICES.forEach((s) => { if (st.services[s.id]) setupService(s.id); });
+      // Aşamalı otomasyon: yeni oyunda çekirdek kadro yok (eski kayıtlar ve ?allstaff tam kadro)
+      if (!st.core) st.core = new URLSearchParams(location.search).has('allstaff') ? { receptionist: true, pharmacist: true, doctor2: true } : {};
+      E().syncCore();
     },
     update(dt) {
       gameTime += dt;
@@ -982,7 +1023,7 @@
     drawOverlay,
     openPanel, openElevator, travel, endShift,
     onServed(p) {
-      S().budget += (150 + (has('upgrades', 'comfort') ? 50 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1);
+      S().budget += (190 + (has('upgrades', 'comfort') ? 50 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1);
       if (shift.stats && !(p && p.erRef)) shift.stats.treated++;
     },
     onPharmacyAuto() { if (has('hires', 'pharmTech')) S().budget += 150; if (VH.equipment) S().budget += VH.equipment.pharmacyBonus(); },

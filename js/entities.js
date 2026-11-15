@@ -12,6 +12,9 @@
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const mod = (k) => (VH.hospital && VH.hospital.mod ? VH.hospital.mod(k) : 1);
+  // Aşamalı otomasyon: çekirdek kadro (resepsiyon, eczacı, 2. muayene doktoru) işe alınana dek işi Başhekim yapar
+  const CORE = ['receptionist', 'pharmacist', 'doctor2'];
+  const core = (id) => !CORE.includes(id) || !VH.cases || !VH.cases.state.core || VH.cases.state.core[id] === true;
   // Personel verimliliği (yetenek, enerji, moral) — staff.js yoksa 1
   const sf = (id) => (VH.staff && VH.staff.timeFactor ? VH.staff.timeFactor(id) : 1);
   const emit = (n, d) => { if (VH.emit) VH.emit(n, d); };
@@ -354,6 +357,7 @@
   const staffById = (id) => staff.find((s) => s.id === id);
 
   function updateStaff(s, dt) {
+    if (s.floor < 0) return; // henüz işe alınmamış çekirdek kadro
     stepPath(s, dt);
     // Oyuncu yaklaşınca selam
     const near = s.floor === player.floor && Math.hypot(player.x - s.x, player.y - s.y) < 2.2;
@@ -473,7 +477,7 @@
   }
 
   // Bekleme durumlarında sabır kaybı (puan/sn). Tedavi alırken toparlanır.
-  const PATIENCE_DRAIN = { queue: 0.55, registering: 0.3, waiting: 0.65, toSeat: 0.3, labWait: 0.5, pharmacy: 0.9, exam: 0.25 };
+  const PATIENCE_DRAIN = { queue: 0.55, regWait: 0.6, registering: 0.3, waiting: 0.65, toSeat: 0.3, labWait: 0.5, pharmacy: 0.9, exam: 0.25 };
   function updatePatience(p, dt) {
     if (p.state === 'resident' || p.state === 'leaving' || p.erRef) return;
     if (p.patience === undefined) p.patience = 100;
@@ -483,6 +487,18 @@
     if (p.state === 'pharmacy' && !(pharmacyQueue[0] === p && p.awaitingRx)) drain = 0.3;
     drain *= mod('patienceDrain');
     p.patience = Math.max(0, Math.min(100, p.patience - drain * dt));
+    // Kayıt kuyruğunda ya da eczanede sabrı tükenen hasta da ayrılır (Başhekim yetişemediyse)
+    if (p.patience <= 0 && !p.caseRef && (p.state === 'queue' || p.state === 'regWait' || p.state === 'pharmacy')) {
+      const inPh = p.state === 'pharmacy';
+      leaveQueue(inPh ? pharmacyQueue : receptionQueue, p, inPh ? PHARMACY_SLOTS : RECEPTION_SLOTS);
+      p.awaitingRx = false;
+      say(p, inPh ? 'İlacımı alamadım, gidiyorum!' : 'Kayıt bile yapılmadı, gidiyorum!', 3000);
+      if (VH.hospital) VH.hospital.onAngryLeave(p);
+      p.angry = true; emit('angry', p);
+      p.state = 'leaving';
+      goTo(p, ENTRANCE[0], ENTRANCE[1] + 0.4, (e) => { e.gone = true; });
+      return;
+    }
     // Bekleme salonunda sabrı tükenen hasta söylenerek ayrılır
     if (p.patience <= 0 && p.state === 'waiting' && !p.caseRef) {
       if (p.seatRef) { p.seatRef.occ = null; p.seatRef = null; }
@@ -502,7 +518,11 @@
     p.timer -= dt;
     switch (p.state) {
       case 'queue':
-        if (receptionQueue[0] === p && p.arrivedSlot) {
+        if (receptionQueue[0] === p && p.arrivedSlot && !core('receptionist')) {
+          p.state = 'regWait'; faceToward(p, 2.5, 13.5);
+          say(p, 'Kayıt için kimse yok mu? Bekliyorum…', 2600);
+          emit('needRegister', p);
+        } else if (receptionQueue[0] === p && p.arrivedSlot) {
           p.state = 'registering'; p.timer = rand(2.5, 4) * mod('regTime') * sf('receptionist');
           const rec = staffById('receptionist');
           faceToward(p, 2.5, 13.5);
@@ -548,8 +568,11 @@
             p.awaitingRx = true;
             say(p, 'Reçetem hazır mı? Nasıl kullanacağım?', 2600);
           }
+          if (!core('pharmacist')) p.timer = Math.max(p.timer, 1);
+          else if (p.timer <= 0 && VH.logistics && !VH.logistics.canDispense(p)) { p.timer = 6; say(staffById('pharmacist'), 'Bu ilaç stokta kalmadı! Sipariş bekliyoruz.', 2600); }
           if (p.timer <= 0) {
             p.awaitingRx = false;
+            if (VH.logistics) VH.logistics.consume(p);
             say(staffById('pharmacist'), 'Geçmiş olsun, kullanım bilgilerini anlattım.', 2600);
             if (VH.hospital) VH.hospital.onPharmacyAuto(p);
             emit('pharmacyAuto', { staff: 'pharmacist', p });
@@ -561,6 +584,31 @@
       case 'leaving':
         break;
     }
+  }
+
+  // ---------------------------------------------------------------- Elle kayıt (resepsiyon görevlisi yokken)
+  function manualRegister(p) {
+    if (!p || p.state !== 'regWait') return false;
+    p.state = 'registering'; p.timer = 0.5;
+    p.patience = Math.min(100, (p.patience || 0) + 8);
+    say(p, 'Teşekkürler doktor bey, kaydım yapıldı.', 2000);
+    emit('manualRegister', p);
+    return true;
+  }
+  function registerTargets(pl) {
+    if (pl.floor !== 0 || core('receptionist')) return [];
+    const p = receptionQueue[0];
+    if (!p || p.state !== 'regWait') return [];
+    const desk = devices.find((d) => d.tag === 'reception_desk' && d.floor === 0);
+    const dDesk = desk ? rectDist(pl.x, pl.y, desk) : 9;
+    const dPat = Math.hypot(p.x - pl.x, p.y - pl.y);
+    if (Math.min(dDesk, dPat) > 1.6) return [];
+    const n = receptionQueue.filter((q) => q.state === 'regWait' || q.state === 'queue').length;
+    return [{ type: 'register', name: `${p.name} · kuyrukta ${n} hasta`, action: '📋 Hastayı Kaydet', x: p.x, y: p.y, dist: Math.min(dDesk, dPat) - 1.2, ref: p, handler: (t) => manualRegister(t.ref) }];
+  }
+  /** Çekirdek kadro görünürlüğü: işe alınmamış kişi haritada yoktur. */
+  function syncCore() {
+    for (const id of CORE) { const s = staffById(id); if (s) s.floor = core(id) ? 0 : -9; }
   }
 
   // ---------------------------------------------------------------- İhtiyaçlar (otomat, su, kahve)
@@ -605,7 +653,7 @@
   function callNextPatients() {
     // Boş muayene odası varsa en uzun bekleyen hastayı çağır
     for (const ex of EXAMS) {
-      if (ex.patient) continue;
+      if (ex.patient || !core(ex.doctor)) continue;
       // Vaka hastası her zaman önce çağrılır
       const waiting = patients.filter((p) => p.state === 'waiting')
         .sort((a, b) => (b.caseRef ? 1 : 0) - (a.caseRef ? 1 : 0) || a.waitSince - b.waitSince);
@@ -669,6 +717,7 @@
       doc.busy = false; doc.timer = 0.5;
     }
     p.caseDone = true;
+    if (p.imagingNext && VH.floors && VH.floors.sendImaging(p, { caseRef: p.caseRef })) return;
     toPharmacy(p);
   }
 
@@ -749,7 +798,7 @@
     oxygen:           { name: 'Oksijen Tüpleri', action: 'Acil Müdahale', icon: '🫧' },
     triage:           { name: 'Triyaj Bankosu', action: 'Acil Müdahale', icon: '🚨' },
     pharmacy_counter: { name: 'Eczane Bankosu', action: 'İlaç Onayla', icon: '💊' },
-    chief_desk:       { name: 'Başhekim Masası', action: 'Yönetim Masası', icon: '🏥' },
+    chief_desk:       { name: 'Başhekimlik Bilgisayarı', action: 'Yönetim Terminali', icon: '🖥️' },
     archive_terminal: { name: 'Vaka Arşiv Terminali', action: 'Vaka Arşivi', icon: '🗂️' },
     iv:               { name: 'Serum (IV) Askısı', action: 'Acil Müdahale', icon: '💧' },
     elevator:         { name: 'Asansör', action: 'Asansör', icon: '🛗' },
@@ -766,6 +815,10 @@
     ecg:              { name: 'EKG Cihazı', action: 'İncele', icon: '💓', info: 'EKG kalbin elektriksel aktivitesini kaydeder; çarpıntı ve göğüs ağrısında temel tetkiktir.' },
     dialysis:         { name: 'Diyaliz Makinesi', action: 'İncele', icon: '🩸', info: 'Diyaliz ünitesi böbrek hastalarına haftada birkaç seans hizmet verir.' },
     pacs:             { name: 'Görüntüleme Arşivi (PACS)', action: 'İncele', icon: '🖥️', info: 'Tüm görüntüleme raporları dijital arşivde saklanıyor.' },
+    mri:              { name: 'MR Cihazı', action: 'İncele', icon: '🧲', info: 'MR güçlü manyetik alan kullanır; kalp pili gibi implantı olan hastalarda çekim öncesi uygunluk mutlaka kontrol edilir.' },
+    ct:               { name: 'BT Tarayıcı', action: 'İncele', icon: '🖥️', info: 'Bilgisayarlı tomografi inme ve travmada hızlı tanı sağlar; radyasyon dozu nedeniyle gereksiz çekimden kaçınılır.' },
+    food_counter:     { name: 'Yemek Tezgâhı', action: '🍽️ Yemek Al (₺60)', icon: '🍽️' },
+    coffee_bar:       { name: 'Kahve Köşesi', action: '☕ Kahve Al (₺20)', icon: '☕' },
   };
   let devices = [];
   function buildDevices() {
@@ -804,6 +857,7 @@
       if (d <= RANGE_DEV) out.push({ type: 'device', ref: dv, name: dv.name, action: dv.action, x: dv.x, y: dv.y, dist: d + 0.3 });
     }
     for (const prov of VH.targetProviders || []) (prov(player) || []).forEach((t) => out.push(t));
+    registerTargets(player).forEach((t) => out.push(t));
     // Aktif acil vakada ihtiyaç duyulan cihaz/hasta öne alınır
     if (VH.hospital && VH.hospital.priority) out.forEach((t) => { t.dist -= VH.hospital.priority(t); });
     out.sort((a, b) => a.dist - b.dist);
@@ -1078,6 +1132,19 @@
     makeEntity, goTo, sitAt, randomPatientLook, rectDist,
     stepPath, face, extraPeople, accessCell, buildDevices,
     _refresh: (p) => goRefresh(p),
+    manualRegister, registerTargets, syncCore, core, CORE,
+    get receptionQueue() { return receptionQueue; },
+    get pharmacyQueue() { return pharmacyQueue; },
+    /** Hastayı asansörle başka bir kata taşı ve oradaki hedefe yürüt. */
+    moveToFloor(p, f, x, y, cb, via) {
+      const lift = p.floor === 0 ? [29.5, 10.4] : [2.5, 7.9];
+      goTo(p, lift[0], lift[1], (e) => {
+        e.floor = f;
+        const [ax, ay] = M().floorArrive(f);
+        e.x = ax; e.y = ay; e.path = [];
+        goTo(e, x, y, cb, via);
+      });
+    },
     /** Hasta akışı için ayrılmış hücreler (düzenleme modu bunları kapatamaz). */
     keySpots() {
       const c = (p) => [Math.floor(p[0]), Math.floor(p[1])];

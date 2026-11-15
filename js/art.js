@@ -663,7 +663,10 @@
       const q = [];
       fn(kit(it.o, q));
       q.sort((a, b) => a.d - b.d || a.z - b.z);
+      const al = it.o._alpha;
+      if (al !== undefined && al < 1) ctx.globalAlpha = al;
       for (const p of q) p.fn();
+      if (al !== undefined && al < 1) ctx.globalAlpha = 1;
     },
     /** Kutu primitifini dışarıya aç (ambulans vb.). */
     box(context, x0, y0, x1, y1, z0, z1, color, opt) { ctx = context; drawBox(x0, y0, x1, y1, z0, z1, color, opt); },

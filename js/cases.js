@@ -484,8 +484,13 @@
   }
 
   // ---------------------------------------------------------------- 4) Laboratuvar analizi
+  let lastLab = null;
   function openLabReport() {
-    const a = active, c = a.c;
+    const a = active && active.labsReady ? active : lastLab;
+    if (!a) return;
+    const c = a.c;
+    const old = a !== active;
+    lastLab = a;
     a.labsReviewed = true;
     a.step = Math.max(a.step, 4);
     const node = el('div', { className: 'lab' });
@@ -526,7 +531,7 @@
     const out = c.labs.filter((l) => l.value < l.lo || l.value > l.hi).length;
     node.appendChild(el('div', { className: 'lab-sum' }, `${out} değer referans aralığı dışında. Sonuçlar tek başına tanı koydurmaz; hikâye ve muayene ile birlikte yorumlanır.`));
     UI().openDialog({
-      icon: '🧪', title: 'Laboratuvar Sonuç Raporu', subtitle: 'Adım 4/6 · Laboratuvar Analizi', wide: true, node,
+      icon: '🧪', title: 'Laboratuvar Sonuç Raporu', subtitle: old ? `Son rapor · ${c.name}` : 'Adım 4/6 · Laboratuvar Analizi', wide: true, node,
       actions: [{ label: 'İncelendi' }],
     });
   }
@@ -585,7 +590,7 @@
       else if (grade === 'risky' || hasty) VH.hospital.comboBreak('aceleci ya da riskli karar');
       VH.hospital.onCaseSolved();
     }
-    if (VH.emit) VH.emit('caseSolved', { id: c.id, grade, hasty, choice, child: c.age < 13 });
+    if (VH.emit) VH.emit('caseSolved', { id: c.id, grade, hasty, choice, child: c.age < 13, p: a.patient, c });
     if (mult > 1) {
       bonus += r.budget * (mult - 1);
       state.reputation = clamp(state.reputation + (mult - 1) * 2);
@@ -623,6 +628,7 @@
 
     node.appendChild(el('div', { className: 'sec-title' }, 'Eğitsel değerlendirme'));
     node.appendChild(el('p', { className: 'lesson' }, c.lesson));
+    if (c.sources && VH.content) node.appendChild(VH.content.sourcesNode(c.sources));
     const best = Object.keys(c.grades).find((k) => c.grades[k] === 'best');
     if (choice !== best) node.appendChild(el('p', { className: 'lesson' }, `En güvenli yaklaşım: [${OPTIONS[best].n}] ${OPTIONS[best].title} (${OPTIONS[best].desc(c)})`));
     node.appendChild(el('div', { className: 'sec-title' }, choice === 'complete' ? 'Oluşturulan takip planı' : 'Hastaya verilecek yaşam tarzı önerileri'));
@@ -704,6 +710,18 @@
   function handleInteract(t) {
     if (t.type === 'device' && t.ref.tag === 'archive_terminal') { openArchive(); return true; }
     if (t.type === 'device' && t.ref.tag === 'chief_desk') { openCaseFile(); return true; }
+    // Laboratuvar: hazır rapor varsa doğrudan açılır; yoksa numune durumu ya da son rapor gösterilir
+    const labDev0 = t.type === 'device' && ['analyzer', 'centrifuge', 'microscope'].includes(t.ref.tag);
+    if (labDev0) {
+      if (active && active.labsReady) { openLabReport(); return true; }
+      if (active && active.labsOrdered) { const st = E().STATUS[active.patient.state] || ''; UI().openDialog({ icon: '🧪', title: 'Numune işleniyor', subtitle: active.c.name, text: `${active.patient.name}: ${st}.
+Sonuç hazır olunca bu ekrandan rapor otomatik açılır.` }); return true; }
+      if (lastLab) { openLabReport(); return true; }
+      const n = E().patients.filter((p) => p.state === 'lab' || p.state === 'labWait' || p.state === 'toLab').length;
+      UI().openDialog({ icon: '🧪', title: t.ref.name, subtitle: 'Laboratuvar', text: `İncelenecek vaka raporu yok. Kan alma sırasında ${n} rutin hasta var.
+Vaka hastası için muayenede "Kan tahlili iste" deyince rapor burada açılır.` });
+      return true;
+    }
     if (!active) return false;
     const p = active.patient;
     if (t.type === 'patient' && t.ref === p) {

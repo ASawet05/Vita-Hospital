@@ -61,6 +61,7 @@
     { e: 'N', x: 4, y: 11 }, { e: 'N', x: 14, y: 11 }, { e: 'N', x: 24, y: 11 },
     { e: 'N', x: 4, y: 23, name: 'Ana Giriş' },
     { e: 'W', x: 31, y: 16, name: 'Ambulans Girişi' },
+    { e: 'W', x: 31, y: 6, name: 'Lojistik Kapısı' },
   ];
   // Duvarsız geçişler (resepsiyon ↔ bekleme salonu geniş kemer)
   const OPEN0 = [{ e: 'W', x: 10, y0: 12, y1: 21 }];
@@ -182,7 +183,7 @@
     add('flower_bed', 13, 25, { w: 2 }); add('flower_bed', 21, 25, { w: 2 });
     add('bench', 11, 24, { face: 'S' }); add('bench', 16, 24, { face: 'S' }); add('bench', 25, 24, { face: 'S' });
     add('trash_bin', 10, 24); add('trash_bin', 24, 24);
-    add('bush', 1, 25); add('bush', 2, 25); add('bush', 28, 25); add('bush', 30, 25); add('bush', 18, 25);
+    add('bush', 1, 25); add('bush', 2, 25); add('bush', 28, 25); add('bush', 18, 25);
     for (const x of [7, 19, 29]) add('lamp_post', x, 24);
     // Ambulans yolu ve otopark lambaları (dış alan)
     for (const y of [4, 10, 16, 22]) add('lamp_post', 35, y - 1.5, { block: false });
@@ -192,7 +193,28 @@
       for (let i = 0; i < 5; i++) if (jit(i + 3, row + 5) > 0.35) add('car', 35.5 + i * 2, y, { h: 2, face: row % 2 ? 'N' : 'S', block: false });
     });
     // Park ağaçları: kuzey ve batı bantları, cadde güneyi
-    const tree = (x, y) => add(jit(x, y) > 0.82 ? 'bush' : 'tree', x + (jit(y, x) - 0.5) * 0.7, y + (jit(x + 1, y) - 0.5) * 0.7, { block: false });
+    const tree = (x, y) => {
+      if (x >= 4 && x <= 19 && y <= -2) return; // ek bina / şantiye alanı
+      add(jit(x, y) > 0.82 ? 'bush' : 'tree', x + (jit(y, x) - 0.5) * 0.7, y + (jit(x + 1, y) - 0.5) * 0.7, { block: false });
+    };
+    // Yerleşke sınırı: taş kaideli ferforje korkuluk (ızgara kenarı boyunca), yaya ve araç kapıları
+    for (let x = 0; x < 35; x++) {
+      if (!(x >= 3 && x <= 6) && !(x >= 31 && x <= 34)) add('fence', x, 26, { face: 'S', block: false, post: x % 3 === 0 || x === 2 || x === 7 || x === 30 });
+      if (!(x >= 31 && x <= 34)) add('fence', x, -1, { face: 'N', block: false, post: x % 3 === 0 || x === 30 });
+    }
+    for (let y = 0; y < 26; y++) {
+      add('fence', -1, y, { face: 'W', block: false, post: y % 3 === 0 });
+      add('fence', 35, y, { face: 'E', block: false, post: y % 3 === 0 });
+    }
+    add('gate_pillar', 2, 26, { block: false }); add('gate_pillar', 7, 26, { block: false });
+    add('guard_booth', 8, 25);
+    add('boom_barrier', 30, 25, { block: false });
+    // Ek bina: açılan servis sayısıyla büyür (0 → şantiye ve vinç)
+    add('annex_tower', 7, -8, { w: 9, h: 4, block: false });
+    // Korkuluk dışındaki şehir: apartmanlar, çocuk parkı
+    [[5, 36, 5, 3], [11, 36, 4, 3], [16, 36, 6, 3], [24, 36, 4, 3], [29, 36, 5, 3], [36, 36, 4, 3], [41, 36, 3, 3]].forEach(([x, y, w, h], i) => add('apartment', x, y, { w, h, block: false, floors: 2 + ((i * 7) % 3), tint: i }));
+    add('playground', -6, 33, { w: 5, h: 4, block: false });
+    for (const x of [0, 9, 15, 23, 28, 35, 40]) add('lamp_post', x, 33, { block: false });
     for (let x = -7; x <= 44; x += 3) { tree(x, -2); tree(x + 1, -6); tree(x, 32); }
     for (let y = 1; y <= 25; y += 3) { tree(-2, y); tree(-6, y + 1); }
     for (const [x, y] of [[-1, 4], [-1, 12], [-1, 20], [6, -1], [16, -1], [26, -1]]) add('lamp_post', x, y, { block: false });
@@ -297,7 +319,7 @@
       ecg:      { name: 'EKG & Kardiyak Tanı', r: [14, 1, 22, 6], floor: 'white', wall: 'core_straight' },
       corridor: UPPER_CORRIDOR,
       dialysis: { name: 'Diyaliz Ünitesi', r: [1, 9, 14, 13], floor: 'green', wall: 'lab' },
-      report:   { name: 'Görüntüleme Raporlama', r: [15, 9, 22, 13], floor: 'vinyl', wall: 'core_straight' },
+      report:   { name: 'MR Ünitesi & Raporlama', r: [15, 9, 22, 13], floor: 'vinyl', wall: 'core_straight' },
     },
     doors: [{ e: 'N', x: 3, y: 7 }, { e: 'N', x: 10, y: 7 }, { e: 'N', x: 17, y: 7 }, { e: 'N', x: 6, y: 9 }, { e: 'N', x: 18, y: 9 }],
     open: [],
@@ -316,16 +338,46 @@
       O('dialysis', 5, 10, { tag: 'dialysis' }), O('blood_chair', 6, 10),
       O('dialysis', 8, 10, { tag: 'dialysis' }), O('blood_chair', 9, 10),
       O('dialysis', 11, 10, { tag: 'dialysis' }), O('blood_chair', 12, 10),
-      O('desk', 16, 10, { w: 2 }),
-      O('desk', 19, 10, { w: 2 }),
+      O('mri', 15, 11, { w: 3, h: 2, tag: 'mri' }),
+      O('desk', 20, 10, { w: 2 }),
       O('terminal', 21, 12, { tag: 'pacs' }),
       O('elevator', 1, 7, { tag: 'elevator' }),
     ],
   };
 
+  // Bodrum kat: yemekhane, servis tezgâhı ve kafeterya (her zaman açık)
+  const FLOOR_CAFE = {
+    id: 'cafe', name: 'B1 · Yemekhane & Kafeterya', W: 24, H: 15, arrive: [2.5, 7.9], alwaysOpen: true,
+    rooms: {
+      dining:   { name: 'Yemekhane', r: [1, 1, 14, 6], floor: 'terrazzo', wall: 'core_window' },
+      kitchen:  { name: 'Yemek Servisi & Mutfak', r: [15, 1, 22, 6], floor: 'white', wall: 'lab' },
+      corridor: UPPER_CORRIDOR,
+      cafe:     { name: 'Kafeterya & Dinlenme', r: [1, 9, 12, 13], floor: 'vinyl', wall: 'core_straight' },
+      dining2:  { name: 'Ek Yemek Salonu', r: [13, 9, 22, 13], floor: 'terrazzo', wall: 'ward' },
+    },
+    doors: [{ e: 'N', x: 5, y: 7 }, { e: 'N', x: 11, y: 7 }, { e: 'N', x: 18, y: 7 }, { e: 'N', x: 4, y: 9 }, { e: 'N', x: 16, y: 9 }, { e: 'W', x: 15, y: 3 }],
+    open: [],
+    objects: [
+      O('stove', 16, 1, { w: 2 }), O('stove', 19, 1, { w: 2 }), O('med_cabinet', 22, 1),
+      O('food_counter', 16, 4, { w: 4, tag: 'food_counter' }),
+      O('cash_register', 20, 4, { tag: 'food_counter' }),
+      O('menu_board', 21, 3),
+      O('tray_stack', 15, 1),
+      ...[2, 5, 8, 11].map((x) => O('cafe_table', x, 2)),
+      ...[2, 8, 11].map((x) => O('cafe_table', x, 4)),
+      O('potted_plant', 1, 1), O('palm_plant', 14, 1), O('water_cooler', 14, 5),
+      O('coffee_machine', 1, 10, { tag: 'coffee_bar' }), O('vending', 11, 9),
+      O('sofa', 2, 12, { w: 2, color: '#8e6c8a' }), O('sofa', 6, 12, { w: 2, color: '#3a8fb7' }),
+      O('tv_stand', 9, 10), O('bookshelf', 11, 12), O('potted_plant', 1, 13),
+      ...[14, 17, 20].map((x) => O('cafe_table', x, 11)),
+      O('potted_plant', 22, 13), O('trash_bin', 13, 13),
+      O('elevator', 1, 7, { tag: 'elevator' }),
+    ],
+  };
+
   const FLOOR_DEFS = [
-    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true, deco: { x0: -8, y0: -8, x1: 45, y1: 34 } },
-    FLOOR_SURGERY, FLOOR_WARD, FLOOR_RADIOLOGY,
+    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true, deco: { x0: -8, y0: -9, x1: 45, y1: 40 } },
+    FLOOR_SURGERY, FLOOR_WARD, FLOOR_RADIOLOGY, FLOOR_CAFE,
   ];
 
   // ---------------------------------------------------------------- Izgara (kat başına)
@@ -338,6 +390,7 @@
     if (!def.outdoor) return null;
     if (y >= 27 && y <= 29) return 'road';
     if (y === 26 || y === 30) return 'pavement';
+    if (y >= 31) return y <= 32 ? 'grass' : (x <= 3 ? 'grass' : (y === 33 ? 'path' : 'pavement'));
     if (x >= 31 && x <= 34) return 'asphalt';
     if (x >= 35 && x <= 44 && y >= 2 && y <= 21) return 'parking';
     if (x >= 35 && y >= 22 && y <= 25) return 'pavement';
@@ -550,6 +603,7 @@
       const it = {
         kind: 'wall', w, run, s, sx, sy,
         full: !backRoom,
+        ext: !frontRoom || !backRoom,
         style: ROOMS[frontRoom || backRoom].wall,
         key: s + k + 0.5,
       };
@@ -645,6 +699,18 @@
           quad(0.28, 0.72, 36, 50, S(st.frame));
         }
       }
+      // Dış cephe evrimi: servis katları açıldıkça cam giydirme, LED bant ve kornişe dönüşür
+      if (fi === 0 && it.ext && facadeTier > 0) {
+        if (full) {
+          quad(0.06, 0.94, 12, 58, S('#5f8fa8'));
+          quad(0.09, 0.91, 14, 56, S(facadeTier >= 2 ? '#9fd4ea' : '#b8dbe8'));
+          quad(0.48, 0.52, 14, 56, S('#5f8fa8')); quad(0.09, 0.91, 34, 35.5, S('#5f8fa8'));
+          if (facadeTier >= 2) quad(0, 1, 60, 63, S('#2ec4b6'));
+          if (facadeTier >= 3) quad(0, 1, 63, h, S('#e6c66e'));
+        } else {
+          quad(0, 1, h - 3, h, S(facadeTier >= 3 ? '#e6c66e' : '#2ec4b6'));
+        }
+      }
       // panel derzi
       if ((it.s & 1) === 0) { ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1; const a = pt(0, 0), d = pt(0, h); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(d[0], d[1]); ctx.stroke(); }
     }
@@ -673,8 +739,9 @@
     ctx.stroke();
   }
   // ---------------------------------------------------------------- Kamera
+  let facadeTier = 0;
   const camera = {
-    x: 0, y: 0, zoom: 1.4, minZoom: 0.45, maxZoom: 3.2,
+    x: 0, y: 0, zoom: 1.2, minZoom: 0.45, maxZoom: 3.2, base: 1.2, want: null,
     follow: true, target: null,
     toIso(px, py, vw, vh) { return [(px - vw / 2) / this.zoom + this.x, (py - vh / 2) / this.zoom + this.y]; },
     toScreen(ix, iy, vw, vh) { return [(ix - this.x) * this.zoom + vw / 2, (iy - this.y) * this.zoom + vh / 2]; },
@@ -682,6 +749,7 @@
     zoomAt(f, px, py, vw, vh) {
       const [ix, iy] = this.toIso(px, py, vw, vh);
       this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * f));
+      this.base = this.zoom / (this.focusF || 1); this.want = null; this.manual = true;
       const [ix2, iy2] = this.toIso(px, py, vw, vh);
       if (!this.follow) { this.x += ix - ix2; this.y += iy - iy2; }
       this.clamp();
@@ -693,7 +761,13 @@
       this.x = Math.max(b.x0, Math.min(b.x1, this.x));
       this.y = Math.max(b.y0, Math.min(b.y1, this.y));
     },
+    /** Yumuşak yakınlaştırma geçişi (oda odağı, kat değişimi). */
+    glide(z) { this.want = Math.max(this.minZoom, Math.min(this.maxZoom, z)); },
     update(dt) {
+      if (this.want !== null) {
+        const d = this.want - this.zoom;
+        if (Math.abs(d) < 0.004) { this.zoom = this.want; this.want = null; } else this.zoom += d * Math.min(1, dt * 3.2);
+      }
       if (!this.follow || !this.target) return;
       const [tx, ty] = worldToIso(this.target.x, this.target.y);
       const k = Math.min(1, dt * 6);
@@ -856,6 +930,8 @@
     get labels() { return labels; },
     set labels(v) { labels = !!v; },
     set hover(c) { hover = c; },
+    get facadeTier() { return facadeTier; },
+    set facadeTier(v) { if (v !== facadeTier) { facadeTier = v; } },
     init() {
       FLOOR_DEFS.forEach((d, i) => { floors[i] = buildFloor(d); });
       useFloor(0);

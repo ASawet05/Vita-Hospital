@@ -86,6 +86,8 @@
     return (0.8 + 0.1 * effSkill(r)) * (1 + 0.03 * (r.lvl - 1)) * energyF * moraleF * (tr ? tr.eff : 1);
   }
   const generic = () => data().hired;
+  // Haritada görevde olan personel (işe alınmamış çekirdek kadro floor < 0)
+  const activeStaff = () => E().staff.filter((s) => s.floor >= 0);
   const genericOf = (role) => generic().filter((h) => h.role === role);
 
   // ---------------------------------------------------------------- Etkiler
@@ -123,7 +125,7 @@
     const r = rec(id);
     if (r.skill >= 5) return;
     const cost = 1200 * r.skill;
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return; }
+    if (S().budget < cost || S().budget <= 0) { UI().toast('Bütçe yetersiz', 1800); return; }
     S().budget -= cost;
     r.skill += 1; r.salary = Math.round(r.salary * 1.12); r.morale = clamp(r.morale + 6, 0, 100);
     sound('success');
@@ -142,7 +144,7 @@
   function bonus(id) {
     const r = rec(id);
     const cost = 250 + 50 * r.lvl;
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return; }
+    if (S().budget < cost || S().budget <= 0) { UI().toast('Bütçe yetersiz', 1800); return; }
     S().budget -= cost;
     r.morale = clamp(r.morale + 12, 0, 100); r.energy = clamp(r.energy + 25, 0, 100);
     sound('ok');
@@ -211,8 +213,10 @@
     const c = d.candidates[i];
     if (!c) return;
     if (genericOf(c.role).length >= ROLES[c.role].max) { UI().toast(`${ROLES[c.role].name} kadrosu dolu (en fazla ${ROLES[c.role].max})`, 2200); return; }
-    if (S().budget < c.fee) { UI().toast('Bütçe yetersiz', 1800); return; }
+    if (d.hiresLeft !== undefined && d.hiresLeft <= 0) { UI().toast('Bu nöbetin işe alım kotası doldu (3).', 2200); return; }
+    if (S().budget <= 0 || S().budget < c.fee) { UI().toast('Bütçe yetersiz', 1800); return; }
     S().budget -= c.fee;
+    if (d.hiresLeft !== undefined) d.hiresLeft--;
     const id = 'g' + d.seq++;
     const h = { id, role: c.role, name: c.name, look: c.look };
     d.hired.push(h);
@@ -279,20 +283,20 @@
   // ---------------------------------------------------------------- Nöbet sonu: maaşlar, dinlenme, moral
   function payroll() {
     let total = 0;
-    for (const s of E().staff) total += rec(s.id).salary;
+    for (const s of activeStaff()) total += rec(s.id).salary;
     return total;
   }
   function onShiftEnd(sm) {
     const total = payroll();
     S().budget -= total;
     const broke = S().budget < 0;
-    for (const s of E().staff) {
+    for (const s of activeStaff()) {
       const r = rec(s.id), tr = traitOf(r);
       r.energy = clamp(r.energy + 45 + (data().restRoom ? 20 : 0), 0, 100);
       r.morale = clamp(r.morale + (broke ? -10 : 1) + (r.energy < 40 ? -4 : 0) + (tr && tr.morale ? tr.morale : 0), 0, 100);
     }
-    const avgM = Math.round(E().staff.reduce((a, s) => a + rec(s.id).morale, 0) / Math.max(1, E().staff.length));
-    sm.extra.push({ icon: '💼', label: `Maaş gideri (${E().staff.length} personel)`, value: '−' + money(total), cls: 'down-c' });
+    const avgM = Math.round(activeStaff().reduce((a, s) => a + rec(s.id).morale, 0) / Math.max(1, activeStaff().length));
+    sm.extra.push({ icon: '💼', label: `Maaş gideri (${activeStaff().length} personel)`, value: '−' + money(total), cls: 'down-c' });
     sm.extra.push({ icon: '🙂', label: 'Ortalama moral', value: '%' + avgM, cls: avgM >= 60 ? 'up-c' : 'warn-c' });
     if (broke) sm.extra.push({ icon: '⚠️', label: 'Bütçe ekside: moral düştü', value: money(S().budget), cls: 'warn-c' });
     sm.payroll = total;
@@ -345,7 +349,7 @@
   }
 
   function renderTab(list, rerender) {
-    const staffList = E().staff;
+    const staffList = activeStaff();
     const total = payroll();
     const d = data();
     const sum = el('div', { className: 'exam-meta' });
@@ -365,30 +369,9 @@
     fac.appendChild(fbtn);
     list.appendChild(fac);
 
-    list.appendChild(el('div', { className: 'sec-title' }, 'İş başvuruları'));
-    if (!d.candidates.length) refreshCandidates(3);
-    const grid = el('div', { className: 'cand-grid' });
-    d.candidates.forEach((c, i) => {
-      const R = ROLES[c.role], tr = c.trait ? TRAITS[c.trait] : null;
-      const card = el('div', { className: 'cand-card' });
-      card.appendChild(el('div', { className: 'cand-role' }, `${R.icon} ${R.name}`));
-      card.appendChild(el('strong', {}, c.name));
-      card.appendChild(el('span', { className: 'sc-stars' }, stars(c.skill)));
-      card.appendChild(el('span', { className: 'opt-desc' }, tr ? `${tr.icon} ${tr.name}: ${tr.desc}` : 'Özel bir özelliği yok.'));
-      card.appendChild(el('span', { className: 'opt-desc' }, R.desc));
-      card.appendChild(el('span', { className: 'shop-meta' }, `Maaş ${money(c.salary)}/nöbet · İşe alım ${money(c.fee)}`));
-      const full = genericOf(c.role).length >= R.max;
-      const b = el('button', { type: 'button', className: 'dlg-btn' + (full || S().budget < c.fee ? ' ghost' : '') }, full ? 'Kadro dolu' : 'İşe al');
-      b.disabled = full || S().budget < c.fee;
-      b.addEventListener('click', () => { hire(i); rerender(); });
-      card.appendChild(b);
-      grid.appendChild(card);
-    });
-    list.appendChild(grid);
-    const rb = el('button', { type: 'button', className: 'dlg-btn ghost' }, '🔄 Yeni başvurular (₺500)');
-    rb.disabled = S().budget < 500;
-    rb.addEventListener('click', () => { S().budget -= 500; refreshCandidates(3); rerender(); });
-    list.appendChild(rb);
+    const jb = el('button', { type: 'button', className: 'dlg-btn ghost' }, '📋 İş İlanları Portalı (işe alım)');
+    jb.addEventListener('click', () => VH.hospital.openPanel('ilan'));
+    list.appendChild(jb);
 
     list.appendChild(el('div', { className: 'sec-title' }, 'Kadro'));
     staffList.slice().sort((a, b) => (a.floor || 0) - (b.floor || 0)).forEach((s) => list.appendChild(staffCard(s, rerender)));
@@ -408,6 +391,80 @@
     rer();
   }
 
+  // ---------------------------------------------------------------- İş İlanları Portalı (Başhekimlik bilgisayarı)
+  const CORE_JOBS = [
+    { id: 'receptionist', icon: '🧑‍💼', name: 'Resepsiyon Görevlisi', fee: 1800, desc: 'Hasta kayıtlarını otomatik yapar; artık kayıt için bankoya koşmanız gerekmez.' },
+    { id: 'pharmacist', icon: '💊', name: 'Eczacı', fee: 2600, desc: 'Reçeteleri otomatik teslim eder, stok kritikleşince sizi uyarır.' },
+    { id: 'doctor2', icon: '🧑‍⚕️', name: 'Muayene Doktoru (Oda 2)', fee: 4200, desc: 'İkinci muayene odası açılır; rutin muayeneler iki kat hızlı akar.' },
+  ];
+  const quota = () => { const d = data(); if (d.hiresLeft === undefined) d.hiresLeft = 3; if (d.refreshLeft === undefined) d.refreshLeft = 2; return d; };
+  function hireCore(id) {
+    const j = CORE_JOBS.find((x) => x.id === id), d = quota();
+    if (!j || (S().core && S().core[id])) return false;
+    if (d.hiresLeft <= 0) { UI().toast('Bu nöbetin işe alım kotası doldu (3).', 2200); return false; }
+    if (S().budget <= 0 || S().budget < j.fee) { UI().toast('Bütçe yetersiz', 1800); return false; }
+    S().budget -= j.fee; d.hiresLeft--;
+    S().core = S().core || {}; S().core[id] = true;
+    E().syncCore();
+    const s = E().staffById(id);
+    if (s) { s.x = s.def.points[0][0]; s.y = s.def.points[0][1]; E().say(s, 'Göreve başladım Başhekimim!', 2600); }
+    sound('success');
+    UI().toast(`✅ ${j.name} işe başladı: süreç otomatikleşti.`, 2800);
+    if (VH.emit) VH.emit('hire', { role: id, id, core: true });
+    persist();
+    return true;
+  }
+  function renderJobs(list, rerender) {
+    const d = quota();
+    const can = VH.logistics ? VH.logistics.deskGate(list) : true;
+    const meta = el('div', { className: 'exam-meta' });
+    [`👤 Kalan işe alım hakkı: ${d.hiresLeft}/3 (bu nöbet)`, `🔄 Kalan ilan yenileme: ${d.refreshLeft}/2`, `💰 Bütçe ${money(S().budget)}`].forEach((t) => meta.appendChild(el('span', {}, t)));
+    list.appendChild(meta);
+    const open = CORE_JOBS.filter((j) => !(S().core && S().core[j.id]));
+    if (open.length) {
+      list.appendChild(el('div', { className: 'sec-title' }, 'Kadro açıkları · otomasyon'));
+      open.forEach((j) => {
+        const card = el('div', { className: 'shop-card' });
+        card.appendChild(el('div', { className: 'shop-icon' }, j.icon));
+        const b = el('div', { className: 'shop-body' });
+        b.appendChild(el('strong', {}, j.name)); b.appendChild(el('span', { className: 'opt-desc' }, j.desc));
+        b.appendChild(el('span', { className: 'shop-meta' }, `İşe alım ${money(j.fee)} · Maaş ${money(BASE[j.id].salary)}/nöbet`));
+        card.appendChild(b);
+        const why = !can ? 'Bilgisayardan' : d.hiresLeft <= 0 ? 'Kota doldu' : S().budget <= 0 || S().budget < j.fee ? 'Bütçe yetersiz' : null;
+        const btn = el('button', { type: 'button', className: 'dlg-btn' + (why ? ' ghost' : '') }, why || 'İşe al');
+        btn.disabled = !!why;
+        btn.addEventListener('click', () => { hireCore(j.id); rerender(); });
+        card.appendChild(btn);
+        list.appendChild(card);
+      });
+    }
+    list.appendChild(el('div', { className: 'sec-title' }, 'Gelen başvurular'));
+    if (!d.candidates.length) refreshCandidates(3);
+    const grid = el('div', { className: 'cand-grid' });
+    d.candidates.forEach((c, i) => {
+      const R = ROLES[c.role], tr = c.trait ? TRAITS[c.trait] : null;
+      const card = el('div', { className: 'cand-card' });
+      card.appendChild(el('div', { className: 'cand-role' }, `${R.icon} ${R.name}`));
+      card.appendChild(el('strong', {}, c.name));
+      card.appendChild(el('span', { className: 'sc-stars' }, stars(c.skill)));
+      card.appendChild(el('span', { className: 'opt-desc' }, tr ? `${tr.icon} ${tr.name}: ${tr.desc}` : 'Özel bir özelliği yok.'));
+      card.appendChild(el('span', { className: 'opt-desc' }, R.desc));
+      card.appendChild(el('span', { className: 'shop-meta' }, `Maaş ${money(c.salary)}/nöbet · İşe alım ${money(c.fee)}`));
+      const full = genericOf(c.role).length >= R.max;
+      const why = !can ? 'Bilgisayardan' : full ? 'Kadro dolu' : d.hiresLeft <= 0 ? 'Kota doldu' : S().budget <= 0 || S().budget < c.fee ? 'Bütçe yetersiz' : null;
+      const b = el('button', { type: 'button', className: 'dlg-btn' + (why ? ' ghost' : '') }, why || 'İşe al');
+      b.disabled = !!why;
+      b.addEventListener('click', () => { hire(i); rerender(); });
+      card.appendChild(b);
+      grid.appendChild(card);
+    });
+    list.appendChild(grid);
+    const rb = el('button', { type: 'button', className: 'dlg-btn ghost' }, `🔄 Yeni ilan yayınla (₺500 · ${d.refreshLeft} hak)`);
+    rb.disabled = !can || d.refreshLeft <= 0 || S().budget < 500 || S().budget <= 0;
+    rb.addEventListener('click', () => { S().budget -= 500; d.refreshLeft--; refreshCandidates(3); rerender(); });
+    list.appendChild(rb);
+  }
+
   // ---------------------------------------------------------------- Kayıt doğrulama
   function sanitize(d) {
     const out = { recs: {}, hired: [], candidates: [], restRoom: false, seq: 1 };
@@ -418,6 +475,8 @@
     const styles = ['short', 'long', 'bun', 'bald', 'curly', 'ponytail'];
     out.restRoom = d.restRoom === true;
     out.seq = Math.round(num(d.seq, 1, 1e6, 1));
+    if (typeof d.hiresLeft === 'number') out.hiresLeft = Math.round(num(d.hiresLeft, 0, 3, 3));
+    if (typeof d.refreshLeft === 'number') out.refreshLeft = Math.round(num(d.refreshLeft, 0, 2, 2));
     (Array.isArray(d.hired) ? d.hired : []).slice(0, 12).forEach((h) => {
       if (!h || !ROLES[h.role] || typeof h.id !== 'string' || !/^g\d{1,6}$/.test(h.id)) return;
       const lk = h.look || {};
@@ -441,9 +500,10 @@
   VH.on('counsel', () => gainXp('pharmacist', 4));
   VH.on('erSuccess', () => { nurseIds().forEach((id) => gainXp(id, 12)); if (VH.hospital.has('hires', 'erDoctor')) gainXp('erDoctor', 12); });
   VH.on('shiftEnd', onShiftEnd);
-  VH.on('shiftStart', () => refreshCandidates(3));
+  VH.on('shiftStart', () => { refreshCandidates(3); const d = data(); d.hiresLeft = 3; d.refreshLeft = 2; });
 
   VH.panelTabs.push({ id: 'kadro', label: '👥 Personel Yönetimi', order: 10, render: renderTab });
+  VH.panelTabs.push({ id: 'ilan', label: '📋 İş İlanları', order: 11, render: renderJobs });
   VH.interactHandlers.push((t) => {
     if (t.type === 'staff' && t.ref.def && t.ref.def.generic) { openCard(t.ref); return true; }
     return false;
