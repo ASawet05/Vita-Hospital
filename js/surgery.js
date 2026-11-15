@@ -144,38 +144,58 @@
     game.card.appendChild(go);
   }
 
-  // 1) Anestezi dengesi
+  // 1) Anestezi dengesi: nabız ve oksijen ibresini doz düğmeleriyle yeşil güvenli bölgede tut
   function stageAnesthesia() {
-    frame('Anestezi Dengesi', 'Gösterge yeşil bölgedeyken "Uygula"ya basın: indüksiyon, analjezi ve kas gevşetici (3 isabet).', 1);
+    frame('Anestezi Dengesi', 'Anestezi derinliği kendiliğinden kayar. "− Doz" / "+ Doz" düğmelerini basılı tutarak ibreyi yeşil güvenli bölgede tutun: nabız ve oksijen dengede kalsın (9 sn).', 1);
     const { ctx, W, H: Hh } = canvas();
-    const zone = 0.16 * tol();
-    let t = 0, hits = 0, tries = 0, flash = 0, last = performance.now();
-    const btn = el('button', { type: 'button', className: 'dlg-btn sg-big' }, '💉 Uygula');
-    game.card.appendChild(btn);
-    const center = () => 0.5 + Math.sin(hits * 2.1) * 0.22;
-    const mark = () => 0.5 + Math.sin(t * (1.6 + hits * 0.5)) * 0.45;
+    const half = 0.1 * tol();
+    let n = 0.5, v = 0, t = 0, inZone = 0, hold = 0, last = performance.now(), done = false;
+    const row = el('div', { className: 'sg-row' });
+    const mk = (label, dir) => {
+      const b = el('button', { type: 'button', className: 'dlg-btn sg-big' }, label);
+      const on = (e) => { e.preventDefault(); hold = dir; };
+      const off = () => { if (hold === dir) hold = 0; };
+      b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+      row.appendChild(b);
+    };
+    mk('− Doz', -1); mk('+ Doz', 1);
+    game.card.appendChild(row);
     const draw = () => {
-      const now = performance.now(); t += (now - last) / 1000; last = now;
-      ctx.clearRect(0, 0, W, Hh);
+      if (!game || done) return;
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      v += (Math.random() - 0.5) * 1.6 * dt + Math.sin(t * 0.9) * 0.18 * dt;
+      v *= 0.985;
+      n = Math.max(0, Math.min(1, n + v * dt * 3 + hold * 0.42 * dt));
+      const ok = Math.abs(n - 0.5) <= half;
+      if (ok) inZone += dt;
+      const hr = Math.round(72 + (0.5 - n) * 90 + Math.sin(t * 3) * 2);
+      const spo2 = Math.max(82, Math.min(100, Math.round(99 - Math.max(0, n - 0.6) * 40 - Math.max(0, 0.35 - n) * 10)));
       ctx.fillStyle = '#0e2230'; ctx.fillRect(0, 0, W, Hh);
-      ctx.fillStyle = '#1d3b4f'; ctx.fillRect(30, 90, W - 60, 40);
-      const c = center(), x0 = 30 + (c - zone / 2) * (W - 60);
-      ctx.fillStyle = 'rgba(70,196,106,0.75)'; ctx.fillRect(x0, 90, zone * (W - 60), 40);
-      const m = 30 + mark() * (W - 60);
-      ctx.fillStyle = flash > 0 ? (flash > 0.5 ? '#46c46a' : '#ff5a5f') : '#fff';
-      ctx.fillRect(m - 3, 80, 6, 60);
-      flash = Math.max(0, flash - 0.03);
-      ctx.fillStyle = '#9bb7c4'; ctx.font = '600 13px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText(`İsabet ${hits}/3 · Deneme ${tries}/7`, W / 2, 170);
-      ctx.fillText('Monitör: Nabız 84 · SpO₂ %99 · Tansiyon 118/72', W / 2, 40);
+      const cx = W / 2, cy = 150, r = 105;
+      ctx.lineWidth = 16; ctx.lineCap = 'butt';
+      ctx.strokeStyle = '#3b1d24'; ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 2 * Math.PI); ctx.stroke();
+      ctx.strokeStyle = 'rgba(70,196,106,0.85)'; ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI + (0.5 - half) * Math.PI, Math.PI + (0.5 + half) * Math.PI); ctx.stroke();
+      ctx.fillStyle = '#9bb7c4'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('YÜZEYEL', cx - r + 10, cy + 18); ctx.fillText('DERİN', cx + r - 10, cy + 18);
+      const a = Math.PI + n * Math.PI;
+      ctx.strokeStyle = ok ? '#46c46a' : '#ff5a5f'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * (r - 12), cy + Math.sin(a) * (r - 12)); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '800 15px system-ui'; ctx.textAlign = 'left';
+      ctx.fillStyle = hr > 110 || hr < 50 ? '#ff8a8d' : '#8fd19e'; ctx.fillText('♥ ' + hr + '/dk', 14, 26);
+      ctx.fillStyle = spo2 < 92 ? '#ff8a8d' : '#7fd8ff'; ctx.fillText('SpO₂ %' + spo2, W - 110, 26);
+      ctx.fillStyle = '#1d3b4f'; ctx.fillRect(20, Hh - 20, W - 40, 8);
+      ctx.fillStyle = '#46c46a'; ctx.fillRect(20, Hh - 20, (W - 40) * Math.min(1, t / 9), 8);
+      ctx.fillStyle = '#fff'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Güvenli bölgede: ' + inZone.toFixed(1) + ' sn', W / 2, Hh - 26);
+      if (t >= 9) {
+        done = true;
+        game.scores[1] = Math.round(30 * Math.min(1, inZone / 7.5));
+        sound(game.scores[1] >= 20 ? 'ok' : 'error');
+        setTimeout(stageIncision, 400);
+        return;
+      }
       game.raf = requestAnimationFrame(draw);
     };
-    btn.addEventListener('click', () => {
-      tries++;
-      const ok = Math.abs(mark() - center()) <= zone / 2;
-      if (ok) { hits++; flash = 1; sound('ok'); game.scores[1] += 10; } else { flash = 0.45; sound('error'); }
-      if (hits >= 3 || tries >= 7) { cancelAnimationFrame(game.raf); setTimeout(stageIncision, 350); }
-    });
     draw();
   }
 
@@ -221,42 +241,51 @@
     draw();
   }
 
-  // 3) Dikiş ritmi
+  // 3) Dikiş: karşılıklı dikiş noktalarını sırayla sürükleyerek birleştir
   function stageSuture() {
     if (!game) return;
-    frame('Dikiş Ritmi', 'Halka kapanmadan önce noktaya dokunun. 6 dikiş, ritmi bozmayın!', 3);
+    frame('Dikiş Atma', 'Yanıp sönen soldaki noktadan başlayıp karşısındaki sarı noktaya sürükleyin. 5 dikişi sırayla tamamlayın (12 sn).', 3);
     const { cv, ctx, W, H: Hh, pos } = canvas();
-    const pts = [];
-    for (let i = 0; i < 6; i++) pts.push([90 + i * 36, 110 + (i % 2 ? 14 : -14)]);
-    let idx = 0, t0 = performance.now(), hits = 0, fb = null;
-    const life = 1500 * tol();
+    const pairs = [];
+    for (let i = 0; i < 5; i++) { const x = 100 + i * 40; pairs.push([[x - 6, 92], [x + 6, 128]]); }
+    let idx = 0, drag = null, done = false, fb = null;
+    const start = performance.now();
+    const R = 16 * tol();
+    const finish = () => { if (done) return; done = true; cancelAnimationFrame(game.raf); setTimeout(() => endGame(false), 450); };
     const draw = () => {
-      const now = performance.now();
+      if (!game || done) return;
+      const now = performance.now(), left = Math.max(0, 12 - (now - start) / 1000);
       ctx.clearRect(0, 0, W, Hh);
       ctx.fillStyle = '#2b5a6b'; ctx.fillRect(0, 0, W, Hh);
       ctx.fillStyle = '#e8c3a6'; ctx.beginPath(); ctx.ellipse(W / 2, 110, 150, 72, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#b5303a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(80, 110); ctx.lineTo(280, 110); ctx.stroke();
-      for (let i = 0; i < idx; i++) { ctx.strokeStyle = '#1d3b7a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pts[i][0] - 6, 96); ctx.lineTo(pts[i][0] + 6, 124); ctx.stroke(); }
-      if (idx < pts.length) {
-        const k = 1 - (now - t0) / life;
-        const [x, y] = pts[idx];
-        ctx.fillStyle = '#2ec4b6'; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 8 + 30 * Math.max(0, k), 0, Math.PI * 2); ctx.stroke();
-        if (k <= 0) { fb = ['Kaçtı', now]; next(false); }
-      }
-      if (fb && now - fb[1] < 500) { ctx.fillStyle = fb[0] === 'Kaçtı' ? '#ff8a8d' : '#8fd19e'; ctx.font = '800 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(fb[0], W / 2, 40); }
-      ctx.fillStyle = '#fff'; ctx.font = '600 12px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`Dikiş ${idx}/6 · İsabet ${hits}`, 12, 20);
-      if (game && idx < pts.length) game.raf = requestAnimationFrame(draw);
-    };
-    const next = (ok) => {
-      if (ok) { hits++; game.scores[3] += 5; sound('click'); }
-      idx++; t0 = performance.now();
-      if (idx >= pts.length) { cancelAnimationFrame(game.raf); setTimeout(() => endGame(false), 450); }
+      ctx.strokeStyle = '#b5303a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(80, 110); ctx.lineTo(290, 110); ctx.stroke();
+      pairs.forEach(([a, b], i) => {
+        if (i < idx) { ctx.strokeStyle = '#1d3b7a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); return; }
+        const act = i === idx, blink = act && Math.floor(now / 300) % 2;
+        ctx.fillStyle = act ? (blink ? '#2ec4b6' : '#5ff0d8') : 'rgba(46,196,182,0.35)';
+        ctx.beginPath(); ctx.arc(a[0], a[1], 6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = act ? '#ffd166' : 'rgba(255,209,102,0.35)';
+        ctx.beginPath(); ctx.arc(b[0], b[1], 6, 0, Math.PI * 2); ctx.fill();
+        if (act) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]); }
+      });
+      if (drag) { ctx.strokeStyle = '#1d3b7a'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(drag.a[0], drag.a[1]); ctx.lineTo(drag.p[0], drag.p[1]); ctx.stroke(); }
+      if (fb && now - fb[1] < 600) { ctx.fillStyle = fb[2]; ctx.font = '800 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText(fb[0], W / 2, 40); }
+      ctx.fillStyle = '#fff'; ctx.font = '600 12px system-ui'; ctx.textAlign = 'left'; ctx.fillText('Dikiş ' + idx + '/5 · ⏱ ' + left.toFixed(1) + ' sn', 12, 20);
+      if (left <= 0 || idx >= pairs.length) { finish(); return; }
+      game.raf = requestAnimationFrame(draw);
     };
     cv.addEventListener('pointerdown', (e) => {
-      if (idx >= pts.length) return;
-      const [x, y] = pos(e), [px, py] = pts[idx];
-      if (Math.hypot(x - px, y - py) < 22) { fb = ['Harika!', performance.now()]; next(true); }
+      if (idx >= pairs.length) return;
+      const p = pos(e), a = pairs[idx][0];
+      if (Math.hypot(p[0] - a[0], p[1] - a[1]) < R) { drag = { a, p }; try { cv.setPointerCapture(e.pointerId); } catch (_) { /* yok */ } }
+    });
+    cv.addEventListener('pointermove', (e) => { if (drag) drag.p = pos(e); });
+    cv.addEventListener('pointerup', (e) => {
+      if (!drag) return;
+      const p = pos(e), b = pairs[idx][1];
+      if (Math.hypot(p[0] - b[0], p[1] - b[1]) < R) { idx++; game.scores[3] += 6; sound('click'); fb = ['Harika dikiş!', performance.now(), '#8fd19e']; }
+      else fb = ['Karşı noktaya ulaşmadı', performance.now(), '#ff8a8d'];
+      drag = null;
     });
     draw();
   }
@@ -281,7 +310,7 @@
       const p = r.p;
       p.lying = false; p.lift = 0; p.state = 'leaving';
       if (H().has('services', 'ward') && VH.floors) { VH.floors.admit(p, 'Ameliyat sonrası takip'); p.gone = true; }
-      else E().moveToFloor(p, 0, 4.5, 25.4, (e) => { e.gone = true; });
+      else E().moveToFloor(p, 0, 4.5, 31.4, (e) => { e.gone = true; });
       S().budget += 600;
       notify('🛏️', `${p.name} uyandırma odasından çıktı (+₺600).`, 1, 'postop');
     }

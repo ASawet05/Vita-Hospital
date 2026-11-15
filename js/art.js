@@ -554,7 +554,18 @@
       k.box(0.02, 0.02, 0.98, 0.98, 0, 66, '#aab6bd', { deco: [
         { dir: '*', u0: 0.15, u1: 0.49, z0: 0, z1: 50, color: '#d3dce1' }, { dir: '*', u0: 0.51, u1: 0.85, z0: 0, z1: 50, color: '#d3dce1' },
         { dir: '*', u0: 0.4, u1: 0.6, z0: 54, z1: 61, color: '#16323f', raw: true }] });
-      k.custom(0.5, 0.5, 66, (c, sx, sy) => { c.fillStyle = '#2ec4b6'; c.font = '700 9px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(M().floor === 0 ? 'Z' : String(M().floor), sx, sy); });
+      k.custom(0.5, 0.5, 66, (c, sx, sy) => {
+        // Dinamik kat göstergesi: bulunulan kat + hedef katın yönü
+        const LBL = ['Z', '1', '2', '3', 'B1'], LV = [0, 1, 2, 3, -1];
+        const f = M().floor;
+        const g = VH.guide && VH.guide.current && VH.guide.current.target;
+        let arrow = '';
+        if (g && g.floor !== undefined && g.floor !== f) arrow = LV[g.floor] > LV[f] ? '▲' : '▼';
+        c.fillStyle = '#16323f'; c.fillRect(sx - 12, sy - 7, 24, 14);
+        c.fillStyle = '#2ec4b6'; c.font = '800 9px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(LBL[f] || String(f), sx - (arrow ? 4 : 0), sy);
+        if (arrow) { c.fillStyle = Math.floor(performance.now() / 400) % 2 ? '#ffd166' : '#f2a93b'; c.fillText(arrow, sx + 7, sy); }
+      });
     },
 
     // ---------- Dış dünya

@@ -141,6 +141,7 @@
     window.addEventListener('keydown', (e) => {
       if (e.target && /input|textarea/i.test(e.target.tagName)) return;
       const k = e.key.toLowerCase();
+      if (VH.os && VH.os.isOpen()) { if (k === 'escape') VH.os.close(); return; }
       if (MOVE_KEYS[k] || k === 'shift') {
         keys.add(k);
         if (k.startsWith('arrow')) e.preventDefault();
@@ -165,8 +166,8 @@
         case 'f': setFollow(!cam().follow); break;
         case 'l': toggleLabels(); break;
         case 'p': VH.terminal.open(); break;
-        case 'k': VH.hospital.openPanel('kadro'); break;
-        case 'g': VH.hospital.openPanel('gorevler'); break;
+        case 'k': VH.terminal.open('kadro'); break;
+        case 'g': VH.terminal.open('gorevler'); break;
         case 'b': if (VH.build.active) VH.build.exit(); else VH.build.enter(); break;
         case 'm': toggleSound(); break;
         default: break;
@@ -211,7 +212,33 @@
   function applyTextSize() { document.body.classList.remove('ts-0', 'ts-1', 'ts-2'); document.body.classList.add('ts-' + textSize); }
   // Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır, çıkınca geri döner
   const FOCUS = new Set(['office', 'pharmacy', 'exam1', 'exam2', 'lab', 'or1', 'recovery', 'scrub', 'peds', 'nurse', 'xray', 'us', 'ecg', 'report', 'kitchen']);
-  let lastRoomKey = '';
+  let lastRoomKey = '', focusRoom = null, dimA = 0;
+  // Odaklanılan odanın dışını hafifçe karartır (oda zemini + duvar yüksekliği kadar dışbükey zarf)
+  function hull(pts) {
+    pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], up = [];
+    for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    return lo.slice(0, -1).concat(up.slice(0, -1));
+  }
+  function drawFocusDim(dt) {
+    const want = focusCam && focusRoom && cam().follow ? 1 : 0;
+    dimA += Math.sign(want - dimA) * Math.min(Math.abs(want - dimA), dt * 2.5);
+    if (dimA < 0.01 || !focusRoom || !VH.map.ROOMS[focusRoom]) return;
+    const [x0, y0, x1, y1] = VH.map.ROOMS[focusRoom].r;
+    const base = [[x0, y0], [x1 + 1, y0], [x1 + 1, y1 + 1], [x0, y1 + 1]].map(([x, y]) => VH.map.worldToIso(x, y));
+    const poly = hull(base.concat(base.map(([x, y]) => [x, y - 70])));
+    const c = cam();
+    ctx.save();
+    ctx.translate(vw / 2, vh / 2); ctx.scale(c.zoom, c.zoom); ctx.translate(-c.x, -c.y);
+    const [l, t] = c.toIso(0, 0, vw, vh), [r, b] = c.toIso(vw, vh, vw, vh);
+    ctx.beginPath(); ctx.rect(l - 10, t - 10, r - l + 20, b - t + 20);
+    poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+    ctx.fillStyle = `rgba(6,16,26,${0.38 * dimA})`;
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
   function updateFocus() {
     const c = cam(), P = VH.entities.player;
     if (!focusCam || !c.follow) return;
@@ -221,6 +248,7 @@
     lastRoomKey = key;
     const f = FOCUS.has(room) ? 1.45 : 1;
     c.focusF = f;
+    focusRoom = f > 1 ? room : null;
     c.glide(Math.min(2.8, (c.base || 1.2) * f));
   }
 
@@ -251,7 +279,17 @@
     VH.ui.setChip('chip-where', '📍 ' + fl + (room ? room.name : 'Hastane bahçesi'));
   }
 
+  // Döngü koruması: bir modüldeki hata oyunu dondurmasın (hata bir kez raporlanır, döngü sürer)
+  const reported = new Set();
   function frame(now) {
+    requestAnimationFrame(frame);
+    try { tick(now); } catch (err) {
+      const k = String(err && err.message);
+      if (!reported.has(k)) { reported.add(k); console.error('[VH.frame]', err); }
+      if (VH.paused && !VH.ui.isDialogOpen() && !document.getElementById('surgery') && !document.getElementById('os')) VH.paused = false;
+    }
+  }
+  function tick(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (!VH.paused) {
@@ -277,6 +315,7 @@
     VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map), VH.logistics.drawables(VH.map)),
       { ground: VH.world.drawGround, lights: VH.world.drawLights, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
     VH.world.drawSky(ctx, vw, vh);
+    drawFocusDim(dt);
     VH.build.drawOverlay(ctx, vw, vh);
     VH.equipment.drawOverlay(ctx, vw, vh);
     VH.guide.drawOverlay(ctx, vw, vh);
@@ -284,7 +323,6 @@
     VH.hospital.drawOverlay(ctx, vw, vh);
     hudTimer -= dt;
     if (hudTimer <= 0) { hudTimer = 0.25; updateHud(); }
-    requestAnimationFrame(frame);
   }
 
   async function boot() {
@@ -347,17 +385,9 @@
       sound: toggleSound,
       focus: () => { focusCam = !focusCam; VH.ui.setToggle('btn-focus', focusCam); lastRoomKey = ''; if (!focusCam) { c.focusF = 1; c.glide(c.base); } store('vh.focusCam', focusCam ? '1' : '0'); },
       textSize: () => { textSize = (textSize + 1) % 3; applyTextSize(); store('vh.textSize', String(textSize)); },
-      menu: [
-        ['🖥️', 'Yönetim Terminali', 'P', () => VH.terminal.open()],
-        ['📦', 'Stok & Lojistik', '', () => VH.hospital.openPanel('stok')],
-        ['🔩', 'Bakım & Parça', '', () => VH.hospital.openPanel('bakim')],
-        ['📋', 'İş İlanları', '', () => VH.hospital.openPanel('ilan')],
-        ['👥', 'Personel', 'K', () => VH.hospital.openPanel('kadro')],
-        ['🔧', 'Ekipman', '', () => VH.hospital.openPanel('ekipman')],
-        ['🛋️', 'Düzenleme Modu', 'B', () => (VH.build.active ? VH.build.exit() : VH.build.enter())],
-        ['🎯', 'Görevler & Başarımlar', 'G', () => VH.hospital.openPanel('gorevler')],
-        ['🧭', 'Başhekimlik Odasına Git', '', () => VH.terminal.guide()],
-      ],
+      save: () => { const ok = VH.save.save(); VH.ui.toast(ok ? '💾 Oyun kaydedildi' : '💾 Bu tarayıcıda kayıt kullanılamıyor', 2000); },
+      goOffice: () => VH.terminal.guide(),
+      summary: () => VH.terminal.open(),
     });
     VH.ui.buildGameControls((i) => doInteract(targets[i]));
     VH.ui.setToggle('btn-focus', focusCam);

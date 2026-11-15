@@ -24,7 +24,21 @@
     return st.prog;
   };
   const cnt = () => data().counters;
-  function bump(k, n) { const c = cnt(); c[k] = (c[k] || 0) + (n || 1); dailyBump(k, n || 1); checkAch(); }
+  function bump(k, n) {
+    const c = cnt(); c[k] = (c[k] || 0) + (n || 1); dailyBump(k, n || 1); checkAch();
+    // Süreli kriz görevi ilerlemesi
+    const g = ev.id && EVENTS[ev.id] && EVENTS[ev.id].goal;
+    if (g && g.key === k && !ev.done) { ev.prog = (ev.prog || 0) + (n || 1); if (ev.prog >= g.n) crisisDone(true); }
+  }
+  function crisisDone(ok) {
+    const d = EVENTS[ev.id], g = d && d.goal;
+    if (!g || ev.done) return;
+    ev.done = true;
+    if (ok) { S().budget += g.reward; S().reputation = clamp(S().reputation + g.rep, 0, 100); sound('combo'); }
+    else { S().reputation = clamp(S().reputation - 2, 0, 100); sound('error'); }
+    if (VH.notify) VH.notify(ok ? '🏅' : '⌛', ok ? `Kriz görevi başarıldı: ${d.name} · +${money(g.reward)}, İtibar +${g.rep}` : `Kriz görevi kaçırıldı: ${d.name} (İtibar −2)`, 0, 'crisis');
+    if (VH.emit) VH.emit('crisis', { id: ev.id, ok });
+  }
 
   // ================================================================ Temizlik
   const litter = [];
@@ -86,9 +100,9 @@
 
   // ================================================================ Olaylar
   const EVENTS = {
-    flu:        { icon: '🦠', name: 'Grip Salgını', dur: 150, desc: 'Solunum yolu şikâyetiyle gelen hasta sayısı arttı. Hasta akışı %40 fazla, taburcu geliri +%30.' },
-    heat:       { icon: '🌡️', name: 'Sıcak Hava Dalgası', dur: 150, desc: 'Sıcak çarpması ve sıvı kaybı vakaları artıyor. Serum ünitesini hazır tutun; su sebilleri daha çok kullanılır.' },
-    mci:        { icon: '🚑', name: 'Zincirleme Trafik Kazası', dur: 220, desc: 'Arka arkaya 2 acil vaka geliyor! Her başarılı müdahale +₺1.500 ek ödül.' },
+    flu:        { icon: '🦠', name: 'Grip Salgını', dur: 150, goal: { key: 'served', n: 6, text: '6 hastayı taburcu et', reward: 4000, rep: 4 }, desc: 'Solunum yolu şikâyetiyle gelen hasta sayısı arttı. Hasta akışı %40 fazla, taburcu geliri +%30.' },
+    heat:       { icon: '🌡️', name: 'Sıcak Hava Dalgası', dur: 150, goal: { key: 'refresh', n: 3, text: '3 hasta su sebili/otomattan sıvı alsın', reward: 2500, rep: 2 }, desc: 'Sıcak çarpması ve sıvı kaybı vakaları artıyor. Serum ünitesini hazır tutun; su sebilleri daha çok kullanılır.' },
+    mci:        { icon: '🚑', name: 'Zincirleme Trafik Kazası', dur: 220, goal: { key: 'er', n: 2, text: '2 kazazedeyi stabilize et', reward: 3000, rep: 5 }, desc: 'Arka arkaya 2 acil vaka geliyor! Her başarılı müdahale +₺1.500 ek ödül.' },
     inspection: { icon: '📋', name: 'Sağlık Bakanlığı Denetimi', dur: 100, desc: 'Denetçiler yolda! Süre bitince hastane puanınız değerlendirilecek: çöpleri toplayın, cihaz bakımlarını yapın.' },
     donation:   { icon: '🎁', name: 'Hayırsever Bağışı', dur: 6, desc: 'Bir hayırsever hastaneye bağış yaptı. Bağış miktarı hastane puanına göre belirlenir.' },
     surprise:   { icon: '🕵️', name: 'Habersiz Müfettiş Denetimi', dur: 60, desc: 'Takım elbiseli biri koridorlarda not alıyor… Habersiz bir Sağlık Müfettişi denetimi olabilir!' },
@@ -98,9 +112,9 @@
   function startEvent(id) {
     const d = EVENTS[id];
     if (!d) return;
-    ev.id = id; ev.t = d.dur; ev.n = 0;
+    ev.id = id; ev.t = d.dur; ev.n = 0; ev.prog = 0; ev.done = false;
     sound('notify');
-    UI().toast(`${d.icon} ${d.name}: ${d.desc}`, 5200);
+    UI().toast(`${d.icon} ${d.name}: ${d.desc}${d.goal ? ' · 🎯 Görev: ' + d.goal.text + ' (' + fmt(d.dur) + ')' : ''}`, 6000);
     if (id === 'mci' && H().er && !H().er.active && !H().er.amb) H().er.nextIn = Math.min(H().er.nextIn, 8);
     if (id === 'surprise') spawnInspector();
     if (id === 'donation') {
@@ -112,6 +126,7 @@
     if (VH.emit) VH.emit('eventStart', id);
   }
   function endEvent() {
+    if (ev.id && EVENTS[ev.id].goal && !ev.done) crisisDone(false);
     const id = ev.id;
     ev.id = null; ev.t = 0;
     if (id === 'inspection') inspect();
@@ -120,7 +135,7 @@
   let inspector = null;
   function spawnInspector() {
     const look = { coat: '#2b333b', shirt: '#ffffff', tie: '#30638e', pants: '#22223b', skin: '#e8b48f', hair: '#5a4a42', hairStyle: 'short', glasses: true, carry: 'clipboard', longCoat: true };
-    inspector = E().makeEntity('extra', { name: 'Müfettiş', look, x: 4.5, y: 25.3, speed: 1.3, floor: 0, route: [[4.5, 15.5], [14.5, 16], [24.5, 15.5], [26.5, 9.6], [12.5, 9.6], [4.5, 24.6]], ri: 0, pause: 0 });
+    inspector = E().makeEntity('extra', { name: 'Müfettiş', look, x: 4.5, y: 31.3, speed: 1.3, floor: 0, route: [[4.5, 15.5], [14.5, 16], [24.5, 15.5], [26.5, 9.6], [12.5, 9.6], [4.5, 24.6]], ri: 0, pause: 0 });
     E().extraPeople.push(inspector);
   }
   function updateInspector(dt) {
@@ -459,7 +474,7 @@
       const r = rating();
       UI().setChip('chip-rating', `⭐ ${r.toLocaleString('tr-TR')}`);
       const c = document.getElementById('chip-event');
-      if (c) { c.hidden = !ev.id; if (ev.id) UI().setChip('chip-event', `${EVENTS[ev.id].icon} ${EVENTS[ev.id].name} · ${fmt(ev.t)}`); }
+      if (c) { c.hidden = !ev.id; if (ev.id) { const g = EVENTS[ev.id].goal; UI().setChip('chip-event', `${EVENTS[ev.id].icon} ${EVENTS[ev.id].name}${g ? ' · ' + (ev.done ? '✓' : (ev.prog || 0) + '/' + g.n) : ''} · ${fmt(ev.t)}`); } }
     },
   };
 })();

@@ -29,6 +29,10 @@
     parking:  { base: '#525c64', speck: '#636e76', pattern: 'asphalt', grid: false },
     road:     { base: '#42494f', speck: '#535c63', pattern: 'asphalt', grid: false },
     grass:    { base: '#6aa25f', speck: '#5b9352', pattern: 'grass', grid: false },
+    carpet:   { base: '#5b6b8c', speck: '#4f5e7d', pattern: 'carpet', indoor: true },
+    sterile:  { base: '#cfe8ea', speck: '#a9d3d8', pattern: 'tile', indoor: true },
+    wood:     { base: '#c9a27a', speck: '#b08a62', pattern: 'wood', indoor: true },
+    ceramic:  { base: '#e9e5dd', speck: '#d3cdc1', pattern: 'ceramic', indoor: true },
   };
 
   // Duvar stilleri: yüz rengi, süpürgelik, bant, tırabzan, pencere, kapı rengi
@@ -39,15 +43,17 @@
     core_handrail: { base: '#eef1f2', trim: '#7e8d96', rail: '#9aa7b0', accent: '#2ec4b6', door: '#d5dde2' },
     core_window:   { base: '#eef1f2', trim: '#7e8d96', window: true, door: '#d5dde2' },
     or:            { base: '#dcefe9', trim: '#5e9c8e', accent: '#2f9e8f', door: '#bfe0d6' },
+    glass:         { glass: true, base: '#dfe9ee', trim: '#a9b5bd', accent: 'rgba(46,196,182,0.55)', door: 'rgba(190,225,240,0.55)' },
+    glass_or:      { glass: true, base: '#dcefe9', trim: '#5e9c8e', accent: 'rgba(47,158,143,0.7)', door: 'rgba(190,235,225,0.55)' },
   };
   // ---------------------------------------------------------------- Yerleşim planı
   // r: [x0, y0, x1, y1] (dahil)
   const ROOMS0 = {
-    office:    { num: 7, name: 'Başhekim & Doktor Odası', r: [1, 1, 6, 8], floor: 'vinyl', wall: 'core_straight' },
-    exam1:     { num: 3, name: 'Muayene Odası 1', r: [7, 1, 11, 8], floor: 'vinyl', wall: 'ward' },
-    exam2:     { num: 3, name: 'Muayene Odası 2', r: [12, 1, 16, 8], floor: 'vinyl', wall: 'ward' },
-    lab:       { num: 4, name: 'Kan Alma & Biyo-Laboratuvar', r: [17, 1, 24, 8], floor: 'green', wall: 'lab' },
-    pharmacy:  { num: 6, name: 'Eczane', r: [25, 1, 30, 8], floor: 'white', wall: 'core_window' },
+    office:    { num: 7, name: 'Başhekimlik & Doktor Odası', r: [1, 1, 6, 8], floor: 'carpet', wall: 'core_straight' },
+    exam1:     { num: 3, name: 'Muayene Odası 1', r: [7, 1, 11, 8], floor: 'vinyl', wall: 'glass' },
+    exam2:     { num: 3, name: 'Muayene Odası 2', r: [12, 1, 16, 8], floor: 'vinyl', wall: 'glass' },
+    lab:       { num: 4, name: 'Kan Alma & Biyo-Laboratuvar', r: [17, 1, 24, 8], floor: 'green', wall: 'glass' },
+    pharmacy:  { num: 6, name: 'Eczane', r: [25, 1, 30, 8], floor: 'white', wall: 'glass' },
     corridor:  { num: 0, name: 'Koridor', r: [1, 9, 30, 10], floor: 'corridor', wall: 'core_handrail', noLabel: true },
     reception: { num: 1, name: 'Resepsiyon & Hasta Kayıt', r: [1, 11, 9, 22], floor: 'white', wall: 'core_straight' },
     waiting:   { num: 2, name: 'Hasta Bekleme Salonu', r: [10, 11, 19, 22], floor: 'white', wall: 'ward' },
@@ -167,6 +173,7 @@
     // Asansör (koridorun doğu ucu)
     O('elevator', 30, 9, { tag: 'elevator' }),
   ];
+  const CAMPUS_START = OBJECTS0.length;
   OBJECTS0.push(...campusObjects());
 
   /** Hastane kampüsü: giriş meydanı, tabela, banklar, lambalar, otopark, yollar ve park ağaçları. */
@@ -174,59 +181,68 @@
     const out = [];
     const jit = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = (h ^ (h >>> 13)) >>> 0; return (h % 1000) / 1000; };
     const add = (k, x, y, extra) => out.push(O(k, x, y, extra));
+    const R = 33; // ana cadde (korkuluk dışı)
     // Yol işaretleri ve yaya geçidi (zemine yatık)
-    add('road_mark', -8, 27, { w: 53, h: 3, block: false });
-    add('road_mark', 31, -8, { w: 4, h: 35, block: false });
-    add('crosswalk', 3, 27, { w: 4, h: 3, block: false });
-    // Giriş meydanı (ızgara içinde: engelleyici)
+    add('road_mark', -8, R, { w: 64, h: 3, block: false });
+    add('road_mark', 31, -8, { w: 4, h: 40, block: false });
+    add('crosswalk', 3, R, { w: 4, h: 3, block: false });
+    // Giriş meydanı
     add('sign_hospital', 8, 24, { w: 2 });
     add('flower_bed', 13, 25, { w: 2 }); add('flower_bed', 21, 25, { w: 2 });
     add('bench', 11, 24, { face: 'S' }); add('bench', 16, 24, { face: 'S' }); add('bench', 25, 24, { face: 'S' });
     add('trash_bin', 10, 24); add('trash_bin', 24, 24);
     add('bush', 1, 25); add('bush', 2, 25); add('bush', 28, 25); add('bush', 18, 25);
     for (const x of [7, 19, 29]) add('lamp_post', x, 24);
-    // Ambulans yolu ve otopark lambaları (dış alan)
-    for (const y of [4, 10, 16, 22]) add('lamp_post', 35, y - 1.5, { block: false });
-    // Otopark: çizgiler + araçlar
-    [3, 7, 12, 16].forEach((y, row) => {
-      add('parking_lines', 35, y, { w: 10, h: 2, face: 'E', block: false });
-      for (let i = 0; i < 5; i++) if (jit(i + 3, row + 5) > 0.35) add('car', 35.5 + i * 2, y, { h: 2, face: row % 2 ? 'N' : 'S', block: false });
-    });
-    // Park ağaçları: kuzey ve batı bantları, cadde güneyi
+    // Güney park bahçesi (korkuluk içinde, yürünebilir): gezinti yolu boyunca banklar, ağaçlar, çiçeklikler
+    for (const x of [9, 15, 19, 26]) add('bench', x, 27, { face: 'S' });
+    for (const x of [9, 16, 26]) add('bench', x, 29, { face: 'N' });
+    for (const [x, y] of [[1, 27], [1, 30], [14, 26], [18, 30], [24, 26], [28, 30], [30, 27], [36, 26], [38, 30], [43, 27], [45, 30]]) add('tree', x, y, { block: true });
+    for (const [x, y] of [[10, 30], [20, 26], [33, 29], [42, 25], [44, 29]]) add('flower_bed', x, y, { w: 2 });
+    for (const x of [11, 21, 32, 39]) add('lamp_post', x, 28.6, { block: false });
+    for (const [x, y] of [[13, 30], [23, 30], [41, 26]]) add('trash_bin', x, y);
+    add('picnic_table', 34, 30, { w: 2 }); add('picnic_table', 42, 30, { w: 2 });
+    for (const [x, y] of [[16, 30], [17, 30]]) add('planter', x, y);
+    // Otopark (korkuluk içinde): çizgiler ve aydınlatma; araçlar world.js'te dinamik
+    for (const y of [5, 10, 14, 19]) add('lamp_post', 45, y, { block: false });
+    [3, 7, 12, 16].forEach((y) => add('parking_lines', 35, y, { w: 10, h: 2, face: 'E', block: false }));
+    add('parking_sign', 35, 22);
+    // Yükleme peronu ve ambulans yanaşma alanı işaretleri
+    add('loading_dock', 31, 5, { w: 2, h: 4, block: false });
+    // Park ağaçları: kuzey ve batı bantları (korkuluk dışı), cadde güneyi
     const tree = (x, y) => {
       if (x >= 4 && x <= 19 && y <= -2) return; // ek bina / şantiye alanı
       add(jit(x, y) > 0.82 ? 'bush' : 'tree', x + (jit(y, x) - 0.5) * 0.7, y + (jit(x + 1, y) - 0.5) * 0.7, { block: false });
     };
     // Yerleşke sınırı: taş kaideli ferforje korkuluk (ızgara kenarı boyunca), yaya ve araç kapıları
-    for (let x = 0; x < 35; x++) {
-      if (!(x >= 3 && x <= 6) && !(x >= 31 && x <= 34)) add('fence', x, 26, { face: 'S', block: false, post: x % 3 === 0 || x === 2 || x === 7 || x === 30 });
-      if (!(x >= 31 && x <= 34)) add('fence', x, -1, { face: 'N', block: false, post: x % 3 === 0 || x === 30 });
+    for (let x = 0; x < 47; x++) {
+      if (!(x >= 3 && x <= 6) && !(x >= 31 && x <= 34)) add('fence', x, 32, { face: 'S', block: false, post: x % 3 === 0 || x === 2 || x === 7 || x === 30 || x === 35 });
+      if (!(x >= 31 && x <= 34)) add('fence', x, -1, { face: 'N', block: false, post: x % 3 === 0 || x === 30 || x === 35 });
     }
-    for (let y = 0; y < 26; y++) {
+    for (let y = 0; y < 32; y++) {
       add('fence', -1, y, { face: 'W', block: false, post: y % 3 === 0 });
-      add('fence', 35, y, { face: 'E', block: false, post: y % 3 === 0 });
+      add('fence', 47, y, { face: 'E', block: false, post: y % 3 === 0 });
     }
-    add('gate_pillar', 2, 26, { block: false }); add('gate_pillar', 7, 26, { block: false });
-    add('guard_booth', 8, 25);
-    add('boom_barrier', 30, 25, { block: false });
+    add('gate_pillar', 2, 32, { block: false }); add('gate_pillar', 7, 32, { block: false });
+    add('guard_booth', 8, 31);
+    add('boom_barrier', 30, 31, { block: false });
     // Ek bina: açılan servis sayısıyla büyür (0 → şantiye ve vinç)
     add('annex_tower', 7, -8, { w: 9, h: 4, block: false });
     // Korkuluk dışındaki şehir: apartmanlar, çocuk parkı
-    [[5, 36, 5, 3], [11, 36, 4, 3], [16, 36, 6, 3], [24, 36, 4, 3], [29, 36, 5, 3], [36, 36, 4, 3], [41, 36, 3, 3]].forEach(([x, y, w, h], i) => add('apartment', x, y, { w, h, block: false, floors: 2 + ((i * 7) % 3), tint: i }));
-    add('playground', -6, 33, { w: 5, h: 4, block: false });
-    for (const x of [0, 9, 15, 23, 28, 35, 40]) add('lamp_post', x, 33, { block: false });
-    for (let x = -7; x <= 44; x += 3) { tree(x, -2); tree(x + 1, -6); tree(x, 32); }
-    for (let y = 1; y <= 25; y += 3) { tree(-2, y); tree(-6, y + 1); }
-    for (const [x, y] of [[-1, 4], [-1, 12], [-1, 20], [6, -1], [16, -1], [26, -1]]) add('lamp_post', x, y, { block: false });
-    for (const x of [-5, 2, 12, 22, 33, 41]) add('bench', x, 31, { face: 'N', block: false });
-    // Giriş meydanı canlandırma: saçak, süs havuzu, bayraklar, saksılar, bisiklet parkı, acil tabelası
+    [[5, 42, 5, 3], [11, 42, 4, 3], [16, 42, 6, 3], [24, 42, 4, 3], [29, 42, 5, 3], [36, 42, 4, 3], [41, 42, 4, 3], [47, 42, 5, 3]].forEach(([x, y, w, h], i) => add('apartment', x, y, { w, h, block: false, floors: 2 + ((i * 7) % 3), tint: i }));
+    add('playground', -6, 39, { w: 5, h: 4, block: false });
+    for (const x of [0, 9, 15, 23, 28, 35, 40, 48]) add('lamp_post', x, R + 6, { block: false });
+    for (let x = -7; x <= 54; x += 3) { tree(x, -2); tree(x + 1, -6); tree(x, R + 5); }
+    for (let y = 1; y <= 31; y += 3) { tree(-2, y); tree(-6, y + 1); tree(49, y); tree(53, y + 1); }
+    for (const [x, y] of [[-1, 4], [-1, 12], [-1, 20], [-1, 28], [6, -1], [16, -1], [26, -1]]) add('lamp_post', x, y, { block: false });
+    for (const x of [-5, 2, 12, 22, 33, 41, 50]) add('bench', x, R + 4, { face: 'N', block: false });
+    // Giriş meydanı canlandırma
     add('entrance_canopy', 3, 23, { w: 4, h: 2, block: false });
     add('fountain', 14, 23, { w: 2, h: 2 });
     for (const x of [10, 11, 12]) add('flag_pole', x, 23, { tint: x });
     for (const x of [17, 20, 23, 28]) add('planter', x, 23);
     add('bike_rack', 25, 23, { w: 2 });
     add('er_sign', 31, 13);
-    add('bus_stop', 39, 25, { w: 3, block: false });
+    add('bus_stop', 40, R + 3, { w: 3, block: false });
     add('picnic_table', -3, 11, { w: 2, block: false }); add('picnic_table', -3, 17, { w: 2, block: false });
     return out;
   }
@@ -238,9 +254,9 @@
   const FLOOR_SURGERY = {
     id: 'surgery', name: '1. Kat · Cerrahi & Ameliyathane', W: 24, H: 15, arrive: [2.5, 7.9],
     rooms: {
-      or1:       { name: 'Ameliyathane', r: [1, 1, 9, 6], floor: 'terrazzo', wall: 'or' },
-      scrub:     { name: 'Cerrahi Hazırlık (Scrub)', r: [10, 1, 14, 6], floor: 'terrazzo', wall: 'lab' },
-      recovery:  { name: 'Uyandırma Odası', r: [15, 1, 22, 6], floor: 'vinyl', wall: 'ward' },
+      or1:       { name: 'Ameliyathane', r: [1, 1, 9, 6], floor: 'sterile', wall: 'glass_or' },
+      scrub:     { name: 'Cerrahi Hazırlık (Scrub)', r: [10, 1, 14, 6], floor: 'sterile', wall: 'glass_or' },
+      recovery:  { name: 'Uyandırma Odası', r: [15, 1, 22, 6], floor: 'vinyl', wall: 'glass' },
       corridor:  UPPER_CORRIDOR,
       surgclin:  { name: 'Cerrahi Poliklinik', r: [1, 9, 11, 13], floor: 'white', wall: 'core_straight' },
       sterile:   { name: 'Steril Malzeme Deposu', r: [12, 9, 22, 13], floor: 'green', wall: 'lab' },
@@ -283,7 +299,7 @@
       ward1:    { name: 'Yatan Hasta Servisi', r: [1, 1, 11, 6], floor: 'vinyl', wall: 'ward' },
       peds:     { name: 'Pediatri Servisi', r: [12, 1, 22, 6], floor: 'vinyl', wall: 'ward' },
       corridor: UPPER_CORRIDOR,
-      nurse:    { name: 'Hemşire İstasyonu', r: [1, 9, 8, 13], floor: 'white', wall: 'core_straight' },
+      nurse:    { name: 'Hemşire İstasyonu', r: [1, 9, 8, 13], floor: 'white', wall: 'glass' },
       ward2:    { name: 'Yatan Hasta Odaları', r: [9, 9, 22, 13], floor: 'vinyl', wall: 'ward' },
     },
     doors: [{ e: 'N', x: 4, y: 7 }, { e: 'N', x: 16, y: 7 }, { e: 'N', x: 4, y: 9 }, { e: 'N', x: 14, y: 9 }],
@@ -315,8 +331,8 @@
     id: 'radiology', name: '3. Kat · Radyoloji & İleri Tanı', W: 24, H: 15, arrive: [2.5, 7.9],
     rooms: {
       xray:     { name: 'Röntgen', r: [1, 1, 7, 6], floor: 'white', wall: 'core_window' },
-      us:       { name: 'Ultrason', r: [8, 1, 13, 6], floor: 'vinyl', wall: 'ward' },
-      ecg:      { name: 'EKG & Kardiyak Tanı', r: [14, 1, 22, 6], floor: 'white', wall: 'core_straight' },
+      us:       { name: 'Ultrason', r: [8, 1, 13, 6], floor: 'vinyl', wall: 'glass' },
+      ecg:      { name: 'EKG & Kardiyak Tanı', r: [14, 1, 22, 6], floor: 'white', wall: 'glass' },
       corridor: UPPER_CORRIDOR,
       dialysis: { name: 'Diyaliz Ünitesi', r: [1, 9, 14, 13], floor: 'green', wall: 'lab' },
       report:   { name: 'MR Ünitesi & Raporlama', r: [15, 9, 22, 13], floor: 'vinyl', wall: 'core_straight' },
@@ -349,11 +365,11 @@
   const FLOOR_CAFE = {
     id: 'cafe', name: 'B1 · Yemekhane & Kafeterya', W: 24, H: 15, arrive: [2.5, 7.9], alwaysOpen: true,
     rooms: {
-      dining:   { name: 'Yemekhane', r: [1, 1, 14, 6], floor: 'terrazzo', wall: 'core_window' },
-      kitchen:  { name: 'Yemek Servisi & Mutfak', r: [15, 1, 22, 6], floor: 'white', wall: 'lab' },
+      dining:   { name: 'Yemekhane', r: [1, 1, 14, 6], floor: 'wood', wall: 'core_window' },
+      kitchen:  { name: 'Yemek Servisi & Mutfak', r: [15, 1, 22, 6], floor: 'ceramic', wall: 'glass' },
       corridor: UPPER_CORRIDOR,
       cafe:     { name: 'Kafeterya & Dinlenme', r: [1, 9, 12, 13], floor: 'vinyl', wall: 'core_straight' },
-      dining2:  { name: 'Ek Yemek Salonu', r: [13, 9, 22, 13], floor: 'terrazzo', wall: 'ward' },
+      dining2:  { name: 'Ek Yemek Salonu', r: [13, 9, 22, 13], floor: 'wood', wall: 'ward' },
     },
     doors: [{ e: 'N', x: 5, y: 7 }, { e: 'N', x: 11, y: 7 }, { e: 'N', x: 18, y: 7 }, { e: 'N', x: 4, y: 9 }, { e: 'N', x: 16, y: 9 }, { e: 'W', x: 15, y: 3 }],
     open: [],
@@ -376,7 +392,7 @@
   };
 
   const FLOOR_DEFS = [
-    { id: 'ground', name: 'Zemin Kat', W: 35, H: 26, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true, deco: { x0: -8, y0: -9, x1: 45, y1: 40 } },
+    { id: 'ground', name: 'Zemin Kat', W: 47, H: 32, rooms: ROOMS0, doors: DOORS0, open: OPEN0, objects: OBJECTS0, arrive: [29.5, 10.4], outdoor: true, deco: { x0: -8, y0: -9, x1: 56, y1: 46 } },
     FLOOR_SURGERY, FLOOR_WARD, FLOOR_RADIOLOGY, FLOOR_CAFE,
   ];
 
@@ -386,22 +402,30 @@
   // Zemin kat dış dünyası: ızgara dışındaki (negatif/taşan) hücreler yalnızca görsel "kampüs"tür.
   //  - x 31..34: ambulans yolu, x 35..44: otopark, y 23..26: giriş meydanı, y 27..29: ana cadde,
   //  - y 30: kaldırım, kuzey/batı: park alanı ve yürüyüş yolu.
+  // Kampüs sınırları (ızgara = korkuluk içi): x 0..46, y 0..31. Cadde y 33..35, kaldırımlar 32 ve 36.
+  const ROAD_Y = 33;
   function outdoorFloor(def, x, y) {
     if (!def.outdoor) return null;
-    if (y >= 27 && y <= 29) return 'road';
-    if (y === 26 || y === 30) return 'pavement';
-    if (y >= 31) return y <= 32 ? 'grass' : (x <= 3 ? 'grass' : (y === 33 ? 'path' : 'pavement'));
+    if (y >= ROAD_Y && y <= ROAD_Y + 2) return 'road';
+    if (y === ROAD_Y - 1 || y === ROAD_Y + 3) return 'pavement';
+    if (y > ROAD_Y + 3) return y <= ROAD_Y + 5 ? 'grass' : (x <= 3 ? 'grass' : (y === ROAD_Y + 6 ? 'path' : 'pavement'));
     if (x >= 31 && x <= 34) return 'asphalt';
-    if (x >= 35 && x <= 44 && y >= 2 && y <= 21) return 'parking';
-    if (x >= 35 && y >= 22 && y <= 25) return 'pavement';
+    if (x >= 35 && x <= 46 && y >= 1 && y <= 21) return x >= 45 ? 'asphalt' : 'parking';
+    if (x >= 47 || x < 0 || y < 0) {
+      if (x === -4 || y === -4) return 'path';
+      return 'grass';
+    }
     if (y === 23 && (x === 4 || x === 5)) return 'ramp';
-    if (y >= 23 && y <= 25) {
+    if (y >= 23) {
+      // Güney park bahçesi: giriş yürüyüş yolu, gezinti yolu ve çimen
       if (x >= 3 && x <= 6) return 'pavement';
       if (y === 23) return 'pavement';
-      return x < 0 ? 'grass' : (x % 9 === 0 ? 'path' : 'grass');
+      if (y === 28 || x === 12 || x === 22 || x === 40) return 'path';
+      if (x >= 35 && y === 22) return 'pavement';
+      return 'grass';
     }
+    if (x >= 35 && y === 22) return 'pavement';
     if (x === 0 || y === 0) return 'path';
-    if (x === -4 || y === -4) return 'path';
     return 'grass';
   }
 
@@ -541,6 +565,10 @@
         }
         break;
       case 'asphalt': dots(120, f.speck, 1.5); dots(40, 'rgba(255,255,255,0.05)', 2); break;
+      case 'carpet': dots(260, f.speck, 1.2); dots(80, 'rgba(255,255,255,0.06)', 1); break;
+      case 'tile': isoLines(16, 'rgba(70,140,150,0.35)', 1); isoLines2(16, 'rgba(70,140,150,0.35)', 1); dots(20, 'rgba(255,255,255,0.4)', 1.5); break;
+      case 'wood': isoLines(10.67, 'rgba(110,70,35,0.35)', 1.2); dots(50, f.speck, 1.5); for (let i = 0; i < 6; i++) { c.fillStyle = 'rgba(255,255,255,0.08)'; c.fillRect(R() * 128, R() * 64, 10, 1); } break;
+      case 'ceramic': isoLines(32, 'rgba(120,110,95,0.35)', 1.5); isoLines2(32, 'rgba(120,110,95,0.35)', 1.5); dots(25, f.speck, 2); break;
       default: break;
     }
   }
@@ -680,6 +708,13 @@
       quad(p ? 0 : 0.1, p ? 0.9 : 1, 0, 6, S('#8fa3ad'));
       quad(p ? 0 : 0.1, p ? 0.9 : 1, 52, 55, S(st.trim));
       if (p === 0) quad(0.96, 1, 6, 52, S('#7e8d96'));
+    } else if (st.glass) {
+      // Cam bölme: alüminyum kaide, dikmeler, ara kayıt ve yarı saydam cam
+      quad(0, 1, 0, Math.min(5, h), S('#a9b5bd'));
+      quad(0.03, 0.97, 5, h - (full ? 4 : 1), 'rgba(170,215,238,0.30)');
+      quad(0, 0.035, 0, h, S('#c9d1d6')); quad(0.965, 1, 0, h, S('#c9d1d6'));
+      if (full) { quad(0, 1, 28, 30, S('#c9d1d6')); quad(0, 1, h - 4, h, S('#c9d1d6')); quad(0.15, 0.3, 36, 58, 'rgba(255,255,255,0.18)'); quad(0.08, 0.92, 31, 33, st.accent || 'rgba(46,196,182,0.6)'); }
+      else quad(0, 1, h - 2, h, S('#c9d1d6'));
     } else {
       quad(0, 1, 0, h, S(st.base));
       if (full && st.wainscot) quad(0, 1, 5, 26, S(st.wainscot));
@@ -700,7 +735,7 @@
         }
       }
       // Dış cephe evrimi: servis katları açıldıkça cam giydirme, LED bant ve kornişe dönüşür
-      if (fi === 0 && it.ext && facadeTier > 0) {
+      if (fi === 0 && it.ext && facadeTier > 0 && !st.glass) {
         if (full) {
           quad(0.06, 0.94, 12, 58, S('#5f8fa8'));
           quad(0.09, 0.91, 14, 56, S(facadeTier >= 2 ? '#9fd4ea' : '#b8dbe8'));
@@ -919,6 +954,7 @@
     get OBJECTS() { return OBJECTS; },
     get floor() { return fi; },
     FLOOR_DEFS,
+    get campusStart() { return CAMPUS_START; },
     floorName(f) { return FLOOR_DEFS[f === undefined ? fi : f].name; },
     floorArrive(f) { return FLOOR_DEFS[f].arrive; },
     floorObjects(f) { return FLOOR_DEFS[f].objects; },

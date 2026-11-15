@@ -111,6 +111,25 @@
     }
   });
 
+  // ================================================================ Yerleşke içi işaretler
+  R('parking_sign', (k) => {
+    k.pole(0.5, 0.5, 0, 44, 2.5, '#6f7d87');
+    k.box(0.2, 0.45, 0.8, 0.55, 30, 52, '#1f5fbf', { deco: [{ dir: '*', u0: 0.05, u1: 0.95, z0: 31, z1: 51, color: '#2a73d9', raw: true }] });
+    k.custom(0.5, 0.55, 41, (c, sx, sy) => { c.fillStyle = '#fff'; c.font = '900 13px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('P', sx, sy - 2); c.font = '700 5px system-ui'; c.fillText('ZİYARETÇİ', sx, sy + 8); });
+  });
+  R('loading_dock', (k) => {
+    const W = k.W, D = k.D;
+    k.flat([[0.05, 0.05], [W - 0.05, 0.05], [W - 0.05, D - 0.05], [0.05, D - 0.05]], 0.3, 'rgba(242,201,76,0.18)', 'rgba(242,201,76,0.9)');
+    for (let v = 0.3; v < D - 0.2; v += 0.6) k.flat([[0.1, v], [0.45, v - 0.25], [0.6, v - 0.25], [0.25, v]], 0.35, 'rgba(242,201,76,0.85)');
+    k.custom(W / 2, D / 2, 0.5, (c, sx, sy) => { c.fillStyle = 'rgba(242,201,76,0.95)'; c.font = '800 8px system-ui'; c.textAlign = 'center'; c.fillText('YÜKLEME PERONU', sx, sy); });
+  }, true);
+  R('ambulance_bay', (k) => {
+    const W = k.W, D = k.D;
+    k.flat([[0, 0], [W, 0], [W, D], [0, D]], 0.3, 'rgba(255,255,255,0.12)', '#d62828');
+    for (let v = 0.2, i = 0; v < D - 0.1; v += 0.4, i++) k.flat([[0.05, v], [W - 0.05, v], [W - 0.05, v + 0.2], [0.05, v + 0.2]], 0.35, i % 2 ? 'rgba(255,255,255,0.75)' : 'rgba(214,40,40,0.85)');
+    k.custom(W / 2, D / 2, 0.6, (c, sx, sy) => { c.fillStyle = '#fff'; c.font = '900 10px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.strokeStyle = '#8a1010'; c.lineWidth = 3; c.strokeText('AMBULANS', sx, sy); c.fillText('AMBULANS', sx, sy); });
+  }, true);
+
   // ================================================================ Şehir
   const APT = ['#d9c7b0', '#c9d6df', '#e3d3c3', '#b9c8b5', '#e6dccb', '#cdbfd6', '#d6cbb8'];
   R('apartment', (k) => {
@@ -219,6 +238,38 @@
     k.pole(0.5, 0.5, 0, 16, 3, C.steelD);
     k.cyl(0.5, 0.5, 13, 16, 18, '#f4f1ea');
     if (hash(k.o.x + 3, k.o.y) > 0.4) { k.ball(0.42, 0.45, 20, 2.5, '#ffffff'); k.ball(0.6, 0.55, 20, 2, '#d64545'); }
+  });
+
+  // ================================================================ Yüksek detaylı tıbbi mobilya
+  // Eczane cam rafı: alüminyum çerçeve, cam kapak arkasında renkli ilaç kutuları
+  R('med_cabinet', (k) => {
+    k.shadow(0.05, 0.15, 0.95, 0.85, 0.22);
+    const cols = ['#d1495b', '#edae49', '#00798c', '#30638e', '#66a182', '#8e6c8a', '#f4f1ea'];
+    const deco = [];
+    for (let r = 0; r < 4; r++) for (let i = 0; i < 5; i++) deco.push({ dir: 'S', u0: 0.1 + i * 0.165, u1: 0.22 + i * 0.165, z0: 8 + r * 13, z1: 14 + r * 13 - ((i + r) % 3), color: cols[(i * 2 + r) % cols.length], raw: true });
+    for (let r = 0; r < 4; r++) deco.push({ dir: 'S', u0: 0.05, u1: 0.95, z0: 6 + r * 13, z1: 7 + r * 13, color: '#c9d1d6', raw: true });
+    k.box(0.08, 0.2, 0.92, 0.8, 0, 58, '#e9eef1', { deco, top: '#c9d1d6' });
+    k.box(0.06, 0.78, 0.94, 0.82, 4, 56, 'rgba(180,225,245,0.32)', { edge: false });
+    k.box(0.06, 0.18, 0.94, 0.84, 56, 60, '#a9b5bd');
+    k.custom(0.5, 0.82, 30, (c, sx, sy) => { c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 2; c.beginPath(); c.moveTo(sx - 10, sy + 14); c.lineTo(sx + 2, sy - 16); c.stroke(); });
+  });
+  // Tavana asılı çift kafalı ameliyat lambası
+  R('surgical_lamp', (k) => {
+    const on = performance.now();
+    k.pole(0.5, 0.5, 64, 96, 3, '#c9d1d6');
+    k.box(0.4, 0.4, 0.6, 0.6, 94, 98, '#a9b5bd');
+    k.line(0.5, 0.5, 70, 0.15, 0.3, 62, 3, '#c9d1d6');
+    k.line(0.5, 0.5, 70, 0.85, 0.7, 60, 3, '#c9d1d6');
+    for (const [u, v, z] of [[0.15, 0.3, 58], [0.85, 0.7, 56]]) {
+      k.custom(u, v, z, (c, sx, sy) => {
+        c.fillStyle = '#eef2f4'; c.beginPath(); c.ellipse(sx, sy, 15, 8, 0, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#9aa7b0'; c.lineWidth = 1.5; c.stroke();
+        const g = c.createRadialGradient(sx, sy + 2, 1, sx, sy + 2, 12);
+        g.addColorStop(0, 'rgba(255,255,230,1)'); g.addColorStop(1, 'rgba(255,255,230,0.2)');
+        c.fillStyle = g; c.beginPath(); c.ellipse(sx, sy + 2, 11, 5, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = 'rgba(255,255,220,0.10)'; c.beginPath(); c.moveTo(sx - 11, sy + 2); c.lineTo(sx - 26, sy + 52 + Math.sin(on / 900) * 0.5); c.lineTo(sx + 26, sy + 52); c.lineTo(sx + 11, sy + 2); c.closePath(); c.fill();
+      });
+    }
   });
 
   // ================================================================ İleri tanı

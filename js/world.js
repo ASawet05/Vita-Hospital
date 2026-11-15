@@ -12,8 +12,8 @@
 
   // ================================================================ Trafik
   const LANES = {
-    W: { y0: 27.45, dir: -1, face: 'W', start: 48, end: -11 },
-    E: { y0: 28.55, dir: 1, face: 'E', start: -11, end: 48 },
+    W: { y0: 33.45, dir: -1, face: 'W', start: 58, end: -11 },
+    E: { y0: 34.55, dir: 1, face: 'E', start: -11, end: 58 },
   };
   const COLORS = ['#d64545', '#3a8fb7', '#f2f2f2', '#2b333b', '#f2c94c', '#6aa84f', '#8e6c8a', '#e07a5f', '#9aa7b0'];
   const cars = [];
@@ -27,17 +27,18 @@
   const crossing = () => peds.some((p) => p.crossing);
   // Özel araçlar: ambulans ve lojistik kamyonu (trafik bunlara yol verir, bariyer bunlar için açılır)
   const specials = () => [H().er && H().er.amb, VH.logistics && VH.logistics.truck].filter(Boolean);
+  const barrierUsers = () => specials().concat(typeof parkers !== 'undefined' ? parkers.filter((p) => p.state !== 'parked') : []);
   function ambOnLane(lane) {
     let best = null;
-    for (const a of specials()) {
-      if (lane === 'W' && Math.abs(a.y - 27.95) < 0.3) best = a.x;
-      if (lane === 'E' && Math.abs(a.y - 29.05) < 0.3) best = a.x;
+    for (const a of barrierUsers()) {
+      if (lane === 'W' && Math.abs(a.y - 33.95) < 0.3) best = a.x;
+      if (lane === 'E' && Math.abs(a.y - 35.05) < 0.3) best = a.x;
     }
     return best;
   }
   let barrier = 0;
   function updateBarrier(dt) {
-    const want = specials().some((a) => a.x > 29 && a.x < 36 && a.y > 21 && a.y < 30.5) ? 1 : 0;
+    const want = barrierUsers().some((a) => a.x > 29 && a.x < 36 && a.y > 27 && a.y < 36.5) ? 1 : 0;
     barrier += Math.sign(want - barrier) * Math.min(Math.abs(want - barrier), dt * 1.6);
   }
   function updateCars(dt) {
@@ -57,7 +58,7 @@
       const ax = ambOnLane(c.lane);
       if (ax !== null) { const d = (ax - c.x) * L.dir; if (d > 0) gap = Math.min(gap, d - 2.4); }
       // Ambulans caddeye girerken kavşakta yol ver
-      for (const a of specials()) if (a.phase !== 'parked' && a.phase !== 'unload' && a.x > 31 && a.x < 34 && a.y > 24) { const d = (a.x - c.x) * L.dir; if (d > 0 && d < 5) gap = Math.min(gap, d - 2.2); }
+      for (const a of specials()) if (a.phase !== 'parked' && a.phase !== 'unload' && a.x > 31 && a.x < 35 && a.y > 30) { const d = (a.x - c.x) * L.dir; if (d > 0 && d < 5) gap = Math.min(gap, d - 2.2); }
       // Yaya geçidi (x 3..7)
       const front = c.x + (L.dir * c.len) / 2;
       if (cw) { const d = L.dir > 0 ? 2.6 - front : front - 7.4; if (d > -0.2) gap = Math.min(gap, d); }
@@ -71,6 +72,64 @@
   function carObj(c) {
     const L = LANES[c.lane];
     return { k: c.kind === 'bus' ? 'city_bus' : 'car', x: c.x - c.len / 2, y: L.y0, w: c.len, h: 1, face: L.face, color: c.color, braking: c.braking };
+  }
+
+  // ================================================================ Yerleşke içi otopark (sivil araçlar)
+  // Araç caddeden gelir → bariyerden ambulans yolunun doğu şeridine girer → koridordan park yerine.
+  const ROWS = { 3: 5.6, 7: 9.8, 12: 14.6, 16: 18.6 }; // sıra üstü y → koridor (aisle) y
+  const SLOTS = [];
+  Object.keys(ROWS).forEach((r) => { for (let i = 0; i < 5; i++) SLOTS.push({ x: 36 + 2 * i, row: +r, aisle: ROWS[r], car: null }); });
+  const parkers = [];
+  let parkT = 4;
+  function parkerSpawn(initial) {
+    const free = SLOTS.filter((s) => !s.car);
+    if (!free.length) return;
+    const s = free[Math.floor(Math.random() * free.length)];
+    const c = { slot: s, color: pick(COLORS), v: 0, heading: 'W', i: 1, state: initial ? 'parked' : 'in', t: rand(70, 200) };
+    s.car = c;
+    if (initial) { c.x = s.x; c.y = s.row + 1; c.heading = 'N'; }
+    else { c.pts = [[58, 33.95], [34.5, 33.95], [34.5, s.aisle], [s.x, s.aisle], [s.x, s.row + 1]]; c.x = 58; c.y = 33.95; }
+    parkers.push(c);
+  }
+  function drivePts(c, dt, vmax) {
+    if (c.i >= c.pts.length) return true;
+    const [tx, ty] = c.pts[c.i];
+    const dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy);
+    const last = c.i === c.pts.length - 1;
+    const want = last ? Math.min(vmax, 0.8 + d * 1.5) : vmax;
+    c.v += Math.sign(want - c.v) * Math.min(Math.abs(want - c.v), dt * 4);
+    const step = Math.max(0.3, c.v) * dt;
+    if (!c.reverse && d > 1e-3) c.heading = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'W' : 'E') : (dy < 0 ? 'N' : 'S');
+    if (d <= step) { c.x = tx; c.y = ty; c.i++; c.reverse = false; return c.i >= c.pts.length; }
+    c.x += (dx / d) * step; c.y += (dy / d) * step;
+    return false;
+  }
+  const laneBusy = () => parkers.some((p) => p.state !== 'parked' && p.x < 35.2);
+  function updateParkers(dt) {
+    parkT -= dt;
+    if (parkT <= 0) { parkT = rand(14, 30); if (!laneBusy()) parkerSpawn(false); }
+    for (let k = parkers.length - 1; k >= 0; k--) {
+      const c = parkers[k];
+      if (c.state === 'in') {
+        // ambulans/kamyon şeritteyken kavşakta bekle
+        const blocked = c.i === 1 && c.x < 40 && specials().some((a) => a.phase !== 'parked' && a.phase !== 'unload' && a.y > 28);
+        if (!blocked && drivePts(c, dt, 3.6)) {
+          c.state = 'parked'; c.heading = 'N'; c.t = rand(80, 220);
+          // sürücü hasta olarak iner ve bahçeden ana girişe yürür
+          if (Math.random() < 0.5 && E().spawnPatientAt) E().spawnPatientAt(c.x + 0.7, c.y + 0.3);
+        }
+      } else if (c.state === 'parked') {
+        c.t -= dt;
+        if (c.t <= 0 && !laneBusy()) { c.state = 'out'; c.i = 1; c.v = 0; c.reverse = true; c.pts = [[c.x, c.y], [c.x, c.slot.aisle], [34.5, c.slot.aisle], [34.5, 35.05], [58, 35.05]]; }
+      } else if (drivePts(c, dt, 3.6)) {
+        c.slot.car = null; parkers.splice(k, 1);
+      }
+    }
+  }
+  function parkerObj(c) {
+    const ns = c.heading === 'N' || c.heading === 'S';
+    const w = ns ? 1 : 2, h = ns ? 2 : 1;
+    return { k: 'car', x: c.x - w / 2, y: c.y - h / 2, w, h, face: c.heading, color: c.color };
   }
 
   // Şehir otobüsü (art kitiyle)
@@ -88,14 +147,14 @@
 
   // ================================================================ Yayalar
   const ROUTES = [
-    [[-9, 30.5], [46, 30.5]],
-    [[46, 30.5], [-9, 30.5]],
-    [[-9, 26.5], [4.5, 26.5], [4.5, 30.5], [46, 30.5]],
-    [[46, 30.5], [4.5, 30.5], [4.5, 26.5], [-4.5, 26.5], [-4.5, -9]],
-    [[-4.5, -9], [-4.5, 26.5], [46, 26.5]],
-    [[46, 26.5], [-4.5, 26.5], [-4.5, -4.5], [46, -4.5]],
-    [[-9, -4.5], [46, -4.5]],
-    [[46, 26.5], [40.5, 26.5], [40.5, 25.7, 'wait'], [40.5, 26.5], [46, 26.5]],
+    [[-9, 36.5], [57, 36.5]],
+    [[57, 36.5], [-9, 36.5]],
+    [[-9, 32.5], [4.5, 32.5], [4.5, 36.5], [57, 36.5]],
+    [[57, 36.5], [4.5, 36.5], [4.5, 32.5], [-4.5, 32.5], [-4.5, -9]],
+    [[-4.5, -9], [-4.5, 32.5], [57, 32.5]],
+    [[57, 32.5], [-4.5, 32.5], [-4.5, -4.5], [57, -4.5]],
+    [[-9, -4.5], [57, -4.5]],
+    [[57, 36.5], [41.5, 36.5], [41.5, 37.2, 'wait'], [41.5, 36.5], [57, 36.5]],
   ];
   const peds = [];
   let pedT = 0.5;
@@ -127,12 +186,12 @@
       if (!tgt) { p.gone = true; continue; }
       const dx = tgt[0] - p.x, dy = tgt[1] - p.y, d = Math.hypot(dx, dy);
       // yaya geçidinde: geçerken araçlar durur; araç yaklaşıyorsa kaldırımda bekle
-      const onCross = Math.abs(p.x - 4.5) < 0.3 && ((p.y <= 26.8 && tgt[1] > 27) || (p.y >= 30.2 && tgt[1] < 30));
+      const onCross = Math.abs(p.x - 4.5) < 0.3 && ((p.y <= 32.8 && tgt[1] > 33) || (p.y >= 36.2 && tgt[1] < 36));
       if (onCross && !p.crossing) {
         const danger = cars.some((c) => { const L = LANES[c.lane]; const front = c.x + (L.dir * c.len) / 2; const dd = L.dir > 0 ? 3 - front : front - 7; return dd > -0.5 && dd < 2.2 && c.v > 1.5; });
         if (danger) { p.moving = false; continue; }
       }
-      p.crossing = Math.abs(p.x - 4.5) < 0.6 && p.y > 26.7 && p.y < 30.3;
+      p.crossing = Math.abs(p.x - 4.5) < 0.6 && p.y > 32.7 && p.y < 36.3;
       const step = p.speed * (VH.world.rain && !p.jog ? 1.15 : 1) * dt;
       if (d <= step) {
         p.x = tgt[0]; p.y = tgt[1]; p.seg++;
@@ -253,6 +312,25 @@
     } else drops.length = 0;
   }
 
+  // ================================================================ Nizamiye güvenlik görevlisi (devriye)
+  let guard = null;
+  const PATROL = [[6.6, 30.6], [9.6, 30.6], [9.6, 29.2], [6.6, 29.4]];
+  function initGuard() {
+    guard = E().makeEntity('extra', { name: 'Güvenlik', look: { coat: '#22223b', sleeve: '#22223b', pants: '#1b1d33', skin: '#c98d62', hair: '#1c1c1c', hairStyle: 'short', cap: '#1b1d33', badge: '#e6c66e', shoes: '#111' }, x: 6.6, y: 30.6, floor: 0, speed: 1.0, pi: 1, pause: 0 });
+    E().extraPeople.push(guard);
+  }
+  function updateGuard(dt) {
+    if (!guard) return;
+    const P = E().player;
+    if (P.floor === 0 && Math.hypot(P.x - guard.x, P.y - guard.y) < 1.8 && !guard.greet) { guard.greet = true; E().say(guard, pick(['İyi nöbetler Başhekimim!', 'Nizamiye kontrol altında.', 'Otopark bugün dolu.']), 2200); E().face(guard, P.x - guard.x, P.y - guard.y); }
+    if (Math.hypot(P.x - guard.x, P.y - guard.y) > 3) guard.greet = false;
+    if (guard.pause > 0) { guard.pause -= dt; guard.moving = false; return; }
+    const [tx, ty] = PATROL[guard.pi];
+    const dx = tx - guard.x, dy = ty - guard.y, d = Math.hypot(dx, dy), s = guard.speed * dt;
+    if (d <= s) { guard.x = tx; guard.y = ty; guard.pi = (guard.pi + 1) % PATROL.length; guard.pause = rand(1.5, 4); guard.moving = false; return; }
+    guard.x += (dx / d) * s; guard.y += (dy / d) * s; E().face(guard, dx, dy); guard.moving = true; guard.anim += dt * 9;
+  }
+
   // ================================================================ Gece ışıkları (farlar)
   function drawLights(ctx, night) {
     if (M().floor !== 0) return;
@@ -293,6 +371,11 @@
       const [cx, cy] = map.worldToIso(c.x, LANES[c.lane].y0 + 0.5);
       out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
     }
+    for (const c of parkers) {
+      const o = parkerObj(c);
+      const [cx, cy] = map.worldToIso(c.x, c.y);
+      out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
+    }
     for (const p of peds) {
       if (!p.dog) continue;
       const g = p.dog;
@@ -314,7 +397,7 @@
       const t = performance.now() / 1000;
       ctx.strokeStyle = 'rgba(220,235,250,0.35)'; ctx.lineWidth = 1;
       for (let i = 0; i < 16; i++) {
-        const x = ((i * 7.3) % 44) - 3, y = 26.2 + ((i * 3.7) % 4.6);
+        const x = ((i * 7.3) % 44) - 3, y = 32.2 + ((i * 3.7) % 4.6);
         const p = (t * 0.8 + i * 0.37) % 1;
         const [sx, sy] = M().worldToIso(x, y);
         ctx.globalAlpha = 1 - p;
@@ -337,9 +420,12 @@
       for (let i = 0; i < 7; i++) spawnPed(true);
       for (let i = 0; i < 3; i++) { spawnCar('W'); cars[cars.length - 1].x = rand(-6, 44); spawnCar('E'); cars[cars.length - 1].x = rand(-6, 44); }
       cars.forEach((c) => { c.v = c.vmax; });
+      for (let i = 0; i < 9; i++) parkerSpawn(true);
+      initGuard();
     },
     get barrier() { return barrier; },
-    update(dt, vw, vh) { updateBarrier(dt); updateCars(dt); updatePeds(dt); updatePigeons(dt); updateSky(dt, vw || 800, vh || 600); },
+    get parkers() { return parkers; },
+    update(dt, vw, vh) { updateBarrier(dt); updateCars(dt); updateParkers(dt); updateGuard(dt); updatePeds(dt); updatePigeons(dt); updateSky(dt, vw || 800, vh || 600); },
     drawables, drawGround, drawSky, drawLights,
   };
 })();

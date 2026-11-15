@@ -10,6 +10,53 @@
     return n;
   }
 
+  // ---------------------------------------------------------------- Kayan bildirim şeridi
+  const tq = [];
+  let tCur = null, tTimer = 0;
+  function tickerEl() {
+    let t = $('ticker');
+    if (!t) {
+      t = el('div', { id: 'ticker', role: 'status' });
+      t.appendChild(el('span', { className: 'tk-icon' }));
+      t.appendChild(el('span', { className: 'tk-text' }));
+      t.appendChild(el('span', { className: 'tk-floor' }));
+      t.appendChild(el('span', { className: 'tk-more' }));
+      t.addEventListener('click', () => {
+        if (tCur && tCur.goal && VH.guide) VH.guide.setGoal(tCur.goal);
+        tickerNext();
+      });
+      const root = $('ui-root');
+      if (root) root.appendChild(t);
+    }
+    return t;
+  }
+  function tickerShow(item) {
+    const t = tickerEl();
+    tCur = item;
+    t.querySelector('.tk-icon').textContent = item.icon || 'ℹ️';
+    t.querySelector('.tk-text').textContent = item.text;
+    const fl = t.querySelector('.tk-floor');
+    fl.hidden = !item.other;
+    if (item.other && VH.map) fl.textContent = '↗ ' + VH.map.floorName(item.floor).split(' · ')[0];
+    t.querySelector('.tk-more').textContent = tq.length ? '+' + tq.length : '';
+    t.classList.toggle('alert', !!item.prio);
+    t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+    clearTimeout(tTimer);
+    tTimer = setTimeout(tickerNext, tq.length > 2 ? Math.min(item.dur, 1800) : item.dur);
+  }
+  function tickerNext() {
+    clearTimeout(tTimer);
+    const t = $('ticker');
+    if (tq.length) { tickerShow(tq.shift()); return; }
+    tCur = null;
+    if (t) t.classList.remove('show');
+  }
+  function tickerPush(item) {
+    // Kuyruk şişerse önce sıradan bilgi mesajları düşülür
+    if (tq.length > 5) { const i = tq.findIndex((x) => !x.prio); tq.splice(i >= 0 ? i : 0, 1); }
+    if (!tCur) tickerShow(item); else { tq.push(item); const m = $('ticker'); if (m) m.querySelector('.tk-more').textContent = '+' + tq.length; }
+  }
+
   const joy = { x: 0, y: 0, active: false };
   let dialogOpen = false;
   let dialogOnClose = null;
@@ -55,91 +102,65 @@
 
     // ------------------------------------------------------------ Kamera düğmeleri
     /**
-     * Sağ üst: tek "☰ Menü" (yönetim uygulamaları) + "⚙️ Görünüm" (döndürme, zoom, takip,
-     * etiketler, yazı boyutu, ses, oda odak kamerası). İkisi de açılır-kapanır.
-     * h: { rotL, rotR, zoomIn, zoomOut, follow, labels, sound, focus, textSize, menu: [[icon, label, key, fn]] }
+     * Sağ üst: tek "⚙️ Ayarlar" düğmesi. Açılır pencerede yalnızca Ses, Yakınlaştır/Uzaklaştır,
+     * Kaydet, Başhekim Odasına Git ve salt okunur Özet bulunur. Yönetim uygulamaları Başhekimlik
+     * bilgisayarındadır; klavye kısayolları (Q/R, F, L, P, K, B, G) masaüstünde çalışmaya devam eder.
+     * h: { zoomIn, zoomOut, sound, save, goOffice, summary }
      */
     buildCameraControls(h) {
       const bar = el('div', { id: 'top-right' });
-      const mk = (id, icon, label, title) => {
-        const b = el('button', { id, className: 'tr-btn', type: 'button', title });
-        b.appendChild(el('span', { className: 'tr-icon' }, icon));
-        b.appendChild(el('span', { className: 'tr-label' }, label));
-        b.setAttribute('aria-label', title);
+      const btn = el('button', { id: 'btn-view', className: 'tr-btn', type: 'button', title: 'Ayarlar' });
+      btn.appendChild(el('span', { className: 'tr-icon' }, '⚙️'));
+      btn.appendChild(el('span', { className: 'tr-label' }, 'Ayarlar'));
+      bar.appendChild(btn);
+      const pop = el('div', { id: 'view-pop', className: 'pop settings', hidden: true });
+      const item = (id, icon, label, fn, keep) => {
+        const b = el('button', { id, className: 'set-btn', type: 'button', title: label });
+        b.appendChild(el('span', { className: 'cb-icon' }, icon));
+        b.appendChild(el('span', { className: 'cb-label' }, label));
+        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); if (!keep) { pop.hidden = true; btn.classList.remove('on'); } });
+        pop.appendChild(b);
         return b;
       };
-      const viewBtn = mk('btn-view', '⚙️', 'Görünüm', 'Görünüm ve ayarlar');
-      const menuBtn = mk('btn-menu', '☰', 'Menü', 'Yönetim menüsü');
-      bar.appendChild(viewBtn); bar.appendChild(menuBtn);
-      const view = el('div', { id: 'view-pop', className: 'pop', hidden: true });
-      const vbtn = (id, icon, title, fn, keep) => {
-        const b = el('button', { id, className: 'cam-btn', title, type: 'button' });
-        b.appendChild(el('span', { className: 'cb-icon' }, icon));
-        b.appendChild(el('span', { className: 'cb-label' }, title.replace(/ \(.*\)$/, '')));
-        b.addEventListener('click', (e) => { e.stopPropagation(); fn(); if (!keep) b.blur(); });
-        view.appendChild(b);
-      };
-      vbtn('btn-rot-l', '⟲', 'Sola döndür (Q)', h.rotL, true);
-      vbtn('btn-rot-r', '⟳', 'Sağa döndür (R)', h.rotR, true);
-      vbtn('btn-zoom-in', '＋', 'Yakınlaştır (+)', h.zoomIn, true);
-      vbtn('btn-zoom-out', '－', 'Uzaklaştır (−)', h.zoomOut, true);
-      vbtn('btn-follow', '◎', 'Başhekimi takip et (F)', h.follow);
-      vbtn('btn-focus', '🎥', 'Oda odak kamerası', h.focus);
-      vbtn('btn-labels', '🏷️', 'Oda etiketleri (L)', h.labels);
-      vbtn('btn-text', 'Aa', 'Yazı boyutu', h.textSize, true);
-      if (h.sound) vbtn('btn-sound', VH.audio && VH.audio.muted ? '🔇' : '🔊', 'Ses (M)', h.sound);
-      const menu = el('nav', { id: 'menu-pop', className: 'pop', hidden: true });
-      menu.setAttribute('aria-label', 'Yönetim menüsü');
-      (h.menu || []).forEach(([icon, label, key, fn]) => {
-        const b = el('button', { type: 'button', className: 'menu-item', title: label + (key ? ' (' + key + ')' : '') });
-        b.appendChild(el('span', { className: 'mi-icon' }, icon));
-        b.appendChild(el('span', { className: 'mi-label' }, label));
-        if (key) b.appendChild(el('kbd', {}, key));
-        b.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = true; menuBtn.classList.remove('on'); fn(); b.blur(); });
-        menu.appendChild(b);
-      });
-      const toggle = (pop, btn, other, otherBtn) => { pop.hidden = !pop.hidden; btn.classList.toggle('on', !pop.hidden); other.hidden = true; otherBtn.classList.remove('on'); };
-      viewBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(view, viewBtn, menu, menuBtn); });
-      menuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggle(menu, menuBtn, view, viewBtn); });
-      document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#top-right, .pop')) { view.hidden = true; menu.hidden = true; viewBtn.classList.remove('on'); menuBtn.classList.remove('on'); } });
-      // Arayüz düğmelerinde hafif tıklama sesi
+      item('btn-sound', VH.audio && VH.audio.muted ? '🔇' : '🔊', 'Ses', h.sound, true);
+      item('btn-zoom-in', '＋', 'Yakınlaştır', h.zoomIn, true);
+      item('btn-zoom-out', '－', 'Uzaklaştır', h.zoomOut, true);
+      item('btn-save', '💾', 'Kaydet', h.save);
+      item('btn-office', '🧭', 'Başhekim Odasına Git', h.goOffice);
+      item('btn-summary', '📊', 'Özet (salt okunur)', h.summary);
+      btn.addEventListener('click', (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; btn.classList.toggle('on', !pop.hidden); });
+      document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#top-right, .pop')) { pop.hidden = true; btn.classList.remove('on'); } });
       $('ui-root').addEventListener('click', (e) => { if (e.target.closest('button') && VH.audio) VH.audio.play('click'); });
       $('ui-root').appendChild(bar);
-      $('ui-root').appendChild(view);
-      $('ui-root').appendChild(menu);
-      $('ui-root').appendChild(el('div', { id: 'notes', 'aria-live': 'polite' }));
+      $('ui-root').appendChild(pop);
+      tickerEl();
       $('ui-root').appendChild(el('div', { id: 'help-hint' },
-        'WASD: yürü · Shift: koş · E: etkileşim · Q/R: döndür · P: terminal · K: personel · B: düzenle · G: görevler · M: ses'));
+        'WASD: yürü · Shift: koş · E: etkileşim · Q/R: döndür · P: bilgisayar/özet · K: personel · B: düzenle · G: görevler · M: ses'));
     },
-    closeMenus() { ['view-pop', 'menu-pop'].forEach((id) => { const p = $(id); if (p) p.hidden = true; }); ['btn-view', 'btn-menu'].forEach((id) => { const b = $(id); if (b) b.classList.remove('on'); }); },
+    closeMenus() { ['view-pop'].forEach((id) => { const p = $(id); if (p) p.hidden = true; }); ['btn-view', 'btn-menu'].forEach((id) => { const b = $(id); if (b) b.classList.remove('on'); }); },
 
     /**
-     * Katlar arası akıllı bildirim (sağ üst yığın). floor: olayın katı; oyuncu başka kattaysa
-     * kat rozeti gösterilir. Aynı türden bildirim 5 sn içinde tekrarlanmaz.
+     * Kayan tek satır bildirim şeridi (üst barın hemen altında). floor: olayın katı; oyuncu başka
+     * kattaysa kat rozeti eklenir. goal: tıklanınca yön çizgisi çizilecek hedef. Aynı tür 5 sn içinde
+     * tekrar etmez. Tüm mesajlar Başhekim bilgisayarındaki bildirim merkezinde de saklanır.
      */
-    notify(icon, text, floor, kind) {
-      const box = $('notes');
-      if (!box) return;
+    notify(icon, text, floor, kind, goal) {
       const now = performance.now();
       VH.ui._noteLast = VH.ui._noteLast || {};
       if (kind && VH.ui._noteLast[kind] && now - VH.ui._noteLast[kind] < 5000) return;
       if (kind) VH.ui._noteLast[kind] = now;
       const P = VH.entities && VH.entities.player;
-      const other = P && floor !== undefined && floor !== null && floor !== P.floor;
-      const n = el('div', { className: 'note' + (other ? ' other' : '') });
-      n.appendChild(el('span', { className: 'note-icon' }, icon));
-      const body = el('span', { className: 'note-text' }, text);
-      if (other) body.appendChild(el('span', { className: 'note-floor' }, '↗ ' + VH.map.floorName(floor).split(' · ')[0]));
-      n.appendChild(body);
-      n.addEventListener('click', () => n.remove());
-      box.prepend(n);
-      while (box.children.length > 4) box.lastChild.remove();
-      setTimeout(() => { n.classList.add('out'); setTimeout(() => n.remove(), 400); }, other ? 9000 : 6500);
+      const other = !!(P && floor !== undefined && floor !== null && floor !== P.floor);
+      const item = { icon, text, floor, other, goal: goal || null, t: Date.now(), dur: other ? 6500 : 5000, prio: true };
+      VH.ui.history.unshift(item);
+      if (VH.ui.history.length > 40) VH.ui.history.length = 40;
+      tickerPush(item);
     },
+    history: [],
     setSoundButton(muted) {
       const b = $('btn-sound');
       if (!b) return;
-      b.textContent = muted ? '🔇' : '🔊';
+      const ic = b.querySelector('.cb-icon'); if (ic) ic.textContent = muted ? '🔇' : '🔊'; else b.textContent = muted ? '🔇' : '🔊';
       b.classList.toggle('on', !muted);
       b.setAttribute('aria-label', muted ? 'Sesi aç (M)' : 'Sesi kapat (M)');
     },
@@ -240,7 +261,7 @@
     },
 
     // ------------------------------------------------------------ Diyalog
-    isDialogOpen() { return dialogOpen; },
+    isDialogOpen() { return dialogOpen || !!document.getElementById('os') || !!document.getElementById('surgery'); },
     openDialog(spec) {
       VH.ui.closeDialog(true);
       const box = el('div', { id: 'dialog', role: 'dialog', className: spec.wide ? 'wide' : '' });
@@ -306,7 +327,11 @@
       if (!box._init) { box._init = true; if (window.innerWidth <= 640 || document.body.classList.contains('touch')) box.classList.add('min'); }
       box._onTab = onTab;
       const hud = $('hud');
-      if (hud) { const top = hud.getBoundingClientRect().bottom + 8; if (box._top !== top) { box._top = top; box.style.top = top + 'px'; } }
+      if (hud) {
+        const hb = hud.getBoundingClientRect().bottom;
+        const tk = tickerEl(); if (tk && tk._top !== hb + 6) { tk._top = hb + 6; tk.style.top = (hb + 6) + 'px'; }
+        const top = hb + 44; if (box._top !== top) { box._top = top; box.style.top = top + 'px'; }
+      }
       const sig = model ? [model.id, model.title, model.patient, model.instruction, model.steps.map((s) => s.state).join(''), flows.map((f) => f.id).join()].join('|') : 'idle';
       if (box._sig !== sig) {
         box._sig = sig;
@@ -404,12 +429,8 @@
     },
 
     toast(text, ms) {
-      let t = $('toast');
-      if (!t) { t = el('div', { id: 'toast' }); $('ui-root').appendChild(t); }
-      t.textContent = text;
-      t.classList.add('show');
-      clearTimeout(t._h);
-      t._h = setTimeout(() => t.classList.remove('show'), ms || 1800);
+      // Kısa bilgi mesajları da tek satır şeritte gösterilir (ekran ortasını kapatmaz)
+      tickerPush({ icon: '', text, dur: Math.max(1600, ms || 1800), prio: false });
     },
   };
   VH.notify = (icon, text, floor, kind) => VH.ui.notify(icon, text, floor, kind);

@@ -271,6 +271,17 @@
   }
   function drawOverlay(ctx, vw, vh) {
     const cam = M().camera, now = performance.now();
+    // Onarım animasyonu: işi başındaki teknisyenin elinden kıvılcımlar
+    for (const s of E().staff) {
+      if (!s.task || s.task.kind !== 'repair' || s.path.length || s.floor !== E().player.floor) continue;
+      const [ix, iy] = M().worldToIso(s.x, s.y);
+      const [sx, sy] = cam.toScreen(ix, iy - 22, vw, vh);
+      for (let i = 0; i < 7; i++) {
+        const p = ((now / 420) + i / 7) % 1, a = i * 2.4 + now / 300;
+        ctx.fillStyle = `rgba(255,${200 - i * 12},80,${1 - p})`;
+        ctx.fillRect(sx + 9 + Math.cos(a) * p * 16, sy + Math.sin(a) * p * 10 - p * 6, 2, 2);
+      }
+    }
     const bad = new Set(CATS.filter((c) => cond(c.id) < 50 || broken(c.id)).map((c) => c.id));
     if (!bad.size) return;
     const shown = new Set();

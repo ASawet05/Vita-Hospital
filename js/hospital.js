@@ -61,9 +61,9 @@
 
   const FLOOR_STAFF = {
     surgery: [
-      { id: 'surgeon', name: 'Op. Dr. Selim Tan', role: 'Genel Cerrah', look: look('#2f9e8f', '#2f9e8f', '#2f9e8f', '#e8b48f', '#2b1d14', 'short'),
+      { id: 'surgeon', name: 'Op. Dr. Selim Tan', role: 'Genel Cerrah', look: look('#2f9e8f', '#2f9e8f', '#2f9e8f', '#e8b48f', '#2b1d14', 'short', { cap: '#2f9e8f', mask: '#9fd8ec', scrubs: true, sleeve: '#2f9e8f' }),
         points: [[6.5, 4.5], [12.5, 3.5], [4.5, 5.5]], action: 'Doktorla Konuş', info: 'Ameliyat öncesi en az 2-3 dakika cerrahi el yıkama şart.', greet: ['Ameliyathane steril!', 'Bugün iki planlı ameliyat var.', 'Hoş geldiniz Başhekimim.'] },
-      { id: 'anesth', name: 'Dr. Nil Er', role: 'Anestezi Uzmanı', look: look('#2f9e8f', '#2f9e8f', '#2f9e8f', '#f3cfb1', '#a0522d', 'bun'),
+      { id: 'anesth', name: 'Dr. Nil Er', role: 'Anestezi Uzmanı', look: look('#2f9e8f', '#2f9e8f', '#2f9e8f', '#f3cfb1', '#a0522d', 'bun', { cap: '#5aa9e6', mask: '#9fd8ec', scrubs: true, sleeve: '#2f9e8f' }),
         points: [[3.5, 3.4], [2.5, 5.5], [8.5, 4.5]], action: 'Doktorla Konuş', info: 'Anesteziden önce hastanın aç kalma süresini ve kullandığı ilaçları mutlaka sorgularız.', greet: ['Cihaz kontrolleri tamam.', 'Hastalar emin ellerde.', 'Merhaba!'] },
     ],
     ward: [
@@ -196,8 +196,8 @@
 
   // Ambulans rotası (araç merkezi, dünya koordinatı): ana caddenin kuzey şeridinden gelir,
   // ambulans yoluna döner, acil kapısının önünde durur; dönüşte güney şeridinden ayrılır.
-  const AMB_IN = [[47, 27.95], [33.3, 27.95], [33.3, 16.5]];
-  const AMB_OUT = [[33.3, 16.5], [33.3, 29.05], [47, 29.05]];
+  const AMB_IN = [[57, 33.95], [33.3, 33.95], [33.3, 16.5]];
+  const AMB_OUT = [[33.3, 16.5], [33.3, 35.05], [57, 35.05]];
   function startEmergency(forced) {
     const pool = (VH.progress && VH.progress.erPool) ? VH.progress.erPool(ER_TYPES) : ER_TYPES;
     const def = forced ? (ER_TYPES.find((d) => d.id === forced) || pick(pool)) : pick(pool);
@@ -234,25 +234,37 @@
     E().extraPeople.push(m);
     return m;
   }
-  function updateParamedic(dt) {
-    const m = er.medic;
-    if (!m) return;
-    if (m.gone) { const i = E().extraPeople.indexOf(m); if (i >= 0) E().extraPeople.splice(i, 1); er.medic = null; return; }
+  // İki görevli sedyeyi taşır: biri arkadan iter (iz takibi), diğeri önden çeker (hareket yönünde)
+  function updateOneMedic(m, dt, lead) {
     if (m.mode === 'push' && m.patient) {
       const p = m.patient, tr = m.trail;
       const last = tr[tr.length - 1];
       if (!last || Math.hypot(p.x - last[0], p.y - last[1]) > 0.05) tr.push([p.x, p.y]);
-      // izdeki ~0.55 hücre gerideki noktaya yürü
-      let acc = 0, goal = tr[0];
-      for (let i = tr.length - 1; i > 0; i--) { acc += Math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]); if (acc >= 0.55) { goal = tr[i - 1]; break; } }
+      let goal = null;
+      if (lead) {
+        const a = tr[Math.max(0, tr.length - 4)], b = tr[tr.length - 1];
+        const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+        if (d > 0.05) goal = [p.x + (dx / d) * 0.7, p.y + (dy / d) * 0.7];
+      } else {
+        let acc = 0; goal = tr[0];
+        for (let i = tr.length - 1; i > 0; i--) { acc += Math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]); if (acc >= 0.7) { goal = tr[i - 1]; break; } }
+      }
       if (goal) {
         const dx = goal[0] - m.x, dy = goal[1] - m.y, d = Math.hypot(dx, dy);
-        if (d > 0.02) { const s = Math.min(d, 2.4 * dt); m.x += (dx / d) * s; m.y += (dy / d) * s; E().face(m, p.x - m.x, p.y - m.y); m.moving = true; m.anim += dt * 10; } else m.moving = false;
+        if (d > 0.02) { const s = Math.min(d, 2.6 * dt); m.x += (dx / d) * s; m.y += (dy / d) * s; E().face(m, lead ? dx : p.x - m.x, lead ? dy : p.y - m.y); m.moving = true; m.anim += dt * 10; } else m.moving = false;
       }
       if (tr.length > 80) tr.splice(0, tr.length - 80);
     } else {
-      if (m.mode === 'return' && m.wait > 0) { m.wait -= dt; if (m.wait <= 0) E().goTo(m, 31.6, 17.3, (e) => { e.gone = true; }); }
+      if (m.mode === 'return' && m.wait > 0) { m.wait -= dt; if (m.wait <= 0) E().goTo(m, 31.6, lead ? 15.6 : 17.3, (e) => { e.gone = true; }); }
       E().stepPath(m, dt);
+    }
+  }
+  function updateParamedic(dt) {
+    for (const key of ['medic', 'medic2']) {
+      const m = er[key];
+      if (!m) continue;
+      if (m.gone) { const i = E().extraPeople.indexOf(m); if (i >= 0) E().extraPeople.splice(i, 1); er[key] = null; continue; }
+      updateOneMedic(m, dt, key === 'medic2');
     }
   }
   function paramedicHandover() {
@@ -262,6 +274,7 @@
     m.mode = 'return';
     m.bubble = { text: d ? `Teslim ediyorum: ${d.age} yaş, ${d.complaint.split(',')[0].toLowerCase()}. Nabız ${d.vitals.pulse}, SpO₂ %${d.vitals.spo2}.` : 'Hasta teslim edildi.', until: performance.now() + 4200 };
     m.wait = 2.5;
+    if (er.medic2) { er.medic2.mode = 'return'; er.medic2.wait = 3.2; }
   }
 
   function ambulanceArrived(def) {
@@ -272,13 +285,15 @@
     lk.cane = false; lk.carry = null;
     const p = E().makeEntity('patient', {
       name: def.name, age: def.age, complaint: def.complaint, look: lk, erRef: def,
-      x: ER_DOOR_OUT[0], y: ER_DOOR_OUT[1], speed: 1.25, state: 'er', timer: 0, floor: 0, chair: true,
+      x: ER_DOOR_OUT[0], y: ER_DOOR_OUT[1], speed: 1.25, state: 'er', timer: 0, floor: 0, stretcher: true,
     });
     E().patients.push(p);
     er.active = { def, p, timeLeft: def.time + erTimeBonus(), phase: 'arrive', wrong: new Set(), bay: null, stab: 0 };
     E().say(p, 'Yardım edin… lütfen!', 2600);
     er.medic = makeParamedic(p);
     er.medic.mode = 'push'; er.medic.patient = p;
+    er.medic2 = makeParamedic(p); er.medic2.mode = 'push'; er.medic2.patient = p; er.medic2.x = p.x - 0.5; er.medic2.y = p.y - 0.2;
+    er.medic2.look = Object.assign({}, er.medic2.look, { hairStyle: 'ponytail', skin: '#e8b48f', hair: '#4a3121', carry: null });
     E().goTo(p, TRIAGE_SPOT[0], TRIAGE_SPOT[1], () => { if (er.active && er.active.p === p) { er.active.phase = 'wait'; paramedicHandover(); } });
   }
 
@@ -344,7 +359,7 @@
     UI().toast(`✅ Doğru triyaj! Hastayı sedyeye alıyoruz. Şimdi ${UNITS[k].device} ile müdahale edin.`, 3600);
     E().goTo(a.p, bay.bed[0], bay.bed[1], (p) => {
       E().sitAt(p, bay.bed, 17);
-      p.sitting = false; p.lying = true; p.chair = false;
+      p.sitting = false; p.lying = true; p.chair = false; p.stretcher = false;
       if (er.active && er.active.p === p) er.active.phase = 'bay';
     }, bay.via);
   }
@@ -425,7 +440,7 @@
       er.leaving.splice(i, 1);
       const { a, p, kind } = L;
       if (a.bay) a.bay.occ = null;
-      p.sitting = false; p.lying = false; p.lift = 0; p.chair = false;
+      p.sitting = false; p.lying = false; p.lift = 0; p.chair = false; p.stretcher = false;
       // Ağır vakalar ameliyathaneye, inme şüphesi radyolojiye yönlenir (katlar açıksa)
       if (kind === 'pharmacy' && VH.surgery && VH.surgery.wants(a.def)) { er.follow = null; VH.surgery.admit(p, a.def); continue; }
       if (kind === 'pharmacy' && VH.floors && VH.floors.wantsImagingER(a.def)) { er.follow = null; VH.floors.sendImaging(p, { er: a.def }); continue; }
@@ -463,7 +478,7 @@
       } else if (amb.phase === 'parked') {
         amb.wait -= dt;
         // paramedik dönene kadar bekler (en fazla 25 sn)
-        if (amb.wait <= 0 && (!er.medic || amb.wait < -18)) { if (er.medic) er.medic.gone = true; amb.phase = 'leave'; amb.pts = AMB_OUT; amb.i = 1; amb.v = 0.5; }
+        if (amb.wait <= 0 && ((!er.medic && !er.medic2) || amb.wait < -18)) { if (er.medic) er.medic.gone = true; if (er.medic2) er.medic2.gone = true; amb.phase = 'leave'; amb.pts = AMB_OUT; amb.i = 1; amb.v = 0.5; }
       } else if (driveAmb(amb, dt)) er.amb = null;
     }
     const a = er.active;
@@ -516,13 +531,13 @@
 
   // Şikâyete uygun reçete adayları; son verilen 3 bilgilendirme tekrar edilmez
   const COMPLAINT_POOL = [[/yorgun|halsiz/i, ['demir', 'b12', 'dvit', 'folat']], [/kramp/i, ['magnezyum', 'sivi']], [/uyku/i, ['magnezyum', 'kafein']], [/baş ağrı/i, ['agri', 'sivi', 'kafein']],
-    [/eklem|ağrı/i, ['agri', 'dvit']], [/saç/i, ['cinko', 'demir', 'folat']], [/uyuşma|dikkat/i, ['b12', 'folat']], [/mide|iştah/i, ['sivi', 'laktoz']], [/baş dönmesi/i, ['sivi', 'demir']], [/nefes/i, ['demir', 'inhaler']]];
+    [/eklem|ağrı/i, ['agri', 'dvit']], [/saç/i, ['cinko', 'demir', 'folat']], [/uyuşma|dikkat/i, ['b12', 'folat']], [/mide|iştah/i, ['sivi', 'laktoz', 'ppi']], [/baş dönmesi/i, ['sivi', 'demir']], [/nefes/i, ['demir', 'inhaler']]];
   const recentRx = [];
   function rxFor(p) {
     if (p.erRef) return ER_RX[p.erRef.id] || 'sevk';
     if (p.caseRef) return p.caseChoice && p.caseChoice !== 'complete' ? 'sevk' : CASE_RX[p.caseRef.id] || 'dvit';
     const hit = COMPLAINT_POOL.find(([re]) => re.test(p.complaint || ''));
-    const all = Object.keys(RX).filter((k) => !['sevk', 'karbon', 'inme', 'antibiyotik', 'koah', 'alerji', 'seker', 'gut'].includes(k));
+    const all = Object.keys(RX).filter((k) => !['sevk', 'karbon', 'inme', 'antibiyotik', 'koah', 'alerji', 'seker', 'gut', 'metformin', 'ppi', 'levotiroksin', 'antikoagulan'].includes(k));
     let cand = (hit ? hit[1] : all).filter((k) => RX[k] && !recentRx.includes(k));
     if (!cand.length) cand = all.filter((k) => !recentRx.includes(k));
     const k = pick(cand.length ? cand : all);
@@ -553,6 +568,7 @@
       b.addEventListener('click', () => counsel(p, ok, rx));
       node.appendChild(b);
     });
+    if (rx.sources && VH.content) node.appendChild(VH.content.sourcesNode(rx.sources));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Takviye ve ilaçlar yalnızca hekim/eczacı önerisiyle kullanılmalıdır.'));
     UI().openDialog({ icon: '💊', title: 'İlaç Onayı & Bilgilendirme', subtitle: 'Eczane', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
   }
@@ -626,9 +642,12 @@
   }
 
   function openPanel(tab) {
+    if (VH.os && VH.os.isOpen()) { VH.os.openTab(tab || panelTab); return; }
     const prevDlg = document.getElementById('dialog');
     const keepScroll = prevDlg && prevDlg.dataset.panel === (tab || panelTab) ? (prevDlg.querySelector('.dlg-body') || {}).scrollTop || 0 : 0;
     panelTab = tab || panelTab;
+    const remote = VH.terminal && !VH.terminal.atDesk();
+    if (remote && !VH.terminal.REMOTE_OK.includes(panelTab)) panelTab = 'ozet';
     const st = S();
     const node = el('div', {});
     const stats = el('div', { className: 'exam-meta' });
@@ -638,7 +657,7 @@
     const tabs = el('div', { className: 'tabs' });
     const extTabs = (VH.panelTabs || []).slice().sort((a, b) => (a.order || 50) - (b.order || 50));
     const first = extTabs.filter((t) => (t.order || 50) <= 5), rest = extTabs.filter((t) => (t.order || 50) > 5);
-    first.map((t) => [t.id, t.label]).concat([['genel', 'Genel'], ['servis', 'Servisler & Katlar'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Uzman Kadro']], rest.map((t) => [t.id, t.label])).forEach(([id, label]) => {
+    first.map((t) => [t.id, t.label]).concat([['genel', 'Genel'], ['servis', 'Servisler & Katlar'], ['gelisim', 'Gelişim'], ['yukseltme', 'Yükseltmeler'], ['personel', 'Uzman Kadro']], rest.map((t) => [t.id, t.label])).filter(([id]) => !remote || VH.terminal.REMOTE_OK.includes(id)).forEach(([id, label]) => {
       const b = el('button', { type: 'button', className: 'tab' + (panelTab === id ? ' on' : '') }, label);
       b.addEventListener('click', () => openPanel(id));
       tabs.appendChild(b);
@@ -1022,6 +1041,14 @@
     drawables,
     drawOverlay,
     openPanel, openElevator, travel, endShift,
+    /** Masaüstü pencereleri için temel sekme içerikleri (yükseltme, gelişim, uzman kadro, servisler). */
+    renderBase(tab, list, rerender) {
+      if (tab === 'yukseltme') UPGRADES.forEach((u) => list.appendChild(itemCard('upgrades', u, rerender)));
+      else if (tab === 'gelisim') list.appendChild(devCards(rerender));
+      else if (tab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u, rerender)));
+      else if (tab === 'servis') SERVICES.forEach((u) => list.appendChild(itemCard('services', u, rerender)));
+    },
+    canBuy, money, BAYS_STATE: () => BAYS.map((b) => !!b.occ),
     onServed(p) {
       S().budget += (190 + (has('upgrades', 'comfort') ? 50 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1);
       if (shift.stats && !(p && p.erRef)) shift.stats.treated++;

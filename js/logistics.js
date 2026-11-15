@@ -20,6 +20,7 @@
     solunum:     { name: 'Solunum (İnhaler)', icon: '🫁', rx: ['inhaler', 'koah'], price: 120 },
     antibiyotik: { name: 'Antibiyotik', icon: '🧫', rx: ['antibiyotik'], price: 105 },
     acil:        { name: 'Acil, Kardiyak & Sıvı', icon: '💧', rx: ['sivi', 'seker', 'alerji', 'antikoagulan'], price: 85 },
+    kronik:      { name: 'Kronik Hastalık İlaçları', icon: '🩺', rx: ['metformin', 'levotiroksin', 'ppi'], price: 75 },
   };
   const PACK = 10, CRITICAL = 4;
   const catKeyOf = (rx) => Object.keys(CATS).find((k) => CATS[k].rx.includes(rx)) || null;
@@ -54,6 +55,11 @@
 
   // ---------------------------------------------------------------- Sipariş
   const cart = {};
+  // Kargo takibi: confirmed → enroute → dock → delivered
+  const track = [];
+  let orderSeq = 1;
+  function trackAdd(kind, label) { const o = { id: 'VT-' + String(1000 + orderSeq++), kind, label, status: 'confirmed', t: Date.now() }; track.unshift(o); if (track.length > 12) track.length = 12; return o.id; }
+  const setStatus = (ids, s) => track.forEach((o) => { if (ids.includes(o.id)) o.status = s; });
   function cartCost() { return Object.keys(cart).reduce((s, k) => s + cart[k] * PACK * CATS[k].price, 0); }
   function placeStockOrder() {
     const cost = cartCost();
@@ -61,7 +67,8 @@
     if (!cost) return false;
     if (S().budget <= 0 || S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return false; }
     S().budget -= cost;
-    data().pending.push({ kind: 'stock', items });
+    const label = Object.keys(items).map((k) => `${items[k] * PACK} kutu ${CATS[k].name}`).join(', ');
+    data().pending.push({ kind: 'stock', items, tid: trackAdd('stock', label) });
     Object.keys(cart).forEach((k) => delete cart[k]);
     sound('success');
     UI().toast(`📦 Sipariş verildi (${money(cost)}). Lojistik aracı yola çıkıyor.`, 2800);
@@ -73,7 +80,7 @@
   function orderPart(cat, cost) {
     if (S().budget <= 0 || S().budget < cost) { UI().toast('Bütçe yetersiz', 1800); return false; }
     S().budget -= cost;
-    data().pending.push({ kind: 'part', cat });
+    data().pending.push({ kind: 'part', cat, tid: trackAdd('part', 'Yedek parça + teknik servis: ' + ((VH.equipment && (VH.equipment.CATS.find((c) => c.id === cat) || {}).name) || cat)) });
     sound('success');
     UI().toast('🔩 Yedek parça siparişi verildi; lojistik aracıyla gelecek.', 2600);
     if (VH.emit) VH.emit('order', { kind: 'part', cost });
@@ -83,7 +90,7 @@
   }
 
   // ---------------------------------------------------------------- Lojistik aracı ve kurye
-  const TRUCK_IN = [[48, 27.95], [31.8, 27.95], [31.8, 7.4]];
+  const TRUCK_IN = [[57, 33.95], [31.8, 33.95], [31.8, 7.4]];
   const TRUCK_OUT = [[31.8, 7.4], [31.8, -12]];
   let truck = null, dispatchIn = -1, courier = null;
   function scheduleTruck(delay) { if (!truck && dispatchIn < 0) dispatchIn = delay; }
@@ -91,6 +98,7 @@
     const load = data().pending.splice(0);
     if (!load.length) return;
     truck = { pts: TRUCK_IN, i: 1, x: TRUCK_IN[0][0], y: TRUCK_IN[0][1], heading: 'W', phase: 'arrive', v: 6, load };
+    setStatus(load.map((o) => o.tid), 'enroute');
     notify('🚚', 'Lojistik aracı yolda: teslimat birazdan lojistik kapısına ulaşacak.', 0, 'truck');
   }
   function drive(v, dt) {
@@ -109,6 +117,7 @@
   }
   function deliver() {
     const st = data();
+    setStatus(truck.load.map((o) => o.tid), 'delivered');
     const parts = [], meds = [];
     truck.load.forEach((o) => {
       if (o.kind === 'stock') Object.keys(o.items).forEach((k) => { if (CATS[k]) { st.stock[k] = Math.min(capacity(), st.stock[k] + o.items[k] * PACK); warned[k] = false; meds.push(CATS[k].name); } });
@@ -126,6 +135,7 @@
     if (truck.phase === 'arrive') {
       if (drive(truck, dt)) {
         truck.phase = 'unload';
+        setStatus(truck.load.map((o) => o.tid), 'dock');
         const look = { coat: '#8a6a4c', pants: '#3d405b', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', carry: 'bag', badge: '#2ec4b6' };
         courier = E().makeEntity('extra', { name: 'Kurye', look, x: 31.5, y: 7.1, speed: 1.9, floor: 0 });
         E().extraPeople.push(courier);
@@ -232,6 +242,7 @@
     get stock() { return data().stock; },
     get parts() { return data().parts; },
     get truck() { return truck; },
+    get track() { return track; },
     get dispatchIn() { return dispatchIn; },
     useParts(cat) { const p = data().parts; if (!p[cat]) return false; p[cat]--; return true; },
     init() { data(); if (data().pending.length) scheduleTruck(8); },

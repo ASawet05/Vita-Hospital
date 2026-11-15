@@ -23,13 +23,57 @@ Oyunda **hiçbir harici görsel ya da ses dosyası yoktur**. Her şey HTML5 Canv
 | Yürüme | `WASD` / ok tuşları (`Shift` ile koşma) | Sol alttaki joystick |
 | Etkileşim | `E` / `Enter` veya karaktere/cihaza tıklama | Sağ alttaki dinamik eylem düğmesi |
 | Kamera | Sürükle, tekerlek, `Q` / `R` ile 90° döndürme, `F` ile takip | Sürükle, iki parmakla yakınlaştırma |
-| Yönetim terminali | `P` ya da Başhekimlik odasındaki bilgisayar | ☰ Menü |
-| Personel yönetimi | `K` | ☰ Menü |
-| Düzenleme modu | `B`; içinde `T` döndürür, `Esc` iptal eder, `Delete` dekoru satar | ☰ Menü |
-| Görevler & başarımlar | `G` | ☰ Menü |
-| Görünüm: zoom, döndürme, oda odak kamerası, etiketler, yazı boyutu, ses | `+` / `-`, `L`, `M` | ⚙️ Görünüm |
+| Başhekimlik bilgisayarı (VitaOS) | Masaya yaklaşıp `E`, ya da masadayken `P` | Masada eylem düğmesi |
+| Salt okunur özet (uzaktan) | `P` / `K` / `G` (masada değilken) | ⚙️ Ayarlar → Özet |
+| Düzenleme modu | `B`; içinde `T` döndürür, `Esc` iptal eder, `Delete` dekoru satar | VitaOS → Düzenleme Modu |
+| Ayarlar | `+` / `-`, `M` | ⚙️ Ayarlar: Ses, Yakınlaştır/Uzaklaştır, Kaydet, Başhekim Odasına Git, Özet |
 
-Sağ üstte yalnızca iki düğme vardır: **☰ Menü** tüm yönetim uygulamalarını, **⚙️ Görünüm** kamera ve ayarları toplar. Mobilde akış şeması tek satırlık bir şeride küçülür (dokununca açılır).
+Sağ üstte yalnızca tek bir **⚙️ Ayarlar** düğmesi vardır. Yönetim uygulamaları Başhekimlik odasındaki bilgisayardadır.
+
+Bildirimler üst barın hemen altında tek satırlık, kayan bir şeritte gösterilir:
+- Başka kattaki olaylar kat rozetiyle görünür.
+- Şeride dokununca sıradakine geçilir.
+- Geçmiş bildirimler bilgisayardaki bildirim merkezinde saklanır.
+
+Mobilde akış şeması tek satırlık bir şeride küçülür (dokununca açılır).
+
+## VitaOS · Başhekimlik bilgisayarı
+
+Masaya oturunca tam ekran bir masaüstü açılır. Masaüstünde:
+- Kodla çizilmiş özgün simgeler
+- Sürüklenebilir pencereler (küçült / büyüt / kapat)
+- Görev çubuğu: Başlat menüsü, açık uygulama sekmeleri, bildirim merkezi (🔔), saat ve tarih
+
+Uygulamalar:
+- **MedKariyer.com:** Sekmeli ve adres çubuklu bir tarayıcı penceresi.
+  - İlan yayınlama (nöbet başına 2 yenileme)
+  - Kadro açıkları
+  - Adayların özgeçmiş kartları: uzmanlık puanı, okul, deneyim yılı, maaş beklentisi
+  - "İşe Al" (nöbet başına 3 kota)
+- **MedDepo ERP:** Canlı stok çubukları ve koli sepeti. Siparişler canlı kargo takibiyle izlenir: Sipariş Onaylandı → Araç Yola Çıktı → Yükleme Peronuna Ulaştı → Teslim Edildi.
+- **BiyoMed Teknik:** Tüm cihaz gruplarının yıpranma yüzdeleri, arızalar, yedek parça ve teknik servis siparişi, servis talep takibi.
+- **Yönetim Paneli:**
+  - Finans: gelir-gider bilançosu ve grafik
+  - Canlı güvenlik kameraları (4 kamera)
+  - Birim doluluk oranları
+  - Kat açılış onayları
+  - Acil kredi
+  - Genel ayarlar
+- **Diğerleri:** Personel, Hastane Gelişimi, Ekipman Yükseltme, Görevler & Başarımlar, Başhekim Karnesi, Düzenleme Modu.
+
+**Uzaktan erişim kuralı:** Koridordayken yalnızca salt okunur özet açılır. İşe alım, stok siparişi ve parça talebi için bilgisayara oturmak gerekir.
+
+**İflas koruması:**
+- Bütçe eksiye düşerse kat, cihaz, personel ve sipariş alımları kilitlenir ve uyarı gösterilir.
+- Acil kredi: ₺20.000 hemen hesaba geçer; geri ödemesi 5 nöbet × ₺4.800.
+
+## Genişletilmiş kampüs ve yerleşke içi otopark
+
+- **Kampüs sınırı:** Korkuluk, hastanenin güneyindeki park bahçesini ve doğudaki otoparkı içine alacak şekilde genişletildi. Başhekim yürüyüş yolları, banklar, ağaçlar ve çiçeklikler arasında gezebilir; korkuluk dışına çıkamaz.
+- **Sivil otopark:** Hasta araçları caddeden gelir, bariyerden geçip park çizgilerine park eder. Sürücüler bazen hasta olarak inip bahçeden ana girişe yürür.
+- **Ambulans alanı:** Ambulans, acil kapısı önündeki kırmızı-beyaz şeritli yanaşma alanına park eder. İki paramedik hastayı sedyeyle içeri taşır.
+- **Yükleme peronu:** Lojistik ve teknik servis aracı yerleşke içindeki yükleme peronuna yanaşır. Kurye kolileri eczane deposuna taşır. Teknisyen arızalı cihazı kıvılcımlı onarım animasyonuyla tamir eder.
+- **Güvenlik:** Nizamiyede devriye gezen bir güvenlik görevlisi var.
 
 ## Aşamalı otomasyon ve çok katlı hastane
 
@@ -49,17 +93,32 @@ Sağ üstte yalnızca iki düğme vardır: **☰ Menü** tüm yönetim uygulamal
 - **Cihaz arızaları:** Yıpranan cihaz arızalanabilir; arızalı cihaz işlemleri ciddi yavaşlatır. Terminalden yedek parça sipariş edilir, parça gelince teknisyen (ya da siz) onarır.
 - **Kat açma zorluğu:** Bütçe eksideyken kat, personel, ekipman ve sipariş satın alımı kilitlidir. Her katın yüksek bir maliyeti ile "minimum itibar + çözülmüş vaka sayısı" şartı vardır.
 - **1. Kat · Cerrahi:** Acilde stabilize edilen travma, akut apandisit ve kalça kırığı hastaları ameliyathaneye taşınır. Ameliyatı etkileşimli mini oyunlarla bizzat yapabilirsiniz:
-  1. Cerrahi Güvenlik Kontrol Listesi
-  2. Anestezi dengesi
-  3. Kesi takibi
-  4. Dikiş ritmi
+  1. Cerrahi Güvenlik Kontrol Listesi (hazırlık)
+  2. Anestezi dengesi: "− Doz / + Doz" basılı tutularak nabız ve oksijen ibresi yeşil güvenli bölgede tutulur.
+  3. Kesi: kesikli çizgi taşırmadan takip edilir.
+  4. Dikiş: karşılıklı dikiş noktaları sırayla sürüklenerek birleştirilir.
 
-  45 sn içinde gelmezseniz cerrah üstlenir. Ardından hasta uyandırma odasına, sonra servise geçer.
+  Başarı yüzdesi ameliyat gelirini ve itibarı belirler. 45 sn içinde gelmezseniz cerrah üstlenir. Ardından hasta uyandırma odasına, sonra servise geçer.
 - **2. Kat · Yatan Hasta & Pediatri:** Yatırılan hastaların serum, ilaç ve ateş takibini zamanında yaparsınız (servis hemşiresi gecikince üstlenir). Pediatri odasındaki oyuncaklar çocukların moralini yükseltir.
-- **3. Kat · Radyoloji & İleri Tanı:** "Daha fazla tetkik" kararı verilen vakalar ve inme şüphesindeki acil hastalar burada görüntülenir (röntgen, ultrason, EKG, MR). Her görüntülemede güvenlik sorusu (MR'da implant kontrolü, röntgende radyasyon koruması) ve tarama mini oyunu vardır. Diyaliz seansları da bu katta izlenir.
+- **3. Kat · Radyoloji & İleri Tanı:** "Daha fazla tetkik" kararı verilen vakalar ve inme şüphesindeki acil hastalar burada görüntülenir (röntgen, ultrason, EKG, MR). Her çekimde:
+  1. Güvenlik sorusu (MR'da implant kontrolü, röntgende radyasyon koruması)
+  2. Odak/frekans kaydırıcısıyla bulanık görüntüyü netleştirme
+  3. Kırık ya da lezyon bölgesini işaretleyerek tanı koyma
+
+  Diyaliz seansları da bu katta izlenir.
 - **B1 · Yemekhane & Kafeterya:** Başhekimin enerji barı zamanla ve koşarken azalır; düşükken hız ve tedavi yavaşlar. Yemekhane tezgâhından yemek, kafeteryadan kahve alınır.
-- **Katlar arası bildirimler:** Başka kattayken acil, stok, arıza, ameliyat ya da servis olayları sağ üstte kat rozetiyle bildirilir.
-- **Oda odak kamerası:** Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır, çıkınca geri döner. Kat değişiminde yakınlaşma geçişi yapılır.
+- **Katlar arası bildirimler:** Başka kattayken acil, stok, arıza, ameliyat ya da servis olayları bildirim şeridinde kat rozetiyle gösterilir.
+- **Oda odak kamerası:** Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır ve çevre odaları hafifçe karartır. Çıkınca genel açıya döner. Kat değişiminde yakınlaşma geçişi yapılır.
+- **Bölümlendirilmiş iç mimari:** Muayene, laboratuvar, eczane, uyandırma ve radyoloji odaları alüminyum çerçeveli yarı saydam cam bölmelerle ayrılır. Zeminler birime özgüdür:
+  - Başhekimlik ve dinlenme: halı
+  - Ameliyathane: steril mavi-yeşil karo
+  - Yemekhane: ahşap
+  - Mutfak: seramik
+- **Dinamik asansör tabelası:** Bulunulan katı (Z/1/2/3/B1) ve hedef katın yönünü (▲▼) gösterir.
+- **Süreli kriz görevleri:** Her krizin bir süre hedefi, ödülü ve kaçırma cezası vardır:
+  - Grip salgını: 6 taburcu
+  - Zincirleme kaza: 2 kazazede
+  - Sıcak hava dalgası: 3 sıvı alımı
 - **Dış cephe evrimi:** Servis katları açıldıkça dış duvarlar cam giydirme, LED bant ve kornişle modernleşir. Kuzeydeki şantiye vinçli inşaattan helikopter pistli ek bloğa dönüşür.
 - **Güvenli yerleşke:** Kampüs taş kaideli ferforje korkulukla çevrilidir. Ana girişte nizamiye ve yaya kapısı, ambulans/lojistik girişinde açılır-kapanır bariyer vardır. Dışarıda apartmanlar, çocuk parkı, yayalar ve trafik bulunur.
 - **Vardiya sonu Başhekim Karnesi:** Hasta memnuniyeti, acil servis, klinik kalite, finans, temizlik ve personel A–F arası notlanır.
@@ -178,6 +237,7 @@ js/logistics.js  Eczane stoku, sipariş, lojistik kamyonu ve kurye, yedek parça
 js/terminal.js   Başhekimlik bilgisayarı (Yönetim Terminali), uyarı merkezi, Başhekim Karnesi
 js/surgery.js    Ameliyathane akışı ve cerrahi mini oyunlar
 js/floors.js     Yatan hasta takibi, radyoloji görüntüleme, diyaliz, yemekhane ve Başhekim enerjisi
+js/os.js         VitaOS masaüstü: MedKariyer.com, MedDepo ERP, BiyoMed Teknik, Yönetim Paneli (finans, kameralar)
 js/guide.js      Akış şeması, hedef vurgusu, zemin yön çizgisi
 js/save.js       Doğrulamalı localStorage kaydı
 js/ui.js         HUD, yönetim menüsü, paneller, joystick, diyaloglar
@@ -212,6 +272,12 @@ Bazı senaryolar PubMed'de yer alan kaynaklarla desteklenmiştir. İlgili sonuç
 - DSÖ Cerrahi Güvenlik Kontrol Listesi: NEJM 2009 ([10.1056/NEJMsa0810119](https://doi.org/10.1056/NEJMsa0810119))
 - Kalp cihazı olan hastada MR güvenliği: Eur Heart J 2022 ([10.1093/eurheartj/ehab469](https://doi.org/10.1093/eurheartj/ehab469))
 - Varfarin ile besin ve takviye etkileşimleri: Br J Clin Pharmacol 2020 ([10.1111/bcp.14404](https://doi.org/10.1111/bcp.14404))
+- Demirin gün aşırı tek doz alımı ve emilim: Lancet Haematol 2017 ([10.1016/S2352-3026(17)30182-5](https://doi.org/10.1016/S2352-3026(17)30182-5))
+- İnhaler kullanım hataları: Chest 2016 ([10.1016/j.chest.2016.03.041](https://doi.org/10.1016/j.chest.2016.03.041))
+- Uzun süreli PPI kullanımının yan etkileri: Chonnam Med J 2023 ([10.4068/cmj.2023.59.2.115](https://doi.org/10.4068/cmj.2023.59.2.115))
+- D vitamininin bağırsaktan emilimi: Nutr Rev 2018 ([10.1093/nutrit/nux034](https://doi.org/10.1093/nutrit/nux034))
+- Levotiroksin alım zamanı: Pediatr Endocrinol Diabetes Metab 2021 ([10.5114/pedm.2021.105635](https://doi.org/10.5114/pedm.2021.105635))
+- Uzun süreli metformin ve B12 eksikliği: J Clin Endocrinol Metab 2016 ([10.1210/jc.2015-3754](https://doi.org/10.1210/jc.2015-3754))
 - Çocuklarda ameliyat öncesi açlık, ESAIC 2022 ([10.1097/EJA.0000000000001599](https://doi.org/10.1097/EJA.0000000000001599))
 
 ## Lisans

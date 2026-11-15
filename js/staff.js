@@ -198,7 +198,7 @@
     if (h.role === 'nurse') Object.assign(L, { scrubs: true, sleeve: L.coat, pants: L.coat, badge: '#ffffff', carry: Math.random() < 0.5 ? 'clipboard' : null });
     if (h.role === 'doctor') Object.assign(L, { coat: '#fbfdff', shirt: h.look.pants, stethoscope: true, longCoat: true, carry: 'tablet' });
     if (h.role === 'janitor') Object.assign(L, { apron: '#3a8fb7', carry: 'mop', shoes: '#2f3e46' });
-    if (h.role === 'tech') Object.assign(L, { stripes: false, carry: 'tablet', badge: '#f2c94c', glasses: true });
+    if (h.role === 'tech') Object.assign(L, { stripes: true, carry: 'tablet', badge: '#f2c94c', glasses: true, cap: '#f2a93b' });
     return L;
   }
   function spawnHired(h) {
@@ -512,6 +512,9 @@
   VH.staff = {
     ROLES, TRAITS, BASE,
     factor, timeFactor, efficiency, rec, payroll, gainXp, train, raise, bonus, fire, hire, openCard,
+    hireCore, CORE_JOBS, quota,
+    /** Yeni ilan yayınla: nöbet başına 2 hak, ₺500. */
+    postAd() { const d = quota(); if (d.refreshLeft <= 0 || S().budget < 500 || S().budget <= 0) return false; S().budget -= 500; d.refreshLeft--; refreshCandidates(3); sound('ok'); return true; },
     energy: (id) => (data().recs[id] ? data().recs[id].energy : 100),
     get hired() { return generic(); },
     get candidates() { return data().candidates; },

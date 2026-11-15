@@ -380,7 +380,7 @@
     'Saç dökülmesi', 'Kas krampları', 'Eklem ağrısı', 'Çabuk nefes nefese kalma',
     'Dikkat dağınıklığı', 'Mide yanması', 'El ve ayaklarda uyuşma', 'İştahsızlık',
   ];
-  const ENTRANCE = [4.5, 25.4];
+  const ENTRANCE = [4.5, 31.4]; // yaya kapısı (korkuluk içi)
   const RECEPTION_SLOTS = [[2.5, 15.5], [2.5, 16.5], [2.5, 17.5], [2.5, 18.5], [3.5, 18.5], [4.5, 18.5], [5.5, 18.5], [5.5, 17.5]];
   const PHARMACY_SLOTS = [[27.5, 6.5], [27.5, 7.4], [28.5, 7.4], [26.5, 7.4], [29.5, 7.4]];
   const SEATS = [
@@ -430,6 +430,23 @@
     receptionQueue.push(p);
     refreshQueue(receptionQueue, RECEPTION_SLOTS);
     say(p, 'Merhaba, kayıt yaptırmak istiyorum.', 2500);
+  }
+  /** Otoparka park eden araçtan inen hasta: önce bahçeden ana girişe yürür, sonra kayıt kuyruğuna girer. */
+  function spawnPatientAt(x, y) {
+    if (patients.filter((q) => q.state !== 'resident').length >= maxPatients()) return null;
+    const age = Math.floor(rand(18, 78));
+    const p = makeEntity('patient', {
+      name: pick(FIRST) + ' ' + pick(LAST), age, complaint: pick(COMPLAINTS), look: randomPatientLook(age),
+      x, y, speed: rand(1.5, 2.0), state: 'arriving', timer: 0, needsLab: Math.random() < 0.6, waitSince: 0,
+    });
+    patients.push(p);
+    goTo(p, 5.2, 26.5, (e) => {
+      e.state = 'queue';
+      receptionQueue.push(e);
+      refreshQueue(receptionQueue, RECEPTION_SLOTS);
+      say(e, 'Arabamı park ettim, kayıt nerede?', 2400);
+    });
+    return p;
   }
 
   /** cases.js'teki bir senaryo için özel hasta (sabit ad/yaş/şikâyet). */
@@ -979,12 +996,19 @@
       const [sx, sy] = map.worldToIso(e.x, e.y);
       let angle = 0;
       if (e.lying) { const [ax, ay] = map.worldToIso(e.x + 1, e.y); angle = Math.atan2(ay - sy, ax - sx); }
+      if (e.stretcher && !e.lying) {
+        // sedye hareket yönüne döner (yönü son hareketten hatırlar)
+        const tgt = e.path && e.path[0];
+        if (tgt && Math.hypot(tgt[0] - e.x, tgt[1] - e.y) > 0.05) { const [ax, ay] = map.worldToIso(tgt[0], tgt[1]); e._sang = Math.atan2(ay - sy, ax - sx); }
+        angle = e._sang !== undefined ? e._sang : 0;
+      }
+      const working = e.kind === 'staff' && !e.moving && (e.busy || !!e.task);
       return {
         // Oturan karakter, üzerine oturduğu koltuk/sedyeden sonra çizilmeli (ön hücre anahtarını geçer)
         kind: 'ent', key: map.depthAt(e.x, e.y) + (e.sitting || e.lying ? 0.9 : 0.02), cx: sx, cy: sy,
         draw: (ctx) => (VH.people ? VH.people.draw : drawPerson)(ctx, sx, sy, e.look, {
           t: e.anim, t2: now / 1000 + (typeof e.id === 'number' ? e.id : 7) * 0.77, moving: e.moving, flip: e.flip, back: e.back,
-          sitting: e.sitting, lift: e.lift, ring: e === player, lying: e.lying, angle, chair: !!e.chair, mood: moodOf(e),
+          sitting: e.sitting, lift: e.lift, ring: e === player, lying: e.lying, angle, chair: !!e.chair, mood: moodOf(e), stretcher: !!e.stretcher && !e.lying, work: working,
         }),
       };
     });
@@ -1063,12 +1087,14 @@
     }
     if (focus) {
       let sx, sy;
-      if (focus.type === 'device') {
+      const ent = focus.ref && focus.type !== 'device' && typeof focus.ref.x === 'number' && focus.ref.look ? focus.ref : null;
+      if (!ent) {
+        if (!isFinite(focus.x) || !isFinite(focus.y)) return;
         const [ix, iy] = M().worldToIso(focus.x, focus.y);
         [sx, sy] = cam.toScreen(ix, iy - 46, vw, vh);
       } else {
-        if (focus.ref.bubble) return;
-        [sx, sy] = head(focus.ref);
+        if (ent.bubble) return;
+        [sx, sy] = head(ent);
       }
       const pulse = 1 + Math.sin(now / 220) * 0.08;
       ctx.save();
@@ -1186,6 +1212,7 @@
       return p;
     },
     spawnPatientNow: spawnPatient,
+    spawnPatientAt,
     toPharmacy,
     maxPatients,
     get openSeatCount() { return openSeats().length; },
@@ -1194,4 +1221,6 @@
   STATUS.resident = 'Serviste yatıyor';
   STATUS.er = 'Acil hasta';
   STATUS.refresh = 'Otomat / su sebiline gitti';
+  STATUS.arriving = 'Otoparktan hastaneye yürüyor';
+  STATUS.regWait = 'Kayıt için Başhekimi bekliyor';
 })();

@@ -48,7 +48,7 @@
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
       introSeen: VH.cases.introSeen,
       staffData: st.staffData, equip: st.equip, layout: st.layout, prog: st.prog,
-      core: st.core, stock: st.stock, pending: st.pending, parts: st.parts, energy: st.energy, lastCard: st.lastCard, cards: st.cards,
+      loan: st.loan,       core: st.core, stock: st.stock, pending: st.pending, parts: st.parts, energy: st.energy, lastCard: st.lastCard, cards: st.cards,
       settings: { labels: VH.map.labels, rot: VH.map.rot },
     };
   }
@@ -80,7 +80,7 @@
       shiftLog: (Array.isArray(d.shiftLog) ? d.shiftLog : []).slice(-10).filter((s) => s && typeof s === "object").map((s) => ({
         n: int(s.n, 1, 1, 1e6), night: s.night === true, treated: int(s.treated, 0, 0, 1e5), er: int(s.er, 0, 0, 1e5), erFail: int(s.erFail, 0, 0, 1e5),
         cases: int(s.cases, 0, 0, 1e5), pharmacy: int(s.pharmacy, 0, 0, 1e5), angry: int(s.angry, 0, 0, 1e5), rep: int(s.rep, 0, -100, 100),
-        income: int(s.income, 0, -1e9, 1e9), bestCombo: int(s.bestCombo, 1, 1, 3) })),
+        income: int(s.income, 0, -1e9, 1e9), bestCombo: int(s.bestCombo, 1, 1, 3), payroll: int(s.payroll, 0, 0, 1e7) })),
       solved, order,
       idx: int(d.idx, 0, 0, order.length),
       stats: {
@@ -96,6 +96,7 @@
       core: d.core && typeof d.core === 'object' ? flags(d.core, ['receptionist', 'pharmacist', 'doctor2']) : null,
       logi: VH.logistics ? VH.logistics.sanitize(null, d) : null,
       energy: num(d.energy, 100, 0, 100),
+      loan: d.loan && typeof d.loan === 'object' && isNum(d.loan.left) && d.loan.left > 0 ? { left: int(d.loan.left, 1, 1, 5), pay: int(d.loan.pay, 4800, 0, 10000) } : null,
       lastCard: VH.terminal ? VH.terminal.sanitizeCard(d.lastCard) : null,
       cards: (Array.isArray(d.cards) ? d.cards : []).slice(-10).filter((x) => x && /^[A-F][+−]?$/.test(String(x.overall))).map((x) => ({ n: int(x.n, 1, 1, 1e6), overall: x.overall })),
       settings: {
@@ -130,6 +131,7 @@
     st.core = c.core || { receptionist: true, pharmacist: true, doctor2: true };
     if (c.logi) { st.stock = c.logi.stock; st.pending = c.logi.pending; st.parts = c.logi.parts; }
     st.energy = c.energy;
+    st.loan = c.loan;
     if (c.lastCard) st.lastCard = c.lastCard;
     st.cards = c.cards;
     Object.assign(VH.entities.stats, c.stats);

@@ -153,8 +153,32 @@
    * 2.5D insan figürü. (sx, sy) ayakların yere bastığı izo nokta.
    * pose: { t, t2, moving, flip, back, sitting, lift, ring, lying, angle, chair, mood }
    */
+  // Tekerlekli acil sedyesi (paramedikler taşırken): çerçeve + şilte + üzerinde yatan hasta
+  function drawStretcher(ctx, sx, sy, look, angle) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.fillStyle = 'rgba(10,30,40,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, 1, 22, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(angle);
+    ctx.scale(1, 0.62);
+    ctx.strokeStyle = '#6f7d87'; ctx.lineWidth = 2;
+    for (const x of [-15, 14]) { ctx.beginPath(); ctx.moveTo(x, -6); ctx.lineTo(x, 6); ctx.stroke(); }
+    ctx.fillStyle = '#2b333b';
+    for (const [x, y] of [[-15, -7], [-15, 7], [14, -7], [14, 7]]) { ctx.beginPath(); ctx.arc(x, y, 2.4, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+    // şilte ve yatan hasta (yükseltilmiş)
+    ctx.save();
+    ctx.translate(sx, sy - 12);
+    ctx.rotate(angle); ctx.scale(1, 0.62);
+    ctx.fillStyle = '#c9d1d6'; rr(ctx, -19, -9, 38, 18, 4);
+    ctx.fillStyle = '#d62828'; ctx.fillRect(-19, -9, 38, 2.2); ctx.fillRect(-19, 6.8, 38, 2.2);
+    ctx.restore();
+    drawLying(ctx, sx, sy - 14, look, angle);
+  }
+
   function draw(ctx, sx, sy, look, pose) {
     pose = pose || {};
+    if (pose.stretcher) { drawStretcher(ctx, sx, sy, look, pose.angle || 0); return; }
     if (pose.lying) { drawLying(ctx, sx, sy - (pose.lift || 0), look, pose.angle || 0); return; }
     const t = pose.t || 0;
     const moving = !!pose.moving, back = !!pose.back, chair = !!pose.chair;
@@ -251,7 +275,8 @@
     }
 
     // ---- kollar (omuzdan salınım)
-    const armSwing = moving && !chair ? swing * 0.35 : 0;
+    // yürürken kol salınımı; çalışırken (muayene, tahlil, onarım) kısa ritmik el hareketi
+    const armSwing = moving && !chair ? swing * 0.35 : pose.work ? Math.sin((pose.t2 || 0) * 7) * 0.32 - 0.35 : 0;
     const sleeve = look.gown ? '#a8cfe0' : look.sleeve || body;
     const hand = look.gloves || look.skin;
     const arm = (x, rot, front) => {

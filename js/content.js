@@ -215,6 +215,12 @@
     fasting: { t: 'Pre-operative fasting in children: A guideline from the European Society of Anaesthesiology and Intensive Care', j: 'Eur J Anaesthesiol', y: 2022, pmid: '34857683', doi: '10.1097/EJA.0000000000001599' },
     mriImplant: { t: 'Reconsidering safety and reducing barriers to MRI in patients with cardiac implantable electronic devices', j: 'Eur Heart J', y: 2022, pmid: '34472581', doi: '10.1093/eurheartj/ehab469' },
     warfarin: { t: 'Warfarin and food, herbal or dietary supplement interactions: A systematic review', j: 'Br J Clin Pharmacol', y: 2020, pmid: '32478963', doi: '10.1111/bcp.14404' },
+    ironAlt: { t: 'Iron absorption from oral iron supplements given on consecutive versus alternate days and as single morning doses versus twice-daily split dosing in iron-depleted women', j: 'Lancet Haematol', y: 2017, pmid: '29032957', doi: '10.1016/S2352-3026(17)30182-5' },
+    inhalerErrors: { t: 'Systematic Review of Errors in Inhaler Use: Has Patient Technique Improved Over Time?', j: 'Chest', y: 2016, pmid: '27060726', doi: '10.1016/j.chest.2016.03.041' },
+    ppiLong: { t: 'Adverse Effects Associated with Long-Term Use of Proton Pump Inhibitors', j: 'Chonnam Med J', y: 2023, pmid: '37303818', doi: '10.4068/cmj.2023.59.2.115' },
+    vitD: { t: 'Intestinal absorption of vitamin D: a systematic review', j: 'Nutr Rev', y: 2018, pmid: '29025082', doi: '10.1093/nutrit/nux034' },
+    levoTiming: { t: 'Comparative efficacy of early morning versus bedtime administration of levothyroxine in children with hypothyroidism', j: 'Pediatr Endocrinol Diabetes Metab', y: 2021, pmid: '34008397', doi: '10.5114/pedm.2021.105635' },
+    metforminB12: { t: 'Long-term Metformin Use and Vitamin B12 Deficiency in the Diabetes Prevention Program Outcomes Study', j: 'J Clin Endocrinol Metab', y: 2016, pmid: '26900641', doi: '10.1210/jc.2015-3754' },
   };
   function sourcesNode(keys) {
     const box = document.createElement('div');
@@ -271,6 +277,15 @@
 
   H.RX.antikoagulan = { name: 'Kan sulandırıcı (varfarin) bilgilendirmesi', sources: ['warfarin'], opts: [['Her gün aynı saatte alın, INR kontrollerine gidin; yeni ilaç, bitkisel ürün ya da takviyeye başlamadan hekime danışın, yeşil yapraklı sebze miktarını aniden değiştirmeyin.', true], ['Kanama olmadıkça bitkisel çay ve takviyelerin bir etkisi olmaz.', false], ['Unuttuğunuz dozu ertesi gün iki doz birden alarak telafi edin.', false]] };
   Object.assign(H.ER_RX, { arrhythmia: 'antikoagulan', appendicitis: 'antibiyotik', hipfx: 'agri' });
+  // PubMed destekli eczane bilgilendirmeleri
+  H.RX.metformin = { name: 'Metformin bilgilendirmesi (hekim reçetesiyle)', sources: ['metforminB12'], opts: [['Yemekle birlikte alın; mide şikâyeti olursa hekime söyleyin. Uzun süreli kullanımda B12 düzeyiniz düzenli kontrol edilmeli.', true], ['Kan şekeri iyi gelince ilacı kendi kendinize bırakın.', false], ['Aç karnına ve öğün atlayarak alın, daha etkili olur.', false]] };
+  H.RX.ppi = { name: 'Mide koruyucu (PPI) bilgilendirmesi', sources: ['ppiLong'], opts: [['Hekiminizin belirlediği süre kadar kullanın; gerekçe olmadan yıllarca sürdürmeyin. Uzun kullanımda B12, magnezyum gibi eksiklikler açısından kontrol edilin.', true], ['Zararsızdır, ömür boyu her gün kullanabilirsiniz.', false], ['Her yemekten sonra iki tane birden alın.', false]] };
+  H.RX.levotiroksin = { name: 'Tiroid hormonu (levotiroksin) bilgilendirmesi', sources: ['levoTiming'], opts: [['Her gün aynı şekilde ve aynı saatte alın (genellikle aç karnına); zamanlamayı hekiminizle belirleyin, kontrol tahlillerini aksatmayın.', true], ['Kendinizi iyi hissettiğiniz günler atlayabilirsiniz.', false], ['Demir ve kalsiyum takviyesiyle aynı anda yutun.', false]] };
+  if (H.RX.demir) H.RX.demir.sources = ['ironAlt'];
+  if (H.RX.dvit) H.RX.dvit.sources = ['vitD'];
+  if (H.RX.inhaler) H.RX.inhaler.sources = ['inhalerErrors'];
+  if (H.RX.koah) H.RX.koah.sources = ['inhalerErrors'];
+  Object.assign(H.CASE_RX, { c08: 'metformin', c10: 'levotiroksin', c11: 'ppi' });
 
   VH.content = { cases: CASES.length, er: ER.length, rx: Object.keys(RX).length, SOURCES, sourcesNode };
 })();

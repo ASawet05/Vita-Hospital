@@ -15,8 +15,11 @@
     const P = E().player, d = desk();
     return !!d && P.floor === 0 && E().rectDist(P.x, P.y, d) <= 1.6;
   }
+  // Uzaktan (bilgisayar başında değilken) yalnızca salt okunur özet sekmeleri açılır
+  const REMOTE_OK = ['ozet', 'genel', 'gorevler', 'karne'];
   function open(tab) {
-    H().openPanel(tab || 'ozet');
+    if (atDesk() && VH.os) { VH.os.open(tab); return; }
+    H().openPanel(REMOTE_OK.includes(tab) ? tab : 'ozet');
   }
   function guide() {
     const d = desk();
@@ -127,6 +130,19 @@
       list.appendChild(row);
     }
   }
+  // Acil kredi taksiti ve iflas koruması (maaşlar staff.js'te kesildikten sonra)
+  VH.on('shiftEnd', (sm) => {
+    const st = S();
+    if (st.loan && st.loan.left > 0) {
+      st.budget -= st.loan.pay; st.loan.left--;
+      sm.extra.push({ icon: '🏦', label: `Kredi taksiti (kalan ${st.loan.left})`, value: '−' + money(st.loan.pay), cls: 'down-c' });
+      if (st.loan.left <= 0) st.loan = null;
+    }
+    if (st.budget < 0) {
+      sm.extra.push({ icon: '⛔', label: 'İflas koruması: alımlar kilitli', value: money(st.budget), cls: 'down-c' });
+      if (VH.notify) VH.notify('⛔', `Bütçe ekside (${money(st.budget)}): kat, cihaz ve personel alımı kilitlendi. Vakaları tamamlayın ya da bilgisayardan acil kredi alın.`, 0, 'bankrupt');
+    }
+  });
   VH.on('shiftEnd', (sm) => {
     const c = makeCard(sm);
     const st = S();
@@ -147,5 +163,5 @@
   VH.panelTabs.push({ id: 'ozet', label: '🖥️ Özet', order: 0, render: renderOverview });
   VH.panelTabs.push({ id: 'karne', label: '📝 Karne', order: 40, render: renderCard });
 
-  VH.terminal = { atDesk, open, guide, alerts, makeCard, sanitizeCard, cardNode };
+  VH.terminal = { REMOTE_OK, atDesk, open, guide, alerts, makeCard, sanitizeCard, cardNode };
 })();

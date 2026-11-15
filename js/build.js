@@ -115,13 +115,14 @@
     if (face && (FACES.indexOf(face) % 2) !== (FACES.indexOf(oldFace) % 2)) [w, h] = [h, w];
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
       if (xx < 0 || yy < 0 || xx >= W || yy >= H) return { ok: false, why: 'Alan dışı' };
-      if (f === 0 && xx >= 31) return { ok: false, why: 'Ambulans yolu açık kalmalı' };
+      if (f === 0 && xx >= 31 && xx <= 34) return { ok: false, why: 'Ambulans yolu açık kalmalı' };
+      if (f === 0 && xx >= 35 && yy <= 22) return { ok: false, why: 'Otopark alanı' };
     }
     const room0 = M().roomIdAt(x, y, f);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
       if (M().roomIdAt(xx, yy, f) !== room0) return { ok: false, why: 'Eşya iki odaya taşamaz' };
     }
-    if (!room0 && f === 0 && y < 23) return { ok: false, why: 'Alan dışı' };
+    if (!room0 && f === 0 && y < 23 && x < 35) return { ok: false, why: 'Alan dışı' };
     const res = reserved(f);
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
       const inside = !isNew && xx >= o.x && xx < o.x + o.w && yy >= o.y && yy < o.y + o.h;
@@ -173,6 +174,7 @@
     const i = objs(f).indexOf(o);
     if (o.decor) return;
     if (i < 0 || i >= baseCount[f]) return;
+    layout().ver = 2;
     layout().moves[f + ':' + i] = [o.x, o.y, o.face || 'S', o.w, o.h];
     attached(o, f).forEach((p) => { const j = objs(f).indexOf(p); if (j >= 0 && j < baseCount[f]) layout().moves[f + ':' + j] = [p.x, p.y, p.face || 'S', p.w, p.h]; });
   }
@@ -201,7 +203,7 @@
     if (touched.size) E().buildDevices();
   }
   function sanitize(d) {
-    const out = { moves: {}, decor: [] };
+    const out = { moves: {}, decor: [], ver: 2 };
     if (!d || typeof d !== 'object') return out;
     const n = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
     const fOk = (f) => Number.isInteger(f) && f >= 0 && f < M().FLOOR_DEFS.length;
@@ -211,6 +213,8 @@
       if (!m || !Array.isArray(v) || !fOk(+m[1])) return;
       const [x, y, face, w, h] = v;
       if (!n(x, 0, 60) || !n(y, 0, 60) || !FACES.includes(face) || !n(w, 1, 4) || !n(h, 1, 4)) return;
+      // v1 kayıtlarında kampüs nesnelerinin sırası farklıydı: yalnızca bina içi taşımalar korunur
+      if (d.ver !== 2 && +m[1] === 0 && +m[2] >= M().campusStart) return;
       out.moves[key] = [Math.round(x), Math.round(y), face, Math.round(w), Math.round(h)];
     });
     (Array.isArray(d.decor) ? d.decor : []).slice(0, 120).forEach((v) => {

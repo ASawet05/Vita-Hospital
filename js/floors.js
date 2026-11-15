@@ -172,35 +172,81 @@
       b.addEventListener('click', () => { if (ok) { scan.score += 30; sound('ok'); } else { sound('error'); UI().toast('Doğrusu: ' + m.q.opts.find((x) => x[1])[0], 4200); } runScan(); });
       card.appendChild(b);
     });
-    // 2) tarama: imleci hareket eden hedef penceresinde tut
+    // 2) Netleştir ve tanı koy: odak kaydırıcısını doğru frekansa getir, sonra hasarlı bölgeyi işaretle
     function runScan() {
       head();
-      card.appendChild(el('div', { className: 'sg-title' }, 'Tarama'));
-      card.appendChild(el('div', { className: 'sg-sub' }, 'Parmağınızı/imleci hareket eden tarama penceresinin içinde tutun. Pencere dışında kayıt durur (6 sn).'));
+      card.appendChild(el('div', { className: 'sg-title' }, 'Görüntüyü netleştir ve tanı koy'));
+      card.appendChild(el('div', { className: 'sg-sub' }, 'Odak/frekans kaydırıcısını görüntü netleşene kadar ayarlayın, ardından ' + (item.mod === 'ecg' ? 'anormal atımı' : 'kırık / lezyon bölgesini') + ' dokunarak işaretleyin (15 sn).'));
       const cv = el('canvas', { className: 'sg-canvas' });
-      const W = 360, Hh = 200, dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = 360, Hh = 220, dpr = Math.min(2, window.devicePixelRatio || 1);
       cv.width = W * dpr; cv.height = Hh * dpr; card.appendChild(cv);
       const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
-      let px = -1, inside = 0, total = 0, last = performance.now(), t = 0;
-      const win = 46 * (VH.equipment ? VH.equipment.scanWindow() : 1);
-      cv.addEventListener('pointermove', (e) => { const r = cv.getBoundingClientRect(); px = ((e.clientX - r.left) / r.width) * W; });
-      cv.addEventListener('pointerdown', (e) => { const r = cv.getBoundingClientRect(); px = ((e.clientX - r.left) / r.width) * W; });
+      const slider = el('input', { type: 'range', min: '0', max: '100', value: '15', className: 'sg-slider' });
+      const lbl = el('div', { className: 'sg-sub' }, 'Odak: 15 MHz');
+      card.appendChild(slider); card.appendChild(lbl);
+      const target = 35 + Math.random() * 50;
+      const tolF = VH.equipment ? VH.equipment.scanWindow() : 1;
+      // Lezyon konumu ve görüntü (oyun içi soyut, grafik olmayan çizim)
+      const lesion = { x: 110 + Math.random() * 140, y: 70 + Math.random() * 80 };
+      const img = document.createElement('canvas'); img.width = W; img.height = Hh;
+      const g = img.getContext('2d');
+      g.fillStyle = '#05090c'; g.fillRect(0, 0, W, Hh);
+      if (item.mod === 'xray') {
+        g.fillStyle = '#d9e3e8';
+        g.beginPath(); g.ellipse(W / 2, Hh / 2, 26, 95, 0.25, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.ellipse(W / 2 + 60, Hh / 2 + 10, 18, 80, 0.15, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#05090c'; g.lineWidth = 3; g.beginPath(); g.moveTo(lesion.x - 14, lesion.y - 6); g.lineTo(lesion.x + 4, lesion.y + 2); g.lineTo(lesion.x + 14, lesion.y - 4); g.stroke();
+        lesion.x = Math.max(80, Math.min(260, lesion.x));
+      } else if (item.mod === 'mri') {
+        g.fillStyle = '#6f7d87'; g.beginPath(); g.ellipse(W / 2, Hh / 2, 120, 95, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#9fb0ba'; g.beginPath(); g.ellipse(W / 2, Hh / 2, 105, 82, 0, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#5b6b75'; g.lineWidth = 2; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(W / 2 + Math.cos(i) * 50, Hh / 2 + Math.sin(i * 1.7) * 40, 22, 0, Math.PI); g.stroke(); }
+        g.fillStyle = '#f4f8fa'; g.beginPath(); g.ellipse(lesion.x, lesion.y, 13, 9, 0.4, 0, Math.PI * 2); g.fill();
+      } else if (item.mod === 'ultrasound') {
+        g.fillStyle = '#2b3a40'; g.beginPath(); g.moveTo(W / 2, 10); g.arc(W / 2, 10, 200, Math.PI * 0.28, Math.PI * 0.72); g.closePath(); g.fill();
+        for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(220,230,235,${Math.random() * 0.35})`; g.fillRect(W / 2 + (Math.random() - 0.5) * 300, 20 + Math.random() * 190, 2, 1); }
+        g.fillStyle = '#05090c'; g.beginPath(); g.ellipse(lesion.x, lesion.y, 16, 12, 0, 0, Math.PI * 2); g.fill();
+      } else {
+        g.strokeStyle = '#3d5a4a'; g.lineWidth = 1; for (let x = 0; x < W; x += 12) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, Hh); g.stroke(); }
+        g.strokeStyle = '#66ff99'; g.lineWidth = 2; g.beginPath();
+        lesion.y = Hh / 2;
+        for (let x = 0; x < W; x++) {
+          const beat = x % 60, odd = Math.abs(x - lesion.x) < 30;
+          let y = Hh / 2;
+          if (beat > 20 && beat < 24) y -= odd ? 10 : 45; else if (beat >= 24 && beat < 28) y += odd ? 30 : 12; else if (odd && beat > 30 && beat < 44) y -= 14;
+          x ? g.lineTo(x, y) : g.moveTo(x, y);
+        }
+        g.stroke();
+      }
+      let focus = 15, found = false, wrong = 0, done = false;
+      const t0 = performance.now();
+      slider.addEventListener('input', () => { focus = +slider.value; lbl.textContent = `Odak: ${focus} MHz`; });
+      const blurPx = () => Math.min(14, Math.abs(focus - target) * 0.42 / tolF);
+      const finish = () => {
+        if (done) return; done = true;
+        const tUsed = (performance.now() - t0) / 1000;
+        if (found) scan.score += Math.max(20, Math.round(70 - wrong * 10 - Math.max(0, tUsed - 6) * 3));
+        close(false);
+      };
+      cv.addEventListener('pointerdown', (e) => {
+        if (done) return;
+        const r = cv.getBoundingClientRect();
+        const x = ((e.clientX - r.left) / r.width) * W, y = ((e.clientY - r.top) / r.height) * Hh;
+        if (blurPx() > 3) { UI().toast('Önce görüntüyü netleştirin', 1400); return; }
+        if (Math.hypot(x - lesion.x, y - lesion.y) < 24 * tolF) { found = true; sound('ok'); setTimeout(finish, 500); }
+        else { wrong++; sound('error'); }
+      });
       const draw = () => {
-        const now = performance.now(), dt = (now - last) / 1000; last = now; t += dt;
-        const cx = W / 2 + Math.sin(t * 1.3) * 110 + Math.sin(t * 3.1) * 25;
-        const ok = px >= 0 && Math.abs(px - cx) < win / 2;
-        if (ok) inside += dt;
-        total += dt;
-        ctx.fillStyle = '#071820'; ctx.fillRect(0, 0, W, Hh);
-        // görüntü oluşumu (soyut gri tonlu kesit)
-        const prog = Math.min(1, inside / 6);
-        for (let i = 0; i < 24; i++) { ctx.fillStyle = `rgba(200,220,230,${0.04 + 0.5 * prog * Math.abs(Math.sin(i * 1.7))})`; ctx.beginPath(); ctx.ellipse(W / 2, 100, 20 + i * 5, 12 + i * 3, 0, 0, Math.PI * 2); ctx.stroke(); }
-        ctx.fillStyle = ok ? 'rgba(70,196,106,0.35)' : 'rgba(46,196,182,0.18)'; ctx.fillRect(cx - win / 2, 0, win, Hh);
-        ctx.strokeStyle = '#2ec4b6'; ctx.strokeRect(cx - win / 2, 0, win, Hh);
-        if (px >= 0) { ctx.fillStyle = '#fff'; ctx.fillRect(px - 1, 0, 2, Hh); }
-        ctx.fillStyle = '#1d3b4f'; ctx.fillRect(20, Hh - 18, W - 40, 8); ctx.fillStyle = '#46c46a'; ctx.fillRect(20, Hh - 18, (W - 40) * prog, 8);
-        ctx.fillStyle = '#fff'; ctx.font = '600 12px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`Kayıt %${Math.round(prog * 100)}`, 20, 18);
-        if (prog >= 1 || total > 14) { scan.score += Math.round(70 * Math.min(1, inside / Math.max(6, total * 0.75))); close(false); return; }
+        if (done || !scan) return;
+        const left = Math.max(0, 15 - (performance.now() - t0) / 1000);
+        ctx.clearRect(0, 0, W, Hh);
+        ctx.save(); ctx.filter = `blur(${blurPx().toFixed(1)}px)`; ctx.drawImage(img, 0, 0); ctx.restore();
+        const sharp = blurPx() <= 3;
+        ctx.fillStyle = sharp ? '#46c46a' : '#f2c94c'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'left';
+        ctx.fillText(sharp ? '● NET · bulguyu işaretleyin' : '◌ BULANIK · odağı ayarlayın', 10, 18);
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.fillText(`⏱ ${left.toFixed(1)} sn`, W - 10, 18);
+        if (found) { ctx.strokeStyle = '#ff5a5f'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lesion.x, lesion.y, 22, 0, Math.PI * 2); ctx.stroke(); }
+        if (left <= 0) { finish(); return; }
         scan.raf = requestAnimationFrame(draw);
       };
       draw();
