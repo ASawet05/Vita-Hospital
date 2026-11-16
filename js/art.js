@@ -152,6 +152,34 @@
       custom(u, v, z, fn) {
         push(u, v, z + zb, () => { const [x, y] = W(u, v); const [sx, sy] = P(x, y, z + zb); fn(ctx, sx, sy, x, y); });
       },
+      /**
+       * Serbest 3B dörtgen/çokgen yüzey (yerel u,v,z köşeleri): eğimli ön cam, kaput, tavan gibi
+       * hacimli şekiller için. Renk hex ise yüzey normaline göre otomatik gölgelenir
+       * (üst yüzey açık, sağa bakan orta, sola bakan koyu). Dışbükey gövdelerde derinlik sırası yeterlidir.
+       */
+      quad3(pts, color, opt) {
+        opt = opt || {};
+        const cu = pts.reduce((s, p) => s + p[0], 0) / pts.length, cv = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const cz = pts.reduce((s, p) => s + p[2], 0) / pts.length;
+        const [wx, wy] = W(cu, cv);
+        queue.push({ d: M().depthAt(wx, wy) + (opt.dd || 0), z: cz + zb, fn: () => {
+          const wp = pts.map(([u, v, z]) => { const [x, y] = W(u, v); return [x, y, z]; });
+          let fill = color;
+          if (typeof color === 'string' && color[0] === '#' && opt.auto !== false) {
+            // yüzey normali (dünya: hücre, z: ~24 izo-px = 1 hücre)
+            const a = wp[0], b = wp[1], c = wp[2];
+            const ux = b[0] - a[0], uy = b[1] - a[1], uz = (b[2] - a[2]) / 24, vx = c[0] - a[0], vy = c[1] - a[1], vz = (c[2] - a[2]) / 24;
+            let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+            const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+            let [rx, ry] = M().rotVec(nx, ny);
+            if (nz < 0) { nz = -nz; rx = -rx; ry = -ry; }
+            if (rx + ry < 0 && nz < 0.95) { rx = -rx; ry = -ry; } // görünen yüz izleyiciye bakar
+            const side = rx > ry ? -0.07 : -0.2;
+            fill = shade(color, nz * 0.12 + (1 - nz) * side + (opt.tone || 0));
+          }
+          poly(wp.map(([x, y, z]) => P(x, y, z + zb)), fill, opt.stroke || null, opt.lw || 0.6);
+        } });
+      },
       shadow(u0, v0, u1, v1, a) {
         queue.push({ d: -1e9, z: 0, fn: () => {
           const pts = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => { const [x, y] = W(u, v); return P(x, y, zb); });

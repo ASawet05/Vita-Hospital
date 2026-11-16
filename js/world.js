@@ -70,11 +70,11 @@
     for (let i = cars.length - 1; i >= 0; i--) { const c = cars[i], L = LANES[c.lane]; if ((c.x - L.end) * L.dir > 0) cars.splice(i, 1); }
   }
   // Araç görünüm anahtarı: paylaşılan yüksek kaliteli sprite önbelleği için (gece farı açık/kapalı dahil)
-  const carKey = (o) => ['car', o.color, o.face, o.w, o.h, o.braking ? 1 : 0, o.suv ? 1 : 0, (H() && H().night > 0.1) ? 1 : 0].join('|');
+  const carKey = (o) => [o.k, o.color, o.face, o.w, o.h, o.braking ? 1 : 0, o.suv ? 1 : 0, (H() && H().night > 0.1) ? 1 : 0].join('|');
   function carObj(c) {
     const L = LANES[c.lane];
     const o = { k: c.kind === 'bus' ? 'city_bus' : 'car', x: c.x - c.len / 2, y: L.y0, w: c.len, h: 1, face: L.face, color: c.color, braking: c.braking, suv: !!c.suv };
-    if (o.k === 'car') o.spriteKey = carKey(o);
+    o.spriteKey = carKey(o);
     return o;
   }
 

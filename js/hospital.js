@@ -372,7 +372,7 @@
     }, bay.via);
   }
 
-  function startStabilize(dv) {
+  function startStabilize(dv, byPlayer) {
     const a = er.active;
     a.phase = 'stab';
     a.stab = 3 * mod('stabTime');
@@ -381,6 +381,17 @@
     a.stabMax = a.stab;
     a.device = dv;
     UI().toast(`🩺 ${dv.name} ile stabilizasyon başladı. Cihazın yanında kalın!`, 2600);
+    // Başhekim bizzat bağlıyorsa ünite mini oyunu: oksijen/serum bağlama ya da defibrilatör senkron şoku
+    const MG = VH.minigames;
+    if (byPlayer && MG && MG.enabled && !MG.active) {
+      const done = (score) => {
+        if (!er.active || er.active !== a) return;
+        if (score >= 60) { a.stab *= score >= 85 ? 0.15 : 0.35; a.timeLeft += 4; UI().toast('⚡ Ustaca müdahale: stabilizasyon hızlandı (+4 sn)', 2400); }
+        else if (score >= 30) a.stab *= 0.8;
+      };
+      if (dv.tag === 'oxygen' || dv.tag === 'ventilator' || dv.tag === 'iv') MG.flow(dv.tag, done);
+      else if (dv.tag === 'defibrillator') MG.defib(done);
+    }
   }
 
   function erSuccess() {
@@ -579,6 +590,17 @@
     }
     p.timer = Math.max(p.timer, 25); // bilgilendirme sırasında beklesin
     const rx = RX[p.rx];
+    // Önce hızlı reçete hazırlama mini oyunu (hasta başına bir kez); ardından bilgilendirme seçenekleri
+    const MG = VH.minigames;
+    if (!p.rxPrepared && MG && MG.enabled && !MG.active) {
+      UI().closeDialog(true);
+      MG.pharmacy(p, p.rx, rx.name, (score) => {
+        p.rxPrepared = true;
+        if (score >= 70) { S().budget += 120; p.patience = Math.min(100, (p.patience || 0) + 15); if (E().floatText) E().floatText(p.x, p.y, p.floor || 0, '+₺120', '#ffd166'); }
+        if (!p.gone && E().pharmacyQueue.includes(p)) openPharmacy(p);
+      });
+      return;
+    }
     if (!p.rxOrder) p.rxOrder = rx.opts.map((o, i) => i).sort(() => Math.random() - 0.5);
     const node = el('div', {});
     node.appendChild(el('p', {}, `Hasta: ${p.name}${p.age ? ', ' + p.age + ' yaş' : ''}`));
@@ -946,7 +968,7 @@
     }
     if (a && t.type === 'device' && t.ref.floor === 0 && t.ref.action === 'Acil Müdahale') {
       if (a.phase === 'bay') {
-        if (UNITS[a.def.need].tags.includes(t.ref.tag)) startStabilize(t.ref);
+        if (UNITS[a.def.need].tags.includes(t.ref.tag)) startStabilize(t.ref, true);
         else UI().toast(`Bu hastanın ihtiyacı: ${UNITS[a.def.need].device}`, 2600);
         return true;
       }

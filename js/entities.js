@@ -387,7 +387,10 @@
   ];
   const ENTRANCE = [4.5, 31.4]; // yaya kapısı (korkuluk içi)
   const RECEPTION_SLOTS = [[2.5, 15.5], [2.5, 16.5], [2.5, 17.5], [2.5, 18.5], [3.5, 18.5], [4.5, 18.5], [5.5, 18.5], [5.5, 17.5]];
-  const PHARMACY_SLOTS = [[27.5, 6.5], [27.5, 7.4], [28.5, 7.4], [26.5, 7.4], [29.5, 7.4]];
+  // Eczane kuyruğu: banko önünden başlayıp kapı yolunu (x 27-28) boş bırakarak sağa ve sola sıralanan
+  // bekleme noktaları; dolarsa koridorda sıra devam eder. Her nokta en az ~0,9 hücre aralıklıdır.
+  const PHARMACY_SLOTS = [[27.9, 6.45], [29.1, 6.55], [30.0, 6.75], [29.9, 7.7], [29.6, 8.6], [26.2, 6.6], [26.1, 7.7], [25.5, 8.55], [26.5, 8.6],
+    [26.0, 10.4], [25.0, 10.4], [24.0, 10.4]];
   const SEATS = [
     ...[11, 12, 13].map((x) => ({ seat: [x + 0.5, 14.55], via: [x, 15] })),
     ...[11, 12, 13].map((x) => ({ seat: [x + 0.5, 17.55], via: [x, 18] })),
@@ -476,7 +479,9 @@
 
   function refreshQueue(queue, slots) {
     queue.forEach((p, i) => {
-      const slot = slots[Math.min(i, slots.length - 1)];
+      // noktalar biterse son noktanın soluna sanal noktalar eklenir (aynı koordinatta üst üste binme yok)
+      let slot = slots[i];
+      if (!slot) { slots._extra = slots._extra || []; const last = slots[slots.length - 1]; slot = slots._extra[i] || (slots._extra[i] = [last[0] - (i - slots.length + 1) * 0.95, last[1]]); }
       if (p.slot === slot) return;
       p.slot = slot;
       goTo(p, slot[0], slot[1], (e) => { e.arrivedSlot = true; });
@@ -1168,7 +1173,10 @@
       if (now > e.bubble.until) { e.bubble = null; continue; }
       const [sx, sy] = head(e);
       if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
-      bubble(ctx, sx, sy + 2 * z, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
+      // Acil hastasında başın üstünde süre sayacı (ve stabilizasyon halkası) var: balon onların üstüne alınır
+      const erA = e.erRef && VH.hospital && VH.hospital.er.active && VH.hospital.er.active.p === e ? VH.hospital.er.active : null;
+      const lift = erA ? (erA.phase === 'stab' ? 62 : 34) : 0;
+      bubble(ctx, sx, sy + 2 * z - lift, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
     }
     // Karakter üstü durum rozetleri (yuvarlak, renkli, ilerleme halkalı):
     //  mavi saat = bekliyor (halka: kalan sabır) · yeşil artı + parıltı = muayene/tetkik/ameliyat

@@ -340,7 +340,7 @@
     try { tick(now); } catch (err) {
       const k = String(err && err.message);
       if (!reported.has(k)) { reported.add(k); console.error('[VH.frame]', err); }
-      if (VH.paused && !VH.ui.isDialogOpen() && !document.getElementById('surgery') && !document.getElementById('os')) VH.paused = false;
+      if (VH.paused && !VH.ui.isDialogOpen()) VH.paused = false;
     }
   }
   const doorEnts = [];

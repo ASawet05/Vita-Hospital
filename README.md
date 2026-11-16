@@ -157,6 +157,44 @@ Uygulamalar:
 - **Vardiya sonu Başhekim Karnesi:** Hasta memnuniyeti, acil servis, klinik kalite, finans, temizlik ve personel A–F arası notlanır.
 - **Habersiz Sağlık Müfettişi:** Koridorlarda not alarak dolaşır, ardından raporunu verir.
 
+## Ünite mini oyunları (v8)
+
+Her biri 5–10 saniye sürer. Açıkken simülasyon duraklar; ✕ ile atlanırsa normal akış sürer, bonus verilmez.
+
+- **Acil · Oksijen / Serum bağlama:** Hastaya oksijen, ventilatör veya serum bağlarken açılır.
+  - Hortum ya da serum ucunu hastanın yanıp sönen portuna sürükleyin.
+  - Akış vanasını (L/dk veya damla/dk) ayarlayıp ibreyi yeşil bölgede toplam 2,5 sn tutun.
+  - 60 puan ve üstü: stabilizasyon belirgin hızlanır ve süreye +4 sn eklenir.
+- **Acil · Defibrilatör:**
+  - ŞARJ düğmesini basılı tutarak 200 J'a kadar doldurun.
+  - Akan EKG'de R tepesi yeşil hedef çizgisindeyken ŞOK'a basın (3 deneme).
+- **Biyo-Laboratuvar · Santrifüj + tahlil okuma:** Vaka tahlili ilk kez incelenirken açılır.
+  - Tüpleri karşılıklı yuvalara yerleştirin; dengesiz yerleştirme reddedilir.
+  - Rotoru çalıştırın, hız ibresi yeşildeyken durdurun.
+  - Dijital raporda referans dışı değerleri işaretleyin.
+  - 80 puan ve üstü: +₺150, İtibar +1.
+- **Eczane · Hızlı reçete:** Reçetedeki 2–3 ürünü raftan ilaç poşetine sürükleyin (ya da dokunun) ve teslim edin.
+  - 70 puan ve üstü: +₺120 ve sabır +15.
+  - Ardından doğru kullanım bilgilendirmesi yapılır.
+- **Ameliyathane ve MR:** Anestezi, kesi, dikiş ile odak + lezyon işaretleme mini oyunları aynı kart stilinde sürüyor.
+- **Test parametresi:** `?nomini` mini oyunları kapatır; eski akış testleri bunu kullanır.
+
+## Araç ve cihaz yenilemeleri (v8)
+
+- **Eğimli yüzey primitifi:** Çizim kitine serbest 3B yüzey (`quad3`) eklendi; yüzeyler normaline göre otomatik gölgelenir. Araçlar eğik ön cam ve kaput, daralan kabin ve gerçek tavanla çizilir. Lastikler gövdenin altından ve çamurluktan görünür, jantlıdır.
+- **Ambulans:** Eğimli kaput, mavi-koyu camlar, yan aynalar, kırmızı ve mavi şeritler, arka çift kapı, yan yüzde kırmızı hilal + artı amblemi, tavanda yanıp sönen kırmızı-mavi ışık barı (ışık yansımasıyla).
+- **Lojistik kargo kamyoneti:** Yüksek kapalı kasa, "MedDepo · Tıbbi Lojistik" logosu, arka kapılar, stop ve sinyal lambaları, turkuaz kabin.
+- **Sivil araçlar:** Sedan ve SUV (SUV'de tavan rayı ve üç yan cam).
+- **Otobüs:** Kutu görünümlü şehir otobüsü, eğik ön cam ve pencere bandıyla yeniden çizildi.
+- **Oksijen ünitesi:** İki tüp, ibresi oynayan manometre, yüzen bilyeli akış ölçer, kabarcıklı şeffaf nemlendirici hazne ve hasta hortumu.
+- **Serum askısı:** Tekerlekli beş ayak, etiketli dolu serum torbası, düşen damlalı damla odacığı ve roller klemp.
+
+## Arayüz düzeltmeleri (v8)
+
+- **Vaka Akış Şeması:** Panel sol 12 px'e sabitlendi ve ekran içinde kalır. Sekmeler ayrı satıra iner, adım kutuları sarılır, uzun metinler kırpılmaz. Acil adımları kısaldı: `Karşılama → Triyaj → Ünite → Taburcu`.
+- **Acil hastası:** Konuşma balonu süre sayacının (ve stabilizasyon halkasının) üstüne taşındı; artık üst üste binmiyor.
+- **Eczane kuyruğu:** Banko önünden başlayıp kapı yolunu boş bırakan 12 ayrı bekleme noktası var. Noktalar dolarsa sıra sanal noktalarla devam eder; hastalar üst üste binmez.
+
 ## Performans
 
 - **Zemin önbelleği:** Karo dokuları ve zemine yatık sabit nesneler 512 izo-piksellik parçalar hâlinde offscreen canvas'lara bir kez çizilir. Her karede yalnızca görünen parçalar `drawImage` ile basılır.
@@ -319,6 +357,8 @@ js/progress.js   Hastane puanı, temizlik, ücret politikası, olaylar, görevle
 js/world.js      Trafik, yayalar, güvercinler, kuşlar, yağmur, far ışıkları
 js/art_city.js   Korkuluk, nizamiye, bariyer, apartman, çocuk parkı, ek bina, yemekhane eşyaları, MR, kamyon
 js/art_med.js    Ayrıntılı tıbbi cihazlar (MR + kontrol kabini, ameliyathane, laboratuvar, eczane, başhekimlik), süs havuzu
+js/art_vehicles.js Hacimli araç modelleri (sedan/SUV, ambulans, lojistik kamyoneti, otobüs)
+js/minigames.js  Ünite mini oyunları (oksijen/serum, defibrilatör, santrifüj + tahlil, hızlı reçete)
 js/logistics.js  Eczane stoku, sipariş, lojistik kamyonu ve kurye, yedek parça teslimatı
 js/terminal.js   Başhekimlik bilgisayarı (Yönetim Terminali), uyarı merkezi, Başhekim Karnesi
 js/surgery.js    Ameliyathane akışı ve cerrahi mini oyunlar

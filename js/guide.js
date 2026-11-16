@@ -31,7 +31,7 @@
   function erFlow() {
     const er = H().er, a = er.active, fol = er.follow;
     if (!a && !er.amb && !fol) return null;
-    const labels = ['Ambulans Karşılama', 'Triyaj & Tetkik', 'İlgili Ünite Müdahalesi', 'Eczane İlaç Teslimi & Taburcu'];
+    const labels = ['Karşılama', 'Triyaj', 'Ünite', 'Taburcu'];
     const P = E().player;
     let cur = 0, instr = '', target = null, patient = null, bar = null;
     if (fol) {

@@ -623,3 +623,79 @@
     k.box(0.1, 0.58, 0.22, 0.6, 20, 60, "rgba(255,255,255,0.25)", { edge: false });
   });
 })();
+
+// ================================================================ v8: oksijen ünitesi ve serum askısı
+(function () {
+  const VH = window.VH, A = VH.art;
+  const R = (k, fn) => A.register(k, fn);
+  const now = () => performance.now();
+  // Oksijen tüpleri + konsantratör: manometre (ibreli), akış ölçer (yüzen bilye), şeffaf su dolu nemlendirici hazne
+  R('oxygen', (k) => {
+    const t = now();
+    k.shadow(0.08, 0.2, 0.92, 0.85, 0.22);
+    // tekerlekli taşıma arabası
+    k.box(0.12, 0.3, 0.88, 0.75, 0, 5, '#5d6a74');
+    for (const [u, v] of [[0.18, 0.72], [0.82, 0.72]]) k.disc(u, v, 0, 2.6, '#1b1b1b');
+    // iki yeşil gövdeli, beyaz omuzlu tüp
+    for (const u of [0.32, 0.62]) {
+      k.cyl(u, 0.48, 7, 5, 44, '#2f9e44');
+      k.cyl(u, 0.48, 6.4, 44, 50, '#f2f4f5');
+      k.cyl(u, 0.48, 2.4, 50, 54, '#9aa7b0');
+    }
+    k.box(0.16, 0.42, 0.78, 0.46, 30, 32, '#7e8d96');                                         // kelepçe bandı
+    // regülatör: manometre (yuvarlak kadran, titreyen ibre)
+    k.custom(0.62, 0.48, 58, (c, sx, sy) => {
+      c.fillStyle = '#e9edf0'; c.strokeStyle = '#3d4852'; c.lineWidth = 1.2;
+      c.beginPath(); c.arc(sx + 5, sy, 5, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.strokeStyle = '#46c46a'; c.lineWidth = 1.4; c.beginPath(); c.arc(sx + 5, sy, 3.6, Math.PI * 0.9, Math.PI * 1.5); c.stroke();
+      const a = Math.PI * (1.05 + 0.32 + Math.sin(t / 700) * 0.04);
+      c.strokeStyle = '#d62828'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(sx + 5, sy); c.lineTo(sx + 5 + Math.cos(a) * 4, sy + Math.sin(a) * 4); c.stroke();
+      // akış ölçer tüpü ve yüzen bilye
+      c.fillStyle = 'rgba(210,235,250,0.85)'; c.strokeStyle = '#7e8d96'; c.lineWidth = 0.8;
+      c.fillRect(sx - 4, sy - 9, 4, 14); c.strokeRect(sx - 4, sy - 9, 4, 14);
+      c.fillStyle = '#d62828'; c.beginPath(); c.arc(sx - 2, sy - 2 + Math.sin(t / 400) * 1.2, 1.3, 0, Math.PI * 2); c.fill();
+      // şeffaf nemlendirici hazne (su + kabarcıklar)
+      c.fillStyle = 'rgba(200,232,250,0.55)'; c.strokeStyle = 'rgba(120,170,200,0.9)';
+      c.beginPath(); if (c.roundRect) c.roundRect(sx - 6, sy + 6, 8, 11, 2); else c.rect(sx - 6, sy + 6, 8, 11); c.fill(); c.stroke();
+      c.fillStyle = 'rgba(90,170,230,0.55)'; c.fillRect(sx - 5.5, sy + 10, 7, 6.5);
+      c.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 3; i++) { const ph = ((t / 900) + i / 3) % 1; c.beginPath(); c.arc(sx - 3 + i * 1.6, sy + 16 - ph * 6, 0.7, 0, Math.PI * 2); c.fill(); }
+      // hasta hortumu
+      c.strokeStyle = 'rgba(160,210,235,0.95)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(sx - 2, sy + 17); c.quadraticCurveTo(sx - 14, sy + 28, sx - 20, sy + 22); c.stroke();
+    });
+  });
+
+  // Serum askısı: beş ayaklı tekerlekli taban, krom direk, sıvı dolu serum torbası (seviye çizgisi),
+  // damla odacığı (düşen damla), roller klemp ve hasta hattı
+  R('iv_stand', (k) => {
+    const t = now();
+    k.custom(0.5, 0.5, 0, (c, sx, sy) => {
+      c.strokeStyle = '#6f7d87'; c.lineWidth = 2; c.beginPath();
+      for (const a of [0, 1.26, 2.51, 3.77, 5.03]) { c.moveTo(sx, sy); c.lineTo(sx + Math.cos(a) * 9, sy + Math.sin(a) * 4.5); }
+      c.stroke();
+      c.fillStyle = '#1b1b1b'; for (const a of [0, 1.26, 2.51, 3.77, 5.03]) { c.beginPath(); c.arc(sx + Math.cos(a) * 9, sy + Math.sin(a) * 4.5 + 1, 1.4, 0, Math.PI * 2); c.fill(); }
+    });
+    k.pole(0.5, 0.5, 0, 62, 2.2, '#c9d1d6');
+    k.custom(0.5, 0.5, 62, (c, sx, sy) => {
+      c.strokeStyle = '#c9d1d6'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(sx - 8, sy + 1); c.lineTo(sx + 8, sy - 1); c.stroke();
+      // serum torbası
+      const g = c.createLinearGradient(sx + 1, 0, sx + 11, 0);
+      g.addColorStop(0, 'rgba(225,242,252,0.95)'); g.addColorStop(1, 'rgba(180,215,238,0.95)');
+      c.fillStyle = g; c.strokeStyle = '#7fb8e6'; c.lineWidth = 0.9;
+      c.beginPath(); if (c.roundRect) c.roundRect(sx + 1, sy + 1, 10, 15, 2.5); else c.rect(sx + 1, sy + 1, 10, 15); c.fill(); c.stroke();
+      c.fillStyle = 'rgba(120,190,235,0.55)'; c.fillRect(sx + 1.6, sy + 6, 8.8, 9.4);                 // sıvı seviyesi
+      c.fillStyle = '#ffffff'; c.fillRect(sx + 3, sy + 3, 6, 2.2);                                       // etiket
+      c.fillStyle = '#2f78b3'; c.font = '700 2.4px system-ui'; c.textAlign = 'center'; c.fillText('%0,9 NaCl', sx + 6, sy + 4.7);
+      // damla odacığı ve düşen damla
+      c.fillStyle = 'rgba(220,240,252,0.9)'; c.strokeStyle = '#7fb8e6';
+      c.fillRect(sx + 4.6, sy + 16, 2.8, 6); c.strokeRect(sx + 4.6, sy + 16, 2.8, 6);
+      const ph = (t / 650) % 1;
+      c.fillStyle = '#5aa0d8'; c.beginPath(); c.arc(sx + 6, sy + 16.8 + ph * 4, 0.7, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(90,160,216,0.6)'; c.fillRect(sx + 4.8, sy + 20.6, 2.4, 1.2);
+      // hat + roller klemp
+      c.strokeStyle = 'rgba(127,184,230,0.85)'; c.lineWidth = 0.9;
+      c.beginPath(); c.moveTo(sx + 6, sy + 22); c.quadraticCurveTo(sx + 10, sy + 34, sx + 3, sy + 42); c.stroke();
+      c.fillStyle = '#f2f4f5'; c.fillRect(sx + 6.6, sy + 28, 3, 2.4);
+    });
+  });
+})();

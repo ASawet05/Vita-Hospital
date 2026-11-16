@@ -485,7 +485,23 @@
 
   // ---------------------------------------------------------------- 4) Laboratuvar analizi
   let lastLab = null;
+  // Tahlil ilk kez incelenirken santrifüj + rapor okuma mini oyunu açılır (vaka başına bir kez),
+  // ardından tam laboratuvar raporu gösterilir. Yüksek puan küçük bir bütçe/itibar ödülü verir.
   function openLabReport() {
+    const a = active && active.labsReady ? active : lastLab;
+    const MG = VH.minigames;
+    if (a && a === active && !a.labGame && MG && MG.enabled && !MG.active) {
+      a.labGame = true;
+      MG.lab(a.c.labs, (score) => {
+        a.labScore = score;
+        if (score >= 80) { state.budget += 150; state.reputation = Math.min(100, state.reputation + 1); UI().toast('🧪 Kusursuz laboratuvar analizi: +₺150, İtibar +1', 2400); }
+        openLabReportInner();
+      });
+      return;
+    }
+    openLabReportInner();
+  }
+  function openLabReportInner() {
     const a = active && active.labsReady ? active : lastLab;
     if (!a) return;
     const c = a.c;

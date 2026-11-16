@@ -291,7 +291,7 @@
     },
 
     // ------------------------------------------------------------ Diyalog
-    isDialogOpen() { return dialogOpen || !!document.getElementById('os') || !!document.getElementById('surgery'); },
+    isDialogOpen() { return dialogOpen || !!document.getElementById('os') || !!document.getElementById('surgery') || !!document.getElementById('minigame'); },
     openDialog(spec) {
       VH.ui.closeDialog(true);
       const box = el('div', { id: 'dialog', role: 'dialog', className: spec.wide ? 'wide' : '' });
