@@ -51,11 +51,11 @@
   ];
 
   const SERVICES = [
-    { id: 'surgery', floor: 1, icon: '🩻', name: 'Cerrahi & Ameliyathane Servisi', income: 250, cost: 45000, rep: 62, cases: 6,
+    { id: 'surgery', floor: 1, icon: '🩻', name: 'Cerrahi & Ameliyathane Servisi', income: 250, cost: 45000, rep: 62, cases: 15,
       desc: 'Yeni kat: ameliyathane, cerrahi hazırlık, uyandırma odası. Acilden gelen ağır travma/apandisit/kalça kırığı hastaları burada ameliyat edilir; ameliyatı mini oyunlarla bizzat yapabilirsiniz.' },
-    { id: 'ward', floor: 2, icon: '🛏️', name: 'Yatan Hasta & Pediatri Servisi', income: 200, cost: 35000, rep: 55, cases: 4,
+    { id: 'ward', floor: 2, icon: '🛏️', name: 'Yatan Hasta & Pediatri Servisi', income: 200, cost: 35000, rep: 55, cases: 10,
       desc: 'Yeni kat: servis yatakları, pediatri, küvöz. Yatırılan hastaların serum/ilaç takibini yaparsınız; pediatri oyun alanı çocukların moralini yükseltir.' },
-    { id: 'radiology', floor: 3, icon: '📡', name: 'Radyoloji & İleri Tanı Katı', income: 220, cost: 40000, rep: 65, cases: 8,
+    { id: 'radiology', floor: 3, icon: '📡', name: 'Radyoloji & İleri Tanı Katı', income: 220, cost: 40000, rep: 65, cases: 25,
       desc: 'Yeni kat: röntgen, ultrason, EKG, MR ve diyaliz. "Daha fazla tetkik" kararları ve inme şüphesindeki görüntülemeler bu katta yapılır.' },
   ];
 
@@ -384,7 +384,8 @@
     const rep = 6 + Math.floor(a.timeLeft / 15) + (mult - 1) * 2;
     const budget = Math.round((2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0)) * mult);
     reward(rep, 3, budget);
-    shift.stats.er++;
+    shift.stats.er++; addCase();
+    if (a.p && E().floatText) { E().floatText(a.p.x, a.p.y, a.p.floor || 0, "+₺" + budget, "#ffd166", -12); E().floatText(a.p.x, a.p.y, a.p.floor || 0, "+★" + rep, "#8fe39f", 20); }
     if (VH.emit) VH.emit('erSuccess', { def: d, mult, timeLeft: a.timeLeft, max });
     sound('success');
     const node = el('div', {});
@@ -598,10 +599,26 @@
 
   // ================================================================ YÖNETİM & İNŞA PANELİ
   let panelTab = 'genel';
+  // Tüm oyun boyunca tamamlanan toplam vaka (taburcu + acil stabilizasyon); kat kilitleri bunu kullanır
+  const casesTotal = () => S().casesTotal || 0;
+  function addCase() { S().casesTotal = casesTotal() + 1; }
+  /** Kilit şartları: her biri ✓/✗ ile gösterilir. */
+  function reqList(item) {
+    const st = S();
+    const out = [{ k: "budget", label: "Bütçe", need: money(item.cost), have: money(st.budget), ok: st.budget >= item.cost && st.budget > 0 },
+      { k: "rep", label: "İtibar Puanı", need: "≥ " + item.rep, have: String(st.reputation), ok: st.reputation >= item.rep }];
+    if (item.cases) out.push({ k: "cases", label: "Toplam Tamamlanan Vaka", need: "≥ " + item.cases, have: String(casesTotal()), ok: casesTotal() >= item.cases });
+    return out;
+  }
+  function reqNode(item) {
+    const box = el("div", { className: "req-list" });
+    reqList(item).forEach((r) => box.appendChild(el("span", { className: "req " + (r.ok ? "ok" : "no") }, (r.ok ? "✓ " : "✗ ") + r.label + ": " + r.have + " / " + r.need)));
+    return box;
+  }
   function canBuy(item, owned) {
     if (owned) return 'Sahipsiniz';
     if (S().reputation < item.rep) return `İtibar ${item.rep} gerekli`;
-    if (item.cases && S().solved.length < item.cases) return `${item.cases} çözülmüş vaka gerekli (${S().solved.length})`;
+    if (item.cases && casesTotal() < item.cases) return `${item.cases} tamamlanan vaka gerekli (${casesTotal()})`;
     if (S().budget <= 0) return 'Bütçe ekside';
     if (S().budget < item.cost) return 'Bütçe yetersiz';
     return null;
@@ -630,7 +647,8 @@
     const body = el('div', { className: 'shop-body' });
     body.appendChild(el('strong', {}, item.name));
     body.appendChild(el('span', { className: 'opt-desc' }, item.desc));
-    body.appendChild(el('span', { className: 'shop-meta' }, `${money(item.cost)} · İtibar ≥ ${item.rep}${item.cases ? ' · Vaka ≥ ' + item.cases : ''}`));
+    if (group === "services" && !owned) body.appendChild(reqNode(item));
+    else     body.appendChild(el('span', { className: 'shop-meta' }, `${money(item.cost)} · İtibar ≥ ${item.rep}${item.cases ? ' · Vaka ≥ ' + item.cases : ''}`));
     card.appendChild(body);
     const why = canBuy(item, owned);
     const label = owned ? '✓ Aktif' : group === 'hires' ? 'İşe al' : group === 'services' ? 'İnşa et' : 'Satın al';
@@ -667,7 +685,7 @@
     if (panelTab === 'genel') {
       const solved = st.solved.length;
       const n = (o) => Object.keys(o || {}).filter((k) => o[k]).length;
-      list.appendChild(el('p', {}, `Çözülen vaka: ${solved} · Yükseltme: ${n(st.upgrades)}/${UPGRADES.length} · Personel: ${n(st.hires)}/${HIRES.length} · Servis: ${n(st.services)}/${SERVICES.length}`));
+      list.appendChild(el("p", {}, `Toplam tamamlanan vaka: ${casesTotal()} · Çözülen dedektif vakası: ${solved} · Yükseltme: ${n(st.upgrades)}/${UPGRADES.length} · Personel: ${n(st.hires)}/${HIRES.length} · Servis: ${n(st.services)}/${SERVICES.length}`));
       list.appendChild(el('p', { className: 'muted' }, 'Bütçe; vakalar, acil müdahaleler, eczane bilgilendirmeleri, taburcu edilen hastalar ve açılan servislerin pasif gelirinden gelir. İtibar yeni yatırımların kilidini açar.'));
       const ul = el('ul', { className: 'plan' });
       ['Doğru ve güvenli klinik kararlar → itibar ve bütçe', 'Acil vakaları süre bitmeden stabilize edin', 'Eczanede doğru kullanım bilgisini verin', 'Yeni katlar açarak hastaneyi büyütün']
@@ -839,6 +857,15 @@
     });
   }
 
+  /** Kat erişime açık mı (zemin, B1 veya inşa edilmiş servis). */
+  function floorOpen(f) {
+    const d = M().FLOOR_DEFS[f];
+    if (!d) return false;
+    if (f === 0 || d.alwaysOpen) return true;
+    const sv = SERVICES.find((s) => s.floor === f);
+    return !!(sv && has("services", sv.id));
+  }
+  const serviceOfFloor = (f) => SERVICES.find((s) => s.floor === f) || null;
   function travel(f) {
     const P = E().player;
     UI().closeDialog();
@@ -853,7 +880,7 @@
     cam.follow = true;
     UI().setToggle('btn-follow', true);
     sound('door');
-    UI().toast('🛗 ' + M().floorName(f), 2200);
+    UI().toast((floorOpen(f) ? "🛗 " : "🔒 Önizleme · ") + M().floorName(f), 2200);
   }
 
   function openElevator() {
@@ -861,15 +888,17 @@
     const node = el('div', { className: 'shop' });
     M().FLOOR_DEFS.forEach((d, f) => {
       const sv = SERVICES.find((s) => s.floor === f);
-      const open = f === 0 || d.alwaysOpen || (sv && has('services', sv.id));
-      const card = el('div', { className: 'shop-card' + (f === P.floor ? ' owned' : '') });
+      const open = floorOpen(f);
+      const card = el("div", { className: "shop-card" + (f === P.floor ? " owned" : "") + (open ? "" : " locked-card") });
       card.appendChild(el('div', { className: 'shop-icon' }, f === 0 ? '🏥' : sv ? sv.icon : '🍽️'));
       const body = el('div', { className: 'shop-body' });
       body.appendChild(el('strong', {}, d.name));
-      body.appendChild(el('span', { className: 'opt-desc' }, f === P.floor ? 'Buradasınız' : open ? 'Erişime açık' : `Kilitli: Yönetim Panelinden inşa edin (${money(sv.cost)}, İtibar ≥ ${sv.rep})`));
+      body.appendChild(el("span", { className: "opt-desc" }, f === P.floor ? "Buradasınız" : open ? "Erişime açık" : "🔒 Kilitli · Başhekim bilgisayarındaki Yönetim Panelinden inşa edin"));
+      if (!open && sv) body.appendChild(reqNode(sv));
       card.appendChild(body);
-      const b = el('button', { type: 'button', className: 'dlg-btn' + (open && f !== P.floor ? '' : ' ghost') }, f === P.floor ? 'Buradasınız' : open ? 'Git' : '🔒');
-      b.disabled = !open || f === P.floor;
+      const b = el("button", { type: "button", className: "dlg-btn" + (f !== P.floor && open ? "" : " ghost") }, f === P.floor ? "Buradasınız" : open ? "Git" : "👁 Önizle");
+      b.title = open ? "" : "Kilitli katı gri tonlu önizleme modunda gezin";
+      b.disabled = f === P.floor;
       b.addEventListener('click', () => travel(f));
       card.appendChild(b);
       node.appendChild(card);
@@ -1048,10 +1077,14 @@
       else if (tab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u, rerender)));
       else if (tab === 'servis') SERVICES.forEach((u) => list.appendChild(itemCard('services', u, rerender)));
     },
+    reqList, reqNode, casesTotal, addCase, floorOpen, serviceOfFloor,
     canBuy, money, BAYS_STATE: () => BAYS.map((b) => !!b.occ),
     onServed(p) {
-      S().budget += (190 + (has('upgrades', 'comfort') ? 50 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1);
+      const fee = Math.round((330 + (has("upgrades", "comfort") ? 60 : 0)) * (VH.progress ? VH.progress.incomeMult() : 1));
+      S().budget += fee;
+      if (p && E().floatText) { p._paidAt = performance.now(); E().floatText(p.x, p.y, p.floor, "+₺" + fee, "#ffd166", -10); if (!p.erRef && (p.patience === undefined || p.patience > 45)) E().floatText(p.x, p.y, p.floor, "+★", "#8fe39f", 18); }
       if (shift.stats && !(p && p.erRef)) shift.stats.treated++;
+      if (!(p && p.erRef)) addCase();
     },
     onPharmacyAuto() { if (has('hires', 'pharmTech')) S().budget += 150; if (VH.equipment) S().budget += VH.equipment.pharmacyBonus(); },
     onAngryLeave() { reward(-1, 0, 0); if (shift.stats) shift.stats.angry++; comboBreak('hasta beklemekten sıkıldı'); },

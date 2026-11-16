@@ -123,8 +123,8 @@
     O('autoclave', 19, 1),
     O('analyzer', 21, 1, { tag: 'analyzer' }),
     O('vial_rack', 22, 1),
+    O('sample_fridge', 23, 1),
     O('centrifuge', 24, 3, { tag: 'centrifuge' }),
-    O('prop_tubes', 24, 3, { z: 28, ox: 10, block: false }),
     O('microscope', 24, 5, { tag: 'microscope' }),
     O('biohazard_bin', 17, 7),
 
@@ -146,12 +146,9 @@
     O('ambulance_bay', 32, 15, { w: 2, h: 4, flat: true }),
 
     // 6 — Eczane ve İlaç Bölümü
-    O('med_cabinet', 25, 1),
-    O('med_cabinet', 26, 1),
+    O('pharmacy_shelf', 25, 1, { w: 2 }),
     O('med_cabinet', 30, 2),
-    O('counter', 27, 5, { w: 2, tag: 'pharmacy_counter' }),
-    O('prop_bottles', 27, 5, { z: 18, block: false }),
-    O('prop_pills', 28, 5, { z: 18, block: false }),
+    O('pharmacy_counter', 27, 5, { w: 2, tag: 'pharmacy_counter' }),
     O('cart', 30, 5),
     O('prop_box_blue', 30, 5, { z: 22, ox: -7, block: false }),
     O('prop_box_purple', 30, 5, { z: 22, ox: 7, block: false }),
@@ -160,12 +157,15 @@
 
     // 7 — Başhekim ve Doktor Odası
     O('rug', 2, 2, { w: 4, h: 4, flat: true }),
-    O('desk', 3, 2, { w: 2, tag: 'chief_desk' }),
+    O('exec_desk', 3, 2, { w: 2, tag: 'chief_desk' }),
+    O('swivel_chair', 4, 1, { block: false }),
+    O('certificates', 1, 1, { w: 2, block: false }),
+    O('wall_clock', 5, 1, { block: false }),
     O('nameplate', 3, 2, { z: 28, ox: 8, block: false }),
     O('chair', 3, 4),
     O('chair', 4, 4),
-    O('locker', 6, 1),
-    O('locker', 6, 2),
+    O('bookshelf', 6, 1),
+    O('bookshelf', 6, 2),
     O('locker', 6, 3),
     O('terminal', 1, 5, { tag: 'archive_terminal' }),
     O('archive', 1, 6), O('archive', 1, 7),
@@ -238,6 +238,7 @@
     // Giriş meydanı canlandırma
     add('entrance_canopy', 3, 23, { w: 4, h: 2, block: false });
     add('fountain', 14, 23, { w: 2, h: 2 });
+    add('pond', 35, 23, { w: 4, h: 3 });
     for (const x of [10, 11, 12]) add('flag_pole', x, 23, { tint: x });
     for (const x of [17, 20, 23, 28]) add('planter', x, 23);
     add('bike_rack', 25, 23, { w: 2 });
@@ -268,8 +269,8 @@
       O('surgical_lamp', 6, 2, { tag: 'surgical_lamp' }),
       O('anesthesia', 3, 2, { tag: 'anesthesia' }),
       O('monitor', 3, 4),
-      O('cart', 7, 3),
-      O('prop_tray', 7, 3, { z: 22, block: false }),
+      O('mayo_stand', 7, 3),
+      O('iv_stand', 4, 2),
       O('gauze', 7, 5),
       O('biohazard_bin', 8, 1),
       O('scrub_sink', 11, 1, { tag: 'scrub' }),
@@ -355,7 +356,8 @@
       O('dialysis', 8, 10, { tag: 'dialysis' }), O('blood_chair', 9, 10),
       O('dialysis', 11, 10, { tag: 'dialysis' }), O('blood_chair', 12, 10),
       O('mri', 15, 11, { w: 3, h: 2, tag: 'mri' }),
-      O('desk', 20, 10, { w: 2 }),
+      O('control_booth', 20, 9, { w: 3, h: 2 }),
+      O('radiation_sign', 15, 10, { block: false }),
       O('terminal', 21, 12, { tag: 'pacs' }),
       O('elevator', 1, 7, { tag: 'elevator' }),
     ],
@@ -662,6 +664,7 @@
       x0: Math.min(...cs.map((c) => c[0])) + pad, x1: Math.max(...cs.map((c) => c[0])) - pad,
       y0: Math.min(...cs.map((c) => c[1])) - WALL_FULL + pad / 2, y1: Math.max(...cs.map((c) => c[1])) - pad / 2,
     };
+    if (fi >= 1 && fi <= 3) bounds.y1 += fi * STOREY; // aşağıdaki bina cephesine kaydırılabilsin
     cache = { floors: floorsList, items, flats, bounds, lamps };
   }
 
@@ -689,25 +692,46 @@
     const dk = sgn < 0 ? -0.12 : 0; // sol yüzler biraz daha gölgeli
     const S = (c) => shade(c, dk);
 
-    if (w.type === 'door' && !full) {
-      // Kesit görünümde kapı = metal eşik + turkuaz yön şeridi
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(160,175,185,0.9)'; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + sgn * 32, Y + 16); ctx.stroke();
-      ctx.strokeStyle = 'rgba(46,196,182,0.75)'; ctx.lineWidth = 2;
-      ctx.stroke();
-      return;
-    }
-
     if (w.type === 'door') {
-      quad(0, 1, 0, h, S(st.base));
-      const p = it.part || 0;
-      // çift kanatlı kapı: bu hücre kanadın yarısı
-      quad(p ? 0 : 0.1, p ? 0.9 : 1, 0, 52, S(st.door || '#cfd8dc'));
-      quad(p ? 0.25 : 0.35, p ? 0.65 : 0.75, 30, 46, S('#9ccbe0'));
-      quad(p ? 0 : 0.1, p ? 0.9 : 1, 0, 6, S('#8fa3ad'));
-      quad(p ? 0 : 0.1, p ? 0.9 : 1, 52, 55, S(st.trim));
-      if (p === 0) quad(0.96, 1, 6, 52, S('#7e8d96'));
+      // Çift kanatlı sürgülü otomatik cam kapı: her hücre bir kanat; biri yaklaşınca kanatlar dışa kayar.
+      // Kanat 0'ın merkez kenarı u=1'de, kanat 1'in merkez kenarı u=0'dadır.
+      const p = it.part || 0, op = doorAmt[w.door] || 0;
+      const lh = full ? 52 : WALL_CUT;
+      const g0 = p ? 0.02 + 0.8 * op : 0.08, g1 = p ? 0.92 : 0.98 - 0.8 * op;
+      if (full) quad(0, 1, 0, h, S(st.base));
+      quad(0, 1, 0, 2.5, S('#9aa7b0'));                                   // eşik rayı
+      if (g1 > g0 + 0.01) {
+        quad(g0, g1, 2.5, lh, 'rgba(165,215,240,0.42)');                 // buzlu cam kanat
+        quad(g0, g1, 2.5, 4.5, S('#8fa3ad'));
+        quad(p ? g0 : g1 - 0.04, p ? g0 + 0.04 : g1, 2.5, lh, S('#b8c4cb')); // kanat dikmesi (merkez kenar)
+        if (full) quad(g0 + 0.1 * (g1 - g0), g0 + 0.3 * (g1 - g0), 20, 46, 'rgba(255,255,255,0.22)');
+        else quad(g0, g1, lh - 2, lh, S('#c9d1d6'));
+        if (full) quad(g0, g1, 26, 28, 'rgba(46,196,182,0.55)');         // turkuaz güvenlik bandı
+      }
+      quad(p ? 0.94 : 0, p ? 1 : 0.06, 0, lh + (full ? 3 : 2), S('#7e8d96'));   // dış kasa
+      if (full) quad(0, 1, 52, 56, S(st.trim));
+      else if (op < 0.2) {
+        // kapalıyken yön şeridi
+        ctx.strokeStyle = 'rgba(46,196,182,0.6)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + sgn * 32, Y + 16); ctx.stroke();
+      }
+      // Kapı üstü birim tabelası (kanat 1 çiziminde, iki hücreyi ortalar)
+      if (p === 1) {
+        const txt = doorSign(w);
+        if (txt) {
+          const z0 = full ? 58 : WALL_CUT + 6, z1 = z0 + 11;
+          if (!full) { quad(-0.97, -0.92, 0, z1, S('#7e8d96')); quad(0.92, 0.97, 0, z1, S('#7e8d96')); }
+          quad(-0.8, 0.8, z0, z1, '#173447');
+          quad(-0.8, 0.8, z0, z0 + 1.2, '#2ec4b6');
+          const c = pt(0, (z0 + z1) / 2);
+          ctx.save(); ctx.translate(c[0], c[1]); ctx.transform(1, 0.5 * sgn, 0, 1, 0, 0);
+          ctx.fillStyle = txt === 'ECZANE' ? '#7dff9a' : txt.startsWith('ACİL') ? '#ff8a8d' : '#e9fffb';
+          ctx.font = '800 6.5px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText((txt === 'ECZANE' ? '✚ ' : '') + txt, 0, 0.5);
+          ctx.restore();
+        }
+      }
+      if (!full) return;
     } else if (st.glass) {
       // Cam bölme: alüminyum kaide, dikmeler, ara kayıt ve yarı saydam cam
       quad(0, 1, 0, Math.min(5, h), S('#a9b5bd'));
@@ -773,6 +797,36 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+  // ---------------------------------------------------------------- Otomatik kapılar ve birim tabelaları
+  const DOOR_SIGNS = {
+    office: 'BAŞHEKİMLİK', exam1: '1 · MUAYENE', exam2: '2 · MUAYENE', lab: 'LABORATUVAR', pharmacy: 'ECZANE',
+    reception: 'KAYIT', waiting: 'BEKLEME', er: 'ACİL SERVİS', or1: 'AMELİYATHANE', scrub: 'HAZIRLIK', recovery: 'UYANDIRMA',
+    surgclin: 'POLİKLİNİK', sterile: 'STERİL DEPO', ward1: 'SERVİS', peds: 'PEDİATRİ', nurse: 'HEMŞİRE', xray: 'RÖNTGEN',
+    us: 'ULTRASON', ecg: 'EKG', dialysis: 'DİYALİZ', report: 'MR', dining: 'YEMEKHANE', kitchen: 'MUTFAK', cafe: 'KAFETERYA', dining2: 'SALON',
+  };
+  const EXT_SIGNS = { 'Ana Giriş': 'ANA GİRİŞ', 'Ambulans Girişi': 'ACİL GİRİŞ', 'Lojistik Kapısı': 'LOJİSTİK' };
+  let doorAmt = [], doorAmtF = -1;
+  function doorSign(w) {
+    const d = floors[fi].def.doors[w.door];
+    if (d && d.name && EXT_SIGNS[d.name]) return EXT_SIGNS[d.name];
+    const r = [w.a, w.b].find((id) => id && id !== 'corridor' && DOOR_SIGNS[id]);
+    if (!r) return '';
+    // İki oda arasındaki geçişte (ör. resepsiyon ↔ koridor) koridor dışındaki oda yazılır; ilk eşleşme yeterli
+    return DOOR_SIGNS[r];
+  }
+  /** Kapı kanatlarını yakındaki karakterlere göre açar/kapatır (ents: geçerli kattaki kişiler). */
+  function updateDoors(dt, ents) {
+    const ds = floors[fi].def.doors;
+    if (doorAmtF !== fi || doorAmt.length !== ds.length) { doorAmt = ds.map(() => 0); doorAmtF = fi; }
+    for (let i = 0; i < ds.length; i++) {
+      const d = ds[i];
+      const cx = d.e === 'N' ? d.x + 1 : d.x, cy = d.e === 'N' ? d.y : d.y + 1;
+      let near = 0;
+      for (const e of ents) if (Math.abs(e.x - cx) < 1.6 && Math.abs(e.y - cy) < 1.6) { near = 1; break; }
+      doorAmt[i] += (near - doorAmt[i]) * Math.min(1, dt * 6);
+    }
+  }
+
   // ---------------------------------------------------------------- Kamera
   let facadeTier = 0;
   const camera = {
@@ -819,6 +873,123 @@
     camera.centerOnWorld(center[0], center[1]);
   }
 
+  // ---------------------------------------------------------------- Kat kesiti (cutaway): bina dış cephesi
+  // Üst katlardayken alt katların iç mekânı çizilmez; yerine binanın mavi-beyaz seramik ve
+  // cam giydirme cephesi kat kat aşağı doğru uzanır, en altta kampüs zemini görünür.
+  // Kilitli (inşa edilmemiş) katların cephesi gri tonlu ve kilit rozetlidir. B1'de toprak kesiti çizilir.
+  const STOREY = 96;                 // bir katın cephe yüksekliği (izo piksel)
+  const TOWER = [1, 1, 23, 14];      // üst katların ortak ayak izi (dünya hücresi)
+  const STACK_TREES = [[-3, 3], [-4, 9], [-2, 15], [5, 17], [12, 18], [19, 17], [26, 15], [27, 8], [26, 2], [8, -2], [17, -3]];
+  function towerBox(pad) {
+    const [x0, y0, x1, y1] = TOWER;
+    const pts = [[x0 - pad, y0 - pad], [x1 + pad, y0 - pad], [x1 + pad, y1 + pad], [x0 - pad, y1 + pad]].map(([x, y]) => rotPt(x, y));
+    const rx0 = Math.min(...pts.map((p) => p[0])), rx1 = Math.max(...pts.map((p) => p[0]));
+    const ry0 = Math.min(...pts.map((p) => p[1])), ry1 = Math.max(...pts.map((p) => p[1]));
+    return { A: iso(rx0, ry1), B: iso(rx1, ry1), C: iso(rx1, ry0), D: iso(rx0, ry0), nL: rx1 - rx0, nR: ry1 - ry0 };
+  }
+  const floorIsOpen = (f) => (VH.hospital && VH.hospital.floorOpen ? VH.hospital.floorOpen(f) : true);
+  function fillPoly(ctx, pts, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+    ctx.closePath(); ctx.fill();
+  }
+  /** Bir cephe yüzünde (P0→P1) z0..z1 (aşağı pozitif) arasında u0..u1 dörtgeni. */
+  function faceQuad(ctx, P0, P1, u0, u1, z0, z1, col) {
+    const at = (u, z) => [P0[0] + (P1[0] - P0[0]) * u, P0[1] + (P1[1] - P0[1]) * u + z];
+    fillPoly(ctx, [at(u0, z0), at(u1, z0), at(u1, z1), at(u0, z1)], col);
+  }
+  function drawStorey(ctx, P0, P1, n, zTop, f, dark, night, ground) {
+    const open = floorIsOpen(f);
+    const t = performance.now() / 1000;
+    const base = open ? (dark ? '#d6e2ea' : '#f2f7fa') : (dark ? '#9aa1a6' : '#b4babe');
+    const band = open ? (dark ? '#245f8f' : '#2f78b3') : (dark ? '#6d7377' : '#80878b');
+    const glass = open ? (dark ? '#5d9cc4' : '#86c0e2') : (dark ? '#5d6468' : '#727a7f');
+    const zB = zTop + STOREY;
+    faceQuad(ctx, P0, P1, 0, 1, zTop, zB, base);                       // seramik panel zemin
+    faceQuad(ctx, P0, P1, 0, 1, zTop, zTop + 7, band);                 // döşeme alnı (mavi bant)
+    faceQuad(ctx, P0, P1, 0, 1, zB - 4, zB, open ? '#c4d2dc' : '#8f969a');
+    for (let i = 0; i < n; i++) {
+      const u0 = (i + 0.12) / n, u1 = (i + 0.88) / n;
+      if (ground && i === Math.floor(n / 2)) {                         // zemin kat: cam giriş kapısı ve saçak
+        faceQuad(ctx, P0, P1, (i - 0.4) / n, (i + 1.4) / n, zB - 52, zB, '#2b5876');
+        faceQuad(ctx, P0, P1, (i - 0.3) / n, (i + 1.3) / n, zB - 48, zB, 'rgba(160,215,240,0.75)');
+        faceQuad(ctx, P0, P1, (i - 0.6) / n, (i + 1.6) / n, zB - 58, zB - 52, '#2ec4b6');
+        continue;
+      }
+      faceQuad(ctx, P0, P1, u0, u1, zTop + 16, zB - 14, dark ? '#3e5f75' : '#4f7790'); // pencere çerçevesi
+      faceQuad(ctx, P0, P1, u0 + 0.02 / n, u1 - 0.02 / n, zTop + 18, zB - 16, glass);
+      // Gece: açık katlarda bazı pencereler sıcak ışıkla yanar
+      if (open && night > 0.05 && VH.art.hash(i + f * 31, n) > 0.35) faceQuad(ctx, P0, P1, u0 + 0.02 / n, u1 - 0.02 / n, zTop + 18, zB - 16, `rgba(255,214,140,${0.75 * night})`);
+      // cam yansıması
+      faceQuad(ctx, P0, P1, u0 + 0.05 / n, u0 + 0.22 / n, zTop + 20, zB - 30, 'rgba(255,255,255,0.22)');
+      faceQuad(ctx, P0, P1, u0, u1, zTop + 46, zTop + 48, dark ? '#3e5f75' : '#4f7790');
+    }
+    if (!open) {
+      // Kilit rozeti: yüzün ortasında
+      const u = 0.5, mx = P0[0] + (P1[0] - P0[0]) * u, my = P0[1] + (P1[1] - P0[1]) * u + zTop + STOREY / 2;
+      const pulse = 1 + Math.sin(t * 3) * 0.04;
+      ctx.save(); ctx.translate(mx, my); ctx.scale(pulse, pulse);
+      ctx.fillStyle = 'rgba(20,26,32,0.85)'; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#ffd166'; ctx.fillRect(-6, -2, 12, 9);
+      ctx.beginPath(); ctx.arc(0, -3, 4.5, Math.PI, 0); ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function drawStack(ctx, night) {
+    const isUnder = def0().id === 'cafe';
+    const T = towerBox(0);
+    if (isUnder) {
+      // B1: bodrum kat — toprak kesiti ve temel perdesi
+      const depth = 150;
+      faceQuad(ctx, T.A, T.B, 0, 1, 0, depth, '#5a4636'); faceQuad(ctx, T.B, T.C, 0, 1, 0, depth, '#4a392c');
+      for (let k = 1; k < 5; k++) { faceQuad(ctx, T.A, T.B, 0, 1, k * 30, k * 30 + 3, 'rgba(0,0,0,0.12)'); faceQuad(ctx, T.B, T.C, 0, 1, k * 30, k * 30 + 3, 'rgba(0,0,0,0.12)'); }
+      faceQuad(ctx, T.A, T.B, 0, 1, 0, 12, '#8d969c'); faceQuad(ctx, T.B, T.C, 0, 1, 0, 12, '#79828a');
+      fillPoly(ctx, [T.A, T.B, T.C, T.D], '#9aa3a8');
+      return;
+    }
+    const n = fi; // altta kalan kat sayısı (zemin + ara katlar)
+    // Kampüs zemini (en altta)
+    ctx.save();
+    ctx.translate(0, n * STOREY);
+    const G = towerBox(10), Pv = towerBox(2);
+    fillPoly(ctx, [G.A, G.B, G.C, G.D], '#5f9a56');
+    fillPoly(ctx, [Pv.A, Pv.B, Pv.C, Pv.D], '#c9cbc3');
+    const R1 = towerBox(10), R0 = towerBox(7);
+    fillPoly(ctx, [R0.A, R0.B, R1.B, R1.A], '#4a5259');                // ön cadde
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.setLineDash([10, 10]); ctx.lineWidth = 2;
+    const mA = [(R0.A[0] + R1.A[0]) / 2, (R0.A[1] + R1.A[1]) / 2], mB = [(R0.B[0] + R1.B[0]) / 2, (R0.B[1] + R1.B[1]) / 2];
+    ctx.beginPath(); ctx.moveTo(mA[0], mA[1]); ctx.lineTo(mB[0], mB[1]); ctx.stroke(); ctx.setLineDash([]);
+    const c0 = rotPt(TOWER[0], TOWER[1]), c1 = rotPt(TOWER[2], TOWER[3]);
+    const fx0 = Math.max(c0[0], c1[0]), fy0 = Math.max(c0[1], c1[1]);
+    const front = ([x, y]) => { const r = rotPt(x, y); return r[0] > fx0 - 0.5 || r[1] > fy0 - 0.5; };
+    const trees = (fr) => { for (const t of STACK_TREES) if (front(t) === fr) VH.art.draw(ctx, { o: { k: 'tree', x: t[0], y: t[1], w: 1, h: 1 } }); };
+    trees(false);
+    // bina gölgesi
+    fillPoly(ctx, [T.A, T.B, T.C, [T.C[0] + 40, T.C[1] + 20], [T.B[0] + 40, T.B[1] + 20], [T.A[0] + 40, T.A[1] + 20]], 'rgba(10,30,20,0.25)');
+    ctx.restore();
+    // Kat kat cephe (en alttaki zemin kattan başlayarak)
+    for (let s = 0; s < n; s++) {
+      const zTop = (n - 1 - s) * STOREY;
+      drawStorey(ctx, T.A, T.B, T.nL, zTop, s, false, night, s === 0);
+      drawStorey(ctx, T.B, T.C, T.nR, zTop, s, true, night, false);
+    }
+    ctx.save(); ctx.translate(0, n * STOREY); trees(true); ctx.restore();
+    // Zemin kat cephesinde ışıklı "VITA HOSPITAL" tabelası
+    const zg = (n - 1) * STOREY;
+    const mx = (T.A[0] + T.B[0]) / 2, my = (T.A[1] + T.B[1]) / 2 + zg + 12;
+    ctx.save(); ctx.translate(mx, my); ctx.transform(1, (T.B[1] - T.A[1]) / Math.max(1, T.B[0] - T.A[0]), 0, 1, 0, 0);
+    ctx.font = '900 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (night > 0.05) { ctx.shadowColor = '#5ff0d8'; ctx.shadowBlur = 12 * night; }
+    ctx.fillStyle = night > 0.05 ? '#d9fffa' : '#1f5f8b'; ctx.fillText('VITA HOSPITAL', 0, 0);
+    ctx.restore();
+    // Bulunulan katın döşeme alnı (kesit kenarı) ve tavanı açık kat plakası
+    faceQuad(ctx, T.A, T.B, 0, 1, -2, 9, '#e3e9ed'); faceQuad(ctx, T.B, T.C, 0, 1, -2, 9, '#c9d3da');
+    faceQuad(ctx, T.A, T.B, 0, 1, 7, 9, '#2f78b3'); faceQuad(ctx, T.B, T.C, 0, 1, 7, 9, '#245f8f');
+    fillPoly(ctx, [T.A, T.B, T.C, T.D], '#cfd7dc');
+  }
+  const def0 = () => floors[fi].def;
+
   // ---------------------------------------------------------------- Ana çizim
   let labels = true;
   let hover = null;
@@ -830,7 +1001,12 @@
    */
   function draw(ctx, vw, vh, extras, fx) {
     fx = fx || {};
-    ctx.fillStyle = fi === 0 ? '#2f5b3a' : '#14313f';
+    if (fi >= 1 && fi <= 3) {
+      // Üst katlar: gökyüzü arka planı (bina yüksekliği hissi); gece koyulaşır
+      const g = ctx.createLinearGradient(0, 0, 0, vh), nt = fx.night || 0;
+      g.addColorStop(0, nt > 0.5 ? '#1c2c4a' : '#7fb8de'); g.addColorStop(1, nt > 0.5 ? '#3a4f6b' : '#d5ebf5');
+      ctx.fillStyle = g;
+    } else ctx.fillStyle = fi === 0 ? '#2f5b3a' : '#1d1612';
     ctx.fillRect(0, 0, vw, vh);
 
     ctx.save();
@@ -842,6 +1018,7 @@
     const [r, b] = camera.toIso(vw, vh, vw, vh);
     const L = l - 160, R = r + 160, T = t - 40, B = b + 240;
 
+    if (fi > 0) drawStack(ctx, fx.night || 0);
     for (const f of cache.floors) if (f.sx > L - 40 && f.sx < R + 40 && f.sy > T - 40 && f.sy < B) drawFloor(ctx, f);
     for (const it of cache.flats) if (it.cx > L - 200 && it.cx < R + 200 && it.cy > T - 120 && it.cy < B + 120) VH.art.draw(ctx, it);
     if (hover && inBounds(hover.x, hover.y)) drawCellOutline(ctx, hover.x, hover.y, 'rgba(46,196,182,0.9)');
@@ -955,6 +1132,7 @@
     get floor() { return fi; },
     FLOOR_DEFS,
     get campusStart() { return CAMPUS_START; },
+    updateDoors,
     floorName(f) { return FLOOR_DEFS[f === undefined ? fi : f].name; },
     floorArrive(f) { return FLOOR_DEFS[f].arrive; },
     floorObjects(f) { return FLOOR_DEFS[f].objects; },

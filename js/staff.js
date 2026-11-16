@@ -31,30 +31,30 @@
     grumpy:   { name: 'Huysuz', icon: '😒', desc: 'Ucuzdur ama moral kaybı fazladır.', eff: 0.97, pay: 0.8, morale: -4 },
   };
   const ROLES = {
-    nurse:   { name: 'Hemşire', icon: '👩‍⚕️', max: 4, salary: 520, title: 'Hem.', desc: 'Acil stabilizasyonu %7, bekleme sabır kaybını %5 azaltır (verimliliğe göre).',
+    nurse:   { name: 'Hemşire', icon: '👩‍⚕️', max: 4, salary: 310, title: 'Hem.', desc: 'Acil stabilizasyonu %7, bekleme sabır kaybını %5 azaltır (verimliliğe göre).',
       points: [[12.5, 16], [15.5, 16], [17.5, 19.5], [24.5, 15.5], [22.5, 18.2], [26.5, 14.6], [18.5, 13]],
       looks: [['#5aa9e6', '#3d6a8e'], ['#2f9e8f', '#22705f'], ['#e07a9f', '#9c4f6c'], ['#8e7cc3', '#5b4a91']],
       greet: ['Bekleme salonu kontrol altında.', 'Serumlar hazır!', 'Hastalarla ilgileniyorum.'] },
-    doctor:  { name: 'Nöbetçi Doktor', icon: '🧑‍⚕️', max: 3, salary: 900, title: 'Dr.', desc: 'Muayene süresini %8 kısaltır (verimliliğe göre).',
+    doctor:  { name: 'Nöbetçi Doktor', icon: '🧑‍⚕️', max: 3, salary: 540, title: 'Dr.', desc: 'Muayene süresini %8 kısaltır (verimliliğe göre).',
       points: [[9.5, 9.6], [14.5, 9.6], [19.5, 10.2], [8.5, 6.6], [13.5, 6.6]],
       looks: [['#fbfdff', '#30638e'], ['#fbfdff', '#3d405b'], ['#fbfdff', '#354f52']],
       greet: ['Muayenelere destek veriyorum.', 'Konsültasyon için buradayım.', 'Nöbet sakin, şimdilik.'] },
-    janitor: { name: 'Temizlik Görevlisi', icon: '🧹', max: 3, salary: 340, title: '', desc: 'Yere düşen çöpleri kendiliğinden toplar; temizlik puanını korur.',
+    janitor: { name: 'Temizlik Görevlisi', icon: '🧹', max: 3, salary: 200, title: '', desc: 'Yere düşen çöpleri kendiliğinden toplar; temizlik puanını korur.',
       points: [[6.5, 9.6], [16.5, 9.6], [24.5, 9.6], [12.5, 21.5], [5.5, 20.5], [18.5, 21]],
       looks: [['#6b705c', '#3f4238'], ['#5c946e', '#2f5a3e']],
       greet: ['Yerler pırıl pırıl!', 'Islak zemin, dikkat!', 'Çöp kutuları boşaltıldı.'] },
-    tech:    { name: 'Teknisyen', icon: '🔧', max: 2, salary: 460, title: '', desc: 'Yıpranan tıbbi cihazların bakımını kendiliğinden yapar.',
+    tech:    { name: 'Teknisyen', icon: '🔧', max: 2, salary: 280, title: '', desc: 'Yıpranan tıbbi cihazların bakımını kendiliğinden yapar.',
       points: [[22.5, 9.6], [27.5, 9.6], [21.5, 6.5], [25.5, 20.5]],
       looks: [['#30638e', '#22223b'], ['#d1495b', '#3d405b']],
       greet: ['Cihazlar kontrol edildi.', 'Kalibrasyon tamam.', 'Bir arıza varsa söyleyin.'] },
   };
   // Mevcut personelin maaş ve başlangıç özellikleri
   const BASE = {
-    receptionist: { salary: 400, trait: 'friendly', skill: 2 }, doctor1: { salary: 800, trait: 'expert', skill: 3 }, doctor2: { salary: 800, trait: 'friendly', skill: 2 },
-    laborant: { salary: 500, trait: 'tidy', skill: 2 }, pharmacist: { salary: 600, trait: 'fast', skill: 2 },
-    erNurse: { salary: 620, trait: 'diligent', skill: 3 }, erDoctor: { salary: 1000, trait: 'expert', skill: 3 }, labTech2: { salary: 480, trait: 'learner', skill: 2 }, pharmTech: { salary: 420, trait: 'fast', skill: 2 },
-    surgeon: { salary: 1300, trait: 'expert', skill: 4 }, anesth: { salary: 1100, trait: 'diligent', skill: 3 }, wardNurse: { salary: 600, trait: 'friendly', skill: 3 },
-    pediatrician: { salary: 1000, trait: 'friendly', skill: 3 }, radiologist: { salary: 1050, trait: 'tidy', skill: 3 }, dialysisNurse: { salary: 600, trait: 'diligent', skill: 2 },
+    receptionist: { salary: 240, trait: 'friendly', skill: 2 }, doctor1: { salary: 480, trait: 'expert', skill: 3 }, doctor2: { salary: 480, trait: 'friendly', skill: 2 },
+    laborant: { salary: 300, trait: 'tidy', skill: 2 }, pharmacist: { salary: 360, trait: 'fast', skill: 2 },
+    erNurse: { salary: 370, trait: 'diligent', skill: 3 }, erDoctor: { salary: 600, trait: 'expert', skill: 3 }, labTech2: { salary: 290, trait: 'learner', skill: 2 }, pharmTech: { salary: 250, trait: 'fast', skill: 2 },
+    surgeon: { salary: 780, trait: 'expert', skill: 4 }, anesth: { salary: 660, trait: 'diligent', skill: 3 }, wardNurse: { salary: 360, trait: 'friendly', skill: 3 },
+    pediatrician: { salary: 600, trait: 'friendly', skill: 3 }, radiologist: { salary: 630, trait: 'tidy', skill: 3 }, dialysisNurse: { salary: 360, trait: 'diligent', skill: 2 },
   };
   const FIRST_F = ['Ayşe', 'Zeynep', 'Elif', 'Merve', 'Derya', 'Sibel', 'Gizem', 'Esra', 'Nur', 'Pınar', 'Ece', 'Seda'];
   const FIRST_M = ['Ahmet', 'Mehmet', 'Can', 'Burak', 'Emre', 'Kerem', 'Tolga', 'Onur', 'Serkan', 'Umut', 'Barış', 'Kaan'];
@@ -65,7 +65,7 @@
   // ---------------------------------------------------------------- Durum
   const data = () => {
     const st = S();
-    st.staffData = st.staffData || { recs: {}, hired: [], candidates: [], restRoom: false, seq: 1 };
+    st.staffData = st.staffData || { recs: {}, hired: [], candidates: [], restRoom: false, seq: 1, payV: 2 };
     return st.staffData;
   };
   function rec(id) {
@@ -467,7 +467,7 @@
 
   // ---------------------------------------------------------------- Kayıt doğrulama
   function sanitize(d) {
-    const out = { recs: {}, hired: [], candidates: [], restRoom: false, seq: 1 };
+    const out = { recs: {}, hired: [], candidates: [], restRoom: false, seq: 1, payV: 2 };
     if (!d || typeof d !== 'object') return out;
     const num = (v, lo, hi, def) => (typeof v === 'number' && isFinite(v) ? clamp(v, lo, hi) : def);
     const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
@@ -483,11 +483,13 @@
       out.hired.push({ id: h.id, role: h.role, name: str(h.name, 40) || ROLES[h.role].name, look: { coat: col(lk.coat), pants: col(lk.pants), skin: col(lk.skin), hair: col(lk.hair), hairStyle: styles.includes(lk.hairStyle) ? lk.hairStyle : 'short' } });
     });
     const recs = d.recs && typeof d.recs === 'object' ? d.recs : {};
+    const payScale = d.payV === 2 ? 1 : 0.6; // v5 maaş dengelemesi: eski kayıtlardaki maaşlar %40 indirilir
+    out.payV = 2;
     Object.keys(recs).slice(0, 60).forEach((id) => {
       if (!/^[A-Za-z0-9]{1,20}$/.test(id)) return;
       const r = recs[id] || {};
       out.recs[id] = { skill: Math.round(num(r.skill, 1, 5, 2)), lvl: Math.round(num(r.lvl, 1, 10, 1)), xp: num(r.xp, 0, 1e4, 0), energy: num(r.energy, 0, 100, 100),
-        morale: num(r.morale, 0, 100, 72), salary: Math.round(num(r.salary, 0, 1e5, 600)), trait: TRAITS[r.trait] ? r.trait : null };
+        morale: num(r.morale, 0, 100, 72), salary: Math.round(num(r.salary, 0, 1e5, 360) * payScale / 10) * 10, trait: TRAITS[r.trait] ? r.trait : null };
     });
     return out;
   }

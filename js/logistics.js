@@ -136,16 +136,26 @@
       if (drive(truck, dt)) {
         truck.phase = 'unload';
         setStatus(truck.load.map((o) => o.tid), 'dock');
-        const look = { coat: '#8a6a4c', pants: '#3d405b', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', carry: 'bag', badge: '#2ec4b6' };
+        const look = { coat: '#8a6a4c', pants: '#3d405b', skin: '#c98d62', hair: '#2b1d14', hairStyle: 'short', carry: 'parcel', badge: '#2ec4b6' };
         courier = E().makeEntity('extra', { name: 'Kurye', look, x: 31.5, y: 7.1, speed: 1.9, floor: 0 });
         E().extraPeople.push(courier);
         E().say(courier, 'Vita Lojistik, teslimat!', 2200);
-        E().goTo(courier, 29.5, 4.5, (c) => {
-          deliver();
-          E().say(c, 'Teslim ettim, iyi nöbetler!', 2200);
-          c.look = Object.assign({}, c.look, { carry: null });
-          E().goTo(c, 31.5, 7.1, (cc) => { cc.gone = true; });
-        });
+        // Kurye kolileri birkaç seferde eczane deposuna taşır (yük büyüklüğüne göre 1-3 sefer)
+        const trips = Math.max(1, Math.min(3, truck.load.length));
+        let done = 0;
+        const trip = (c) => {
+          c.look = Object.assign({}, c.look, { carry: "parcel" });
+          E().goTo(c, 29.5, 4.5, (c2) => {
+            done++;
+            c2.look = Object.assign({}, c2.look, { carry: null });
+            if (done >= trips) {
+              deliver();
+              E().say(c2, "Teslim ettim, iyi nöbetler!", 2200);
+              E().goTo(c2, 31.5, 7.1, (cc) => { cc.gone = true; });
+            } else E().goTo(c2, 31.5, 7.1, (c3) => trip(c3));
+          });
+        };
+        trip(courier);
       }
     } else if (truck.phase === 'unload') {
       if (!courier || courier.gone) {

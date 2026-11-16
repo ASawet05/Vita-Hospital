@@ -20,8 +20,10 @@
       t.appendChild(el('span', { className: 'tk-icon' }));
       t.appendChild(el('span', { className: 'tk-text' }));
       t.appendChild(el('span', { className: 'tk-floor' }));
-      t.appendChild(el('span', { className: 'tk-more' }));
-      t.addEventListener('click', () => {
+      t.appendChild(el("span", { className: "tk-more" }));
+      t.appendChild(el("span", { className: "tk-pills" }));
+      t.addEventListener("click", (e) => {
+        if (e.target.closest(".tk-pills")) { pillClick(e.target.closest(".hud-chip")); return; }
         if (tCur && tCur.goal && VH.guide) VH.guide.setGoal(tCur.goal);
         tickerNext();
       });
@@ -49,7 +51,23 @@
     const t = $('ticker');
     if (tq.length) { tickerShow(tq.shift()); return; }
     tCur = null;
-    if (t) t.classList.remove('show');
+    if (t) { t.querySelector(".tk-icon").textContent = ""; t.querySelector(".tk-text").textContent = ""; t.querySelector(".tk-more").textContent = ""; t.querySelector(".tk-floor").hidden = true; t.classList.remove("alert"); }
+    tickerSync();
+  }
+  // Kalıcı durum hapları (acil uyarısı, kriz görevi, kombo) şeridin sağında tek satırda durur;
+  // şerit, mesaj ya da görünür hap varken açık kalır.
+  function pills() { return tickerEl().querySelector(".tk-pills"); }
+  function dockPill(id) { const c = $(id); if (c && c.parentNode !== pills()) pills().appendChild(c); }
+  function tickerSync() {
+    const t = tickerEl();
+    const any = [...pills().children].some((c) => !c.hidden);
+    t.classList.toggle("idle", !tCur);
+    if (tCur || any) { if (!t.classList.contains("show")) t.classList.add("show"); } else t.classList.remove("show");
+  }
+  function pillClick(c) {
+    if (!c) return;
+    if (c.id === "chip-event" && VH.hospital) VH.hospital.openPanel("gorevler");
+    else if (c.id === "chip-er" && VH.guide && VH.guide.focusEr) VH.guide.focusEr();
   }
   function tickerPush(item) {
     // Kuyruk şişerse önce sıradan bilgi mesajları düşülür
@@ -85,7 +103,11 @@
       hud.hidden = false;
       hud.innerHTML = '';
       items.forEach(([id, t]) => hud.appendChild(el('span', { id, className: 'hud-chip' }, t)));
+      // Kriz ve kombo çipleri HUD yerine tek satırlık bildirim şeridine yerleşir (üst üste binmez)
+      ["chip-event", "chip-combo"].forEach((id) => { const c = $(id); if (c) { c.hidden = true; dockPill(id); } });
+      tickerSync();
     },
+    tickerSync, dockPill,
     setChip(id, text) {
       const c = $(id);
       if (c && c.textContent !== text) c.textContent = text;
@@ -396,7 +418,8 @@
     setCombo(mult, frac, streak) {
       const c = $('chip-combo');
       if (!c) return;
-      c.hidden = !streak;
+      if (c.parentNode !== pills()) dockPill("chip-combo");
+      if (c.hidden !== !streak) { c.hidden = !streak; tickerSync(); }
       if (!streak) return;
       const text = mult > 1 ? `🔥 Kombo x${mult}` : '🔥 Kombo başladı';
       if (c.firstChild && c.firstChild.nodeType === 3 && c.firstChild.nodeValue === text) { /* aynı */ } else { c.textContent = text; c.appendChild(el('span', { className: 'combo-bar' })); }
@@ -409,11 +432,13 @@
     setAlert(text) {
       let c = $('chip-er');
       if (!c) {
-        c = el('span', { id: 'chip-er', className: 'hud-chip alert-chip' });
-        $('hud').insertBefore(c, $('hud').firstChild);
+        c = el("span", { id: "chip-er", className: "hud-chip alert-chip" });
+        pills().insertBefore(c, pills().firstChild);
       }
+      const was = c.hidden;
       c.hidden = !text;
-      if (c.textContent !== text) c.textContent = text || '';
+      if (c.textContent !== text) c.textContent = text || "";
+      if (was !== c.hidden) tickerSync();
     },
 
     /** HUD'daki vaka hedefi çipi (tıklanınca vaka dosyası açılır). */

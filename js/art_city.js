@@ -305,3 +305,98 @@
     ] });
   });
 })();
+
+// ================================================================ v6: ayrıntılı araç modelleri
+// Sivil sedan/SUV: tekerlek + jant, ön/arka cam, yan camlar ve dikmeler, yan aynalar, farlar,
+// stop lambaları, tamponlar, panjur ve zemin gölgesi. Yerel çerçeve: W=genişlik, D=uzunluk, ön yüz 'S'.
+(function () {
+  const VH = window.VH, A = VH.art, { hash, shade } = A;
+  const R = (k, fn, flat) => A.register(k, fn, flat);
+  const night = () => (VH.hospital ? VH.hospital.night : 0);
+  const PAL = ['#c0392b', '#2f6fa3', '#eef1f3', '#2b333b', '#e0b13a', '#4f8a4b', '#8e8e93', '#6c3483'];
+  function wheels(k, W, D, z1, inset) {
+    for (const [u, v] of [[inset, 0.55], [W - inset, 0.55], [inset, D - 0.6], [W - inset, D - 0.6]]) {
+      k.box(u - 0.07, v - 0.2, u + 0.07, v + 0.2, 0, z1, '#1a1f24', { deco: [
+        { dir: 'E', u0: 0.3, u1: 0.7, z0: z1 * 0.3, z1: z1 * 0.72, color: '#aab4bb', raw: true },
+        { dir: 'W', u0: 0.3, u1: 0.7, z0: z1 * 0.3, z1: z1 * 0.72, color: '#aab4bb', raw: true }] });
+    }
+  }
+  R('car', (k) => {
+    const o = k.o, W = k.W, D = k.D;
+    const h = hash(Math.round(o.x * 3), Math.round(o.y * 3));
+    const col = o.color || PAL[Math.floor(h * PAL.length)];
+    const suv = (o.suv !== undefined ? o.suv : hash(Math.round(o.y * 7), Math.round(o.x * 5)) > 0.62);
+    const b0 = 4, b1 = suv ? 17 : 13, c1 = suv ? 29 : 23;          // gövde ve kabin yükseklikleri
+    const glass = '#24384a', light = '#fff6c8', tail = o.braking ? '#ff2a2a' : '#b3202a';
+    const nt = night();
+    k.shadow(0.02, 0.05, W - 0.02, D - 0.02, 0.3);
+    wheels(k, W, D, suv ? 10 : 8, 0.14);
+    // alt gövde (kaput + bagaj): farlar, panjur, stop lambaları, yan etek ve kapı çizgisi
+    k.box(0.1, 0.1, W - 0.1, D - 0.1, b0, b1, col, { deco: [
+      { dir: 'S', u0: 0.06, u1: 0.24, z0: b1 - 5, z1: b1 - 2, color: light, raw: true },
+      { dir: 'S', u0: 0.76, u1: 0.94, z0: b1 - 5, z1: b1 - 2, color: light, raw: true },
+      { dir: 'S', u0: 0.3, u1: 0.7, z0: b0 + 3, z1: b1 - 4, color: '#1f262c', raw: true },
+      { dir: 'N', u0: 0.06, u1: 0.26, z0: b1 - 5, z1: b1 - 2, color: tail, raw: true },
+      { dir: 'N', u0: 0.74, u1: 0.94, z0: b1 - 5, z1: b1 - 2, color: tail, raw: true },
+      { dir: 'N', u0: 0.35, u1: 0.65, z0: b0 + 3, z1: b0 + 6, color: '#e9edf0', raw: true },
+      { dir: 'E', u0: 0.02, u1: 0.98, z0: b0, z1: b0 + 1.6, color: '#1f262c', raw: true },
+      { dir: 'W', u0: 0.02, u1: 0.98, z0: b0, z1: b0 + 1.6, color: '#1f262c', raw: true },
+      { dir: 'E', u0: 0.47, u1: 0.48, z0: b0 + 2, z1: b1, color: shade(col, -0.35), raw: true },
+      { dir: 'W', u0: 0.52, u1: 0.53, z0: b0 + 2, z1: b1, color: shade(col, -0.35), raw: true },
+    ] });
+    // tamponlar
+    k.box(0.08, D - 0.12, W - 0.08, D - 0.03, b0 - 1, b0 + 4, '#2a3138');
+    k.box(0.08, 0.03, W - 0.08, 0.12, b0 - 1, b0 + 4, '#2a3138');
+    // kabin: arka cam, yan camlar (dikmeli), tavan; SUV'de tavan rayı
+    const v0 = suv ? D * 0.16 : D * 0.28, v1 = suv ? D * 0.7 : D * 0.68;
+    k.box(0.17, v0, W - 0.17, v1, b1, c1, glass, { top: col, deco: [
+      { dir: 'E', u0: 0.47, u1: 0.53, z0: b1, z1: c1, color: col, raw: true },
+      { dir: 'W', u0: 0.47, u1: 0.53, z0: b1, z1: c1, color: col, raw: true },
+      { dir: 'E', u0: 0, u1: 0.06, z0: b1, z1: c1, color: col, raw: true }, { dir: 'W', u0: 0.94, u1: 1, z0: b1, z1: c1, color: col, raw: true },
+      { dir: 'E', u0: 0.12, u1: 0.3, z0: b1 + 3, z1: c1 - 2, color: 'rgba(255,255,255,0.18)', raw: true },
+    ] });
+    // ön cam (kademeli eğim) ve kaput çizgisi
+    k.box(0.2, v1, W - 0.2, v1 + D * 0.07, b1, c1 - (suv ? 5 : 4), glass, { top: shade(col, 0.05) });
+    if (!suv) k.box(0.2, v0 - D * 0.06, W - 0.2, v0, b1, c1 - 4, glass, { top: shade(col, 0.05) });
+    if (suv) { k.box(0.2, v0 + 0.05, 0.26, v1 - 0.05, c1, c1 + 2, '#3b4248'); k.box(W - 0.26, v0 + 0.05, W - 0.2, v1 - 0.05, c1, c1 + 2, '#3b4248'); }
+    // yan aynalar
+    k.box(0.02, v1 - 0.04, 0.12, v1 + 0.06, b1 + 1, b1 + 4, col);
+    k.box(W - 0.12, v1 - 0.04, W - 0.02, v1 + 0.06, b1 + 1, b1 + 4, col);
+    // gece farı ışığı
+    if (nt > 0.1) k.custom(W / 2, D + 0.6, 1, (c, sx, sy) => {
+      const g = c.createRadialGradient(sx, sy, 2, sx, sy, 34);
+      g.addColorStop(0, `rgba(255,240,190,${0.35 * nt})`); g.addColorStop(1, 'rgba(255,240,190,0)');
+      c.fillStyle = g; c.beginPath(); c.ellipse(sx, sy, 34, 16, 0, 0, Math.PI * 2); c.fill();
+    });
+  });
+
+  // Lojistik kargo kamyoneti: beyaz kasa üzerinde turkuaz şerit ve kırmızı medikal artı, arka kapılar,
+  // kabin camları, farlar, tamponlar ve jantlı tekerlekler.
+  R('logistics_truck', (k) => {
+    const W = k.W, D = k.D;
+    k.shadow(0.02, 0.05, W - 0.02, D - 0.02, 0.32);
+    wheels(k, W, D, 11, 0.12);
+    const cab = D * 0.7;
+    k.box(0.05, 0.05, W - 0.05, cab, 7, 46, '#f6f8fa', { deco: [
+      { dir: 'E', u0: 0.04, u1: 0.96, z0: 14, z1: 18, color: '#2ec4b6', raw: true }, { dir: 'W', u0: 0.04, u1: 0.96, z0: 14, z1: 18, color: '#2ec4b6', raw: true },
+      { dir: 'E', u0: 0.04, u1: 0.96, z0: 7, z1: 9, color: '#0f5e66', raw: true }, { dir: 'W', u0: 0.04, u1: 0.96, z0: 7, z1: 9, color: '#0f5e66', raw: true },
+      { dir: 'N', u0: 0.06, u1: 0.49, z0: 9, z1: 43, color: '#e2e7eb' }, { dir: 'N', u0: 0.51, u1: 0.94, z0: 9, z1: 43, color: '#e2e7eb' },
+      { dir: 'N', u0: 0.42, u1: 0.47, z0: 24, z1: 30, color: '#6f7d87', raw: true }, { dir: 'N', u0: 0.53, u1: 0.58, z0: 24, z1: 30, color: '#6f7d87', raw: true },
+      // yan yüzlerde kırmızı medikal artı
+      { dir: 'E', u0: 0.44, u1: 0.56, z0: 22, z1: 40, color: '#d62828', raw: true }, { dir: 'E', u0: 0.36, u1: 0.64, z0: 27, z1: 35, color: '#d62828', raw: true },
+      { dir: 'W', u0: 0.44, u1: 0.56, z0: 22, z1: 40, color: '#d62828', raw: true }, { dir: 'W', u0: 0.36, u1: 0.64, z0: 27, z1: 35, color: '#d62828', raw: true },
+    ] });
+    k.custom(W / 2, cab / 2, 47, (c, sx, sy) => {
+      c.fillStyle = '#d62828'; c.fillRect(sx - 7, sy - 2.2, 14, 4.4); c.fillRect(sx - 2.2, sy - 7, 4.4, 14);
+    });
+    k.box(0.08, cab + 0.04, W - 0.08, D - 0.1, 7, 32, '#2ec4b6', { deco: [
+      { dir: 'S', u0: 0.08, u1: 0.92, z0: 19, z1: 30, color: '#24384a', raw: true },
+      { dir: 'S', u0: 0.05, u1: 0.2, z0: 10, z1: 14, color: '#fff6c8', raw: true }, { dir: 'S', u0: 0.8, u1: 0.95, z0: 10, z1: 14, color: '#fff6c8', raw: true },
+      { dir: 'S', u0: 0.3, u1: 0.7, z0: 9, z1: 13, color: '#1f262c', raw: true },
+      { dir: 'E', u0: 0.15, u1: 0.85, z0: 19, z1: 29, color: '#24384a', raw: true }, { dir: 'W', u0: 0.15, u1: 0.85, z0: 19, z1: 29, color: '#24384a', raw: true },
+      { dir: 'E', u0: 0, u1: 1, z0: 7, z1: 9, color: '#0f5e66', raw: true }, { dir: 'W', u0: 0, u1: 1, z0: 7, z1: 9, color: '#0f5e66', raw: true },
+    ] });
+    k.box(0.06, D - 0.12, W - 0.06, D - 0.03, 5, 10, '#2a3138');
+    k.box(0.02, D - 0.32, 0.1, D - 0.24, 20, 24, '#2ec4b6'); k.box(W - 0.1, D - 0.32, W - 0.02, D - 0.24, 20, 24, '#2ec4b6');
+  });
+})();

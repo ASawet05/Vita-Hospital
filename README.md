@@ -75,6 +75,39 @@ Uygulamalar:
 - **Yükleme peronu:** Lojistik ve teknik servis aracı yerleşke içindeki yükleme peronuna yanaşır. Kurye kolileri eczane deposuna taşır. Teknisyen arızalı cihazı kıvılcımlı onarım animasyonuyla tamir eder.
 - **Güvenlik:** Nizamiyede devriye gezen bir güvenlik görevlisi var.
 
+## Kat kesiti ve bina cephesi
+
+- **Kesit görünüm:** Zemin kattayken yalnızca zemin katın tavanı açıktır. Asansörle 1., 2. veya 3. kata çıkınca alt katların iç mekânı çizilmez. Onların yerine binanın mavi-beyaz seramik ve cam giydirme cephesi kat kat aşağı uzanır, en altta kampüs zemini görünür. Böylece kaçıncı katta olduğunuz bir bakışta anlaşılır. Bodrum katta (B1) toprak kesiti çizilir.
+- **Kilitli katlar:** İnşa edilmemiş katlar cephede gri tonlu ve kilit rozetli görünür. Asansörden **👁 Önizle** ile kilitli kata çıkılabilir. Kat monokrom görünür ve alt bölümde açılış şartları ✓/✗ ile listelenir. Önizleme modunda yalnızca asansör kullanılabilir. Kat inşa edildiği anda gri ton çekilir ve kat renklenir.
+- **Kat şartları:** Asansörde ve Yönetim Paneli'nde her kilitli kat için üç şart ✓ (yeşil) veya ✗ (kırmızı) ile gösterilir: **Bütçe**, **İtibar Puanı** ve **Toplam Tamamlanan Vaka**. Vaka sayacı tüm oyun boyunca taburcu edilen ve acilde stabilize edilen her hastayı sayar ve kayda yazılır.
+- **Asansör tabelası:** Asansörün üstündeki LED panel bulunulan katın tam adını gösterir: `Zemin Kat`, `1. Kat - Cerrahi`, `2. Kat - Yatan Hasta`, `3. Kat - Radyoloji`, `B1 - Yemekhane`.
+
+## Oda mimarisi ve cihaz çizimleri
+
+- **Otomatik kapılar:** Kapılar çift kanatlı, sürgülü, buzlu cam kapılardır. Biri yaklaşınca kanatlar dışa kayar. Kapı üstündeki birim tabelaları birimin adını gösterir: `1 · MUAYENE`, `ECZANE`, `LABORATUVAR`, `AMELİYATHANE`, `MR`, `ACİL GİRİŞ` vb.
+- **MR ve radyoloji:** Silindirik gantri tüneli ve nabız gibi atan mavi LED halka vardır. Hasta sedyesi tarama sırasında tünele girip çıkar. Mavi camlı kontrol kabininde, çift monitörde MR kesitlerine bakan bir radyoloji uzmanı oturur. Duvarda radyasyon uyarı levhası bulunur.
+- **Ameliyathane:** Segmentli ameliyat masası ve steril örtü bulunur. Tavandan sarkan üç kollu LED lamba masaya ışık hüzmesi düşürür. Ayrıca vaporizatörlü ve körüklü, dalga formu monitörlü anestezi cihazı, serum askısı, Mayo alet tepsisi ve sayaçlı el yıkama ünitesi vardır.
+- **Laboratuvar:** Renkli tüplerle dönen santrifüj, sonuç ekranlı ve LED göstergeli analizör, numune konveyörü, mikroskop ve cam kapaklı numune dolabı (+4 °C) bulunur.
+- **Eczane:** Bankonun üstünde ışıklı yeşil artı ve ECZANE tabelası vardır. Bankoda barkod okuyucu bulunur, arkada renkli ilaç kutularıyla dolu yüksek raflar durur.
+- **Başhekimlik ve yemekhane:** Başhekimlikte yönetici masası, geniş monitör, döner koltuk, kitaplıklar, duvar sertifikaları ve saat bulunur. Yemekhanede benmari tezgâhından buhar yükselir.
+- **Araçlar:** Sivil araçlar sedan ya da SUV olarak çizilir: tekerlek ve jant, ön/arka cam, dikmeler, yan aynalar, far, stop lambası ve tampon. Gece farlar yere ışık düşürür. Lojistik kamyonetinin kasasında kırmızı medikal artı vardır. Kurye kolileri birkaç seferde eczane deposuna taşır.
+- **Kampüs:** Dalga animasyonlu süs havuzunda balıklar ve nilüferler vardır. Gece ana giriş tabelası parlar.
+
+## Durum rozetleri ve ekonomi
+
+- **Rozetler:**
+  - Bekleyen hastanın başında mavi saat rozeti vardır; halka kalan sabrı gösterir.
+  - Muayene, tetkik ve ameliyattaki hastanın başında yeşil artı ve parıltı görünür; halka işlem ilerlemesini gösterir.
+  - Ödeme yapan hastanın başında altın ₺ ve yeşil memnuniyet rozeti çıkar.
+  - Hastanın üstünden **+₺** ve **+★** yazıları yükselir.
+- **Personel animasyonları:** Temizlik görevlisinin peşinden paspas arabası gelir. Temizlik sırasında ıslak zemin uyarısı açılır. Teknisyenin başında anahtar simgesi ve onarım ilerleme çubuğu görünür.
+- **Ekonomi dengesi:**
+  - Personel maaşları yaklaşık %40 düşürüldü; eski kayıtlar da otomatik olarak uyarlanır.
+  - Taburcu geliri ₺190'dan ₺330'a çıktı.
+  - Muayene süresi 7–11 sn'den 5–8 sn'ye, tahlil süresi 5–8 sn'den 4–6 sn'ye indi.
+  - Sonuç: kasa her nöbette büyür ve yeni katlar için birikim yapılabilir.
+- **Tek satırlık bildirim şeridi:** Acil uyarısı, kriz görevi ve kombo barı HUD yerine üst bilgi çubuğunun altındaki şeride taşındı. Mesajlar şeridin solunda, kalıcı haplar sağında durur; artık hiçbiri üst üste binmez.
+
 ## Aşamalı otomasyon ve çok katlı hastane
 
 - **Başlangıç:** Yeni oyunda resepsiyon görevlisi, eczacı ve 2. muayene doktoru yoktur. Hasta kaydını resepsiyon bankosunda ("📋 Hastayı Kaydet"), ilaç teslimini eczanede siz yaparsınız. Yetişemezseniz hastalar sabrını yitirip gider.
@@ -233,6 +266,7 @@ js/build.js      Düzenleme modu: taşıma, döndürme, dekor, bağlantı deneti
 js/progress.js   Hastane puanı, temizlik, ücret politikası, olaylar, görevler, başarımlar
 js/world.js      Trafik, yayalar, güvercinler, kuşlar, yağmur, far ışıkları
 js/art_city.js   Korkuluk, nizamiye, bariyer, apartman, çocuk parkı, ek bina, yemekhane eşyaları, MR, kamyon
+js/art_med.js    Ayrıntılı tıbbi cihazlar (MR + kontrol kabini, ameliyathane, laboratuvar, eczane, başhekimlik), süs havuzu
 js/logistics.js  Eczane stoku, sipariş, lojistik kamyonu ve kurye, yedek parça teslimatı
 js/terminal.js   Başhekimlik bilgisayarı (Yönetim Terminali), uyarı merkezi, Başhekim Karnesi
 js/surgery.js    Ameliyathane akışı ve cerrahi mini oyunlar
@@ -279,6 +313,8 @@ Bazı senaryolar PubMed'de yer alan kaynaklarla desteklenmiştir. İlgili sonuç
 - Levotiroksin alım zamanı: Pediatr Endocrinol Diabetes Metab 2021 ([10.5114/pedm.2021.105635](https://doi.org/10.5114/pedm.2021.105635))
 - Uzun süreli metformin ve B12 eksikliği: J Clin Endocrinol Metab 2016 ([10.1210/jc.2015-3754](https://doi.org/10.1210/jc.2015-3754))
 - Çocuklarda ameliyat öncesi açlık, ESAIC 2022 ([10.1097/EJA.0000000000001599](https://doi.org/10.1097/EJA.0000000000001599))
+- Cerrahi el antisepsisi, Cochrane 2016 ([10.1002/14651858.CD004288.pub3](https://doi.org/10.1002/14651858.CD004288.pub3))
+- MR ve vücutta kalmış ferromanyetik cisimler: J Magn Reson Imaging 2026 ([10.1002/jmri.70199](https://doi.org/10.1002/jmri.70199))
 
 ## Lisans
 

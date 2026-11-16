@@ -60,6 +60,11 @@
 
   function doInteract(t) {
     if (!t) return;
+    // Kilitli kat önizlemesi: yalnızca asansör kullanılabilir
+    const pf = VH.entities.player.floor;
+    if (VH.hospital.floorOpen && !VH.hospital.floorOpen(pf) && !(t.type === "device" && t.ref && t.ref.tag === "elevator")) {
+      VH.ui.toast("🔒 Bu kat henüz inşa edilmedi · şartlar için asansöre dönün", 2200); return;
+    }
     VH.entities.interact(t);
   }
 
@@ -211,7 +216,7 @@
   let textSize = +(load('vh.textSize') || 1) % 3;
   function applyTextSize() { document.body.classList.remove('ts-0', 'ts-1', 'ts-2'); document.body.classList.add('ts-' + textSize); }
   // Ameliyathane, Başhekimlik, eczane gibi odalara girince kamera yumuşakça yakınlaşır, çıkınca geri döner
-  const FOCUS = new Set(['office', 'pharmacy', 'exam1', 'exam2', 'lab', 'or1', 'recovery', 'scrub', 'peds', 'nurse', 'xray', 'us', 'ecg', 'report', 'kitchen']);
+  const FOCUS = new Set(['office', 'pharmacy', 'exam1', 'exam2', 'lab', 'or1', 'recovery', 'scrub', 'peds', 'nurse', 'xray', 'us', 'ecg', 'report', 'kitchen', 'dialysis', 'surgclin', 'cafe', 'sterile']);
   let lastRoomKey = '', focusRoom = null, dimA = 0;
   // Odaklanılan odanın dışını hafifçe karartır (oda zemini + duvar yüksekliği kadar dışbükey zarf)
   function hull(pts) {
@@ -237,6 +242,44 @@
     poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
     ctx.fillStyle = `rgba(6,16,26,${0.38 * dimA})`;
     ctx.fill('evenodd');
+    ctx.restore();
+  }
+  // Kilitli kat önizlemesi: tüm sahne gri tonlu (monokrom) + kilit rozeti ve açılış şartları.
+  // Kat inşa edildiği anda gri ton yumuşakça çekilir ve kat renklenir.
+  let lockFade = 0;
+  function drawLockedFloor(dt) {
+    const H = VH.hospital, f = VH.map.floor;
+    const locked = !!(H.floorOpen && !H.floorOpen(f));
+    lockFade += Math.sign((locked ? 1 : 0) - lockFade) * Math.min(Math.abs((locked ? 1 : 0) - lockFade), dt * (locked ? 4 : 0.9));
+    if (lockFade < 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = lockFade;
+    ctx.globalCompositeOperation = 'saturation'; ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, vw, vh);
+    ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = 'rgba(12,18,26,0.28)'; ctx.fillRect(0, 0, vw, vh);
+    ctx.restore();
+    if (!locked) return;
+    const sv = H.serviceOfFloor(f);
+    if (!sv) return;
+    const reqs = H.reqList(sv);
+    const w = Math.min(340, vw - 32), h = 70 + reqs.length * 21;
+    const x = (vw - w) / 2, y = Math.max(110, vh - h - (vw < 700 ? 240 : 130)); // alt bölümde; mobilde joystick üstünde
+    ctx.save();
+    ctx.fillStyle = 'rgba(14,22,30,0.9)'; ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, 14); else ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffd166'; ctx.font = '800 15px system-ui,sans-serif';
+    ctx.fillText('🔒 ' + VH.map.floorName(f), vw / 2, y + 20);
+    ctx.fillStyle = '#c9d6de'; ctx.font = '500 11.5px system-ui,sans-serif';
+    ctx.fillText('Önizleme · Başhekim bilgisayarından inşa edin', vw / 2, y + 40);
+    ctx.textAlign = 'left'; ctx.font = '600 12.5px system-ui,sans-serif';
+    reqs.forEach((r, i) => {
+      const ly = y + 62 + i * 21;
+      ctx.fillStyle = r.ok ? '#46c46a' : '#ff6b6b';
+      ctx.fillText((r.ok ? '✓ ' : '✗ ') + r.label, x + 18, ly);
+      ctx.textAlign = 'right'; ctx.fillStyle = '#eef4f7';
+      ctx.fillText(r.have + ' / ' + r.need, x + w - 18, ly);
+      ctx.textAlign = 'left';
+    });
     ctx.restore();
   }
   function updateFocus() {
@@ -268,6 +311,7 @@
     VH.ui.setChip('chip-level', `🏥 Sv. ${VH.hospital.level()}`);
     VH.map.facadeTier = Object.keys(S.services || {}).filter((k) => S.services[k]).length;
     VH.progress.hud();
+    VH.ui.tickerSync();
     const sh = VH.hospital.shift, ss = Math.max(0, Math.ceil(sh.t));
     VH.ui.setChip('chip-shift', `${VH.hospital.isNightShift ? '🌙' : '☀️'} Nöbet ${sh.n} · ${Math.floor(ss / 60)}:${String(ss % 60).padStart(2, '0')}`);
     const cb = VH.hospital.combo;
@@ -289,6 +333,7 @@
       if (VH.paused && !VH.ui.isDialogOpen() && !document.getElementById('surgery') && !document.getElementById('os')) VH.paused = false;
     }
   }
+  const doorEnts = [];
   function tick(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -309,6 +354,7 @@
     VH.guide.update(dt);
     updateFocus();
     cam().update(dt);
+    { const E = VH.entities, f = VH.map.floor; doorEnts.length = 0; doorEnts.push(E.player); for (const e of E.staff) if ((e.floor || 0) === f) doorEnts.push(e); for (const e of E.patients) if ((e.floor || 0) === f && !e.gone) doorEnts.push(e); VH.map.updateDoors(dt, doorEnts); }
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -316,6 +362,7 @@
       { ground: VH.world.drawGround, lights: VH.world.drawLights, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
     VH.world.drawSky(ctx, vw, vh);
     drawFocusDim(dt);
+    drawLockedFloor(dt);
     VH.build.drawOverlay(ctx, vw, vh);
     VH.equipment.drawOverlay(ctx, vw, vh);
     VH.guide.drawOverlay(ctx, vw, vh);
@@ -359,6 +406,7 @@
     if (params.get('follow') === '0') c.follow = false;
     if (params.get('labels') === '0') VH.map.labels = false;
     if (params.has('touch')) document.body.classList.add('touch');
+    if (params.has('floor')) { VH.hospital.travel(+params.get('floor')); if (params.has('zoom')) { c.want = null; c.zoom = +params.get('zoom'); } if (params.has('x') && params.has('y')) { c.follow = false; c.centerOnWorld(+params.get('x'), +params.get('y')); } }
 
     VH.ui.hideLoader();
     // Sade HUD: Seviye · Bütçe · İtibar (💎) · Enerji önde; diğerleri masaüstünde ikincil

@@ -290,6 +290,7 @@
   const energy = () => { const st = S(); if (typeof st.energy !== 'number') st.energy = 100; return st.energy; };
   let coffeeT = 0, warn30 = false, warn15 = false;
   function setEnergy(v) {
+    if (typeof v !== "number" || !isFinite(v)) v = 100;
     S().energy = Math.max(0, Math.min(100, v));
     if (S().energy > 40) { warn30 = false; warn15 = false; }
   }
@@ -308,17 +309,26 @@
     if (k === 'stabTime') return e < 15 ? 1.2 : 1;
     return 1;
   }
+  // Yemek / kahve alma: oyun döngüsünü asla durdurmaz. Enerji 0..100 aralığına sıkıştırılır (Math.min(100, e + x)),
+  // çift tıklama 600 ms içinde yok sayılır; ses, emoji, bildirim ve olay yayını ayrı ayrı korunur.
+  let lastEat = 0;
   function eat(kind) {
-    const food = kind === 'food';
+    const t = performance.now();
+    if (t - lastEat < 600) return;
+    lastEat = t;
+    const food = kind === "food";
     const cost = food ? 60 : 20;
-    if (S().budget < cost) { UI().toast('Bütçe yetersiz', 1600); return; }
-    S().budget -= cost;
-    setEnergy(energy() + (food ? 60 : 22));
+    const st = S();
+    if (!(typeof st.budget === "number" && isFinite(st.budget)) || st.budget < cost) { try { UI().toast("Bütçe yetersiz", 1600); } catch (_) { /* yok */ } return; }
+    st.budget -= cost;
+    const cur = energy();
+    setEnergy(Math.min(100, (isFinite(cur) ? cur : 0) + (food ? 60 : 22)));
     if (!food) coffeeT = 40;
-    E().player.emote = { icon: food ? '😋' : '☕', until: performance.now() + 2200 };
-    sound('ok');
-    UI().toast(food ? `🍽️ Afiyet olsun! Enerji %${Math.round(energy())}` : `☕ Kahve: enerji %${Math.round(energy())}, 40 sn hız bonusu`, 2200);
-    if (VH.emit) VH.emit('eat', { kind });
+    const safe = (fn) => { try { fn(); } catch (err) { console.warn("[VH.eat]", err); } };
+    safe(() => { const P = E() && E().player; if (P) P.emote = { icon: food ? "😋" : "☕", until: t + 2200 }; });
+    safe(() => sound("ok"));
+    safe(() => UI().toast(food ? `🍽️ Afiyet olsun! Enerji %${Math.round(energy())}` : `☕ Kahve: enerji %${Math.round(energy())}, 40 sn hız bonusu`, 2200));
+    safe(() => { if (VH.emit) VH.emit("eat", { kind }); });
   }
   const diners = [];
   function initCafe() {

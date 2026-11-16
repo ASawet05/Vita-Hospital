@@ -33,7 +33,7 @@
     { id: 'exam', icon: '🩺', name: 'Muayene Masaları', kinds: ['exam_table'], time: { examTime: [1, 0.9, 0.8] }, casePatience: [0, 1, 2],
       models: ['Standart Muayene Masası', 'Ergonomik Muayene Masası', 'Dijital Muayene Seti'], costs: [0, 4000, 9000], rep: [0, 30, 50],
       effects: ['', 'Muayene %10 kısalır, vaka hastasının sabrı +1 soru.', 'Muayene %20 kısalır, vaka sabrı +2 soru.'] },
-    { id: 'pharmacy', icon: '💊', name: 'Eczane Otomasyonu', kinds: ['med_cabinet'], tagKinds: ['pharmacy_counter'], time: { pharmacyWait: [1, 0.85, 0.7] }, autoBonus: [0, 100, 200],
+    { id: 'pharmacy', icon: '💊', name: 'Eczane Otomasyonu', kinds: ['med_cabinet', 'pharmacy_shelf'], tagKinds: ['pharmacy_counter'], time: { pharmacyWait: [1, 0.85, 0.7] }, autoBonus: [0, 100, 200],
       models: ['Manuel Raf Sistemi', 'Barkodlu Stok Sistemi', 'Robotik Eczane'], costs: [0, 4000, 9000], rep: [0, 30, 50],
       effects: ['', 'Eczane teslimi %15 hızlı, otomatik teslimde +₺100.', 'Teslim %30 hızlı, otomatik teslimde +₺200.'] },
     { id: 'imaging', icon: '📡', name: 'Röntgen, MR & İleri Tanı', kinds: ['xray', 'ultrasound', 'ct_scanner', 'mri'], needs: 'radiology', testsBonus: [0, 500, 1000], scan: [1, 1.3, 1.6],
@@ -206,14 +206,14 @@
       case 'xray': case 'ultrasound':
         k.box(0.05, 0.05, 0.3, 0.15, 30, 46, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 32, 44, '#0b3a5a')] });
         break;
-      case 'med_cabinet':
+      case 'med_cabinet': case 'pharmacy_shelf':
         k.box(0.15, 0.85, 0.85, 0.92, 2, 6, col);
         break;
-      case 'counter':
+      case 'counter': case 'pharmacy_counter':
         if (k.o.tag === 'pharmacy_counter') {
-          k.box(0.2, 0.35, 0.45, 0.5, 27, 38, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 29, 36, '#0f5e66')] });
-          k.box(0.6, 0.5, 0.75, 0.6, 27, 31, '#f2c94c');
-          if (L >= 3) k.box(W - 0.6, 0.3, W - 0.1, 0.45, 27, 46, '#c9d1d6', { deco: [{ dir: '*', u0: 0.1, u1: 0.9, z0: 40, z1: 43, color: '#2ec4b6', raw: true }] });
+          k.box(0.2, 0.35, 0.45, 0.5, 29, 40, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 29, 36, '#0f5e66')] });
+          k.box(0.6, 0.5, 0.75, 0.6, 29, 33, '#f2c94c');
+          if (L >= 3) k.box(W - 0.3, 0.3, W - 0.05, 0.42, 29, 48, '#c9d1d6', { deco: [{ dir: '*', u0: 0.1, u1: 0.9, z0: 40, z1: 43, color: '#2ec4b6', raw: true }] });
         }
         break;
       default: break;
@@ -222,7 +222,7 @@
     k.custom(0.5, 0.5, 2, (c, sx, sy) => { c.fillStyle = col; c.globalAlpha = 0.85; c.beginPath(); c.ellipse(sx, sy + 1, 4, 2, 0, 0, Math.PI * 2); c.fill(); c.globalAlpha = 1; });
   }
   function wrapArt() {
-    const kinds = new Set(['counter']);
+    const kinds = new Set(['counter', 'pharmacy_counter']);
     CATS.forEach((c) => c.kinds.forEach((k) => kinds.add(k)));
     kinds.forEach((kind) => {
       const orig = VH.art.get(kind);
@@ -276,6 +276,14 @@
       if (!s.task || s.task.kind !== 'repair' || s.path.length || s.floor !== E().player.floor) continue;
       const [ix, iy] = M().worldToIso(s.x, s.y);
       const [sx, sy] = cam.toScreen(ix, iy - 22, vw, vh);
+      // anahtar simgesi ve ilerleme çubuğu
+      if (s.task.t0 === undefined) s.task.t0 = Math.max(0.5, s.task.t || 3);
+      const pr = Math.max(0, Math.min(1, 1 - (s.task.t || 0) / s.task.t0));
+      ctx.fillStyle = "rgba(10,20,30,0.75)"; ctx.fillRect(sx - 17, sy - 40, 34, 6);
+      ctx.fillStyle = "#2ec4b6"; ctx.fillRect(sx - 16, sy - 39, 32 * pr, 4);
+      ctx.save(); ctx.translate(sx, sy - 50); ctx.rotate(Math.sin(now / 140) * 0.5);
+      ctx.font = "13px system-ui, \"Segoe UI Emoji\", sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🔧", 0, 0);
+      ctx.restore();
       for (let i = 0; i < 7; i++) {
         const p = ((now / 420) + i / 7) % 1, a = i * 2.4 + now / 300;
         ctx.fillStyle = `rgba(255,${200 - i * 12},80,${1 - p})`;

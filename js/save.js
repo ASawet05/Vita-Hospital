@@ -44,6 +44,7 @@
       upgrades: st.upgrades, hires: st.hires, services: st.services,
       dev: st.dev, shiftN: st.shiftN, shiftT: st.shiftT, shiftLog: (st.shiftLog || []).slice(-10),
       solved: st.solved.slice(-300),
+      casesTotal: st.casesTotal || 0,
       order: st.order, idx: st.idx,
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
       introSeen: VH.cases.introSeen,
@@ -82,6 +83,8 @@
         cases: int(s.cases, 0, 0, 1e5), pharmacy: int(s.pharmacy, 0, 0, 1e5), angry: int(s.angry, 0, 0, 1e5), rep: int(s.rep, 0, -100, 100),
         income: int(s.income, 0, -1e9, 1e9), bestCombo: int(s.bestCombo, 1, 1, 3), payroll: int(s.payroll, 0, 0, 1e7) })),
       solved, order,
+      // Eski kayıtlarda toplam vaka sayacı yoksa taburcu sayısı + çözülen vakalardan tahmin edilir
+      casesTotal: isNum(d.casesTotal) ? int(d.casesTotal, 0, 0, 1e7) : int((d.stats && d.stats.served) || 0, 0, 0, 1e7) + solved.length,
       idx: int(d.idx, 0, 0, order.length),
       stats: {
         registered: int(d.stats && d.stats.registered, 0, 0, 1e7),
@@ -123,6 +126,7 @@
     st.upgrades = c.upgrades; st.hires = c.hires; st.services = c.services;
     st.dev = c.dev; st.shiftN = c.shiftN; st.shiftT = c.shiftT; st.shiftLog = c.shiftLog;
     st.solved = c.solved; st.order = c.order; st.idx = c.idx;
+    st.casesTotal = c.casesTotal;
     if (c.staffData) st.staffData = c.staffData;
     if (c.equip) st.equip = c.equip;
     if (c.layout) st.layout = c.layout;

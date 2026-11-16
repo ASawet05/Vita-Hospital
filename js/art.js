@@ -561,10 +561,17 @@
         const g = VH.guide && VH.guide.current && VH.guide.current.target;
         let arrow = '';
         if (g && g.floor !== undefined && g.floor !== f) arrow = LV[g.floor] > LV[f] ? '▲' : '▼';
-        c.fillStyle = '#16323f'; c.fillRect(sx - 12, sy - 7, 24, 14);
-        c.fillStyle = '#2ec4b6'; c.font = '800 9px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        const NAMES = ["Zemin Kat", "1. Kat - Cerrahi", "2. Kat - Yatan Hasta", "3. Kat - Radyoloji", "B1 - Yemekhane"];
+        c.fillStyle = "#16323f"; c.fillRect(sx - 12, sy - 7, 24, 14);
+        c.fillStyle = "#2ec4b6"; c.font = "800 9px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
         c.fillText(LBL[f] || String(f), sx - (arrow ? 4 : 0), sy);
-        if (arrow) { c.fillStyle = Math.floor(performance.now() / 400) % 2 ? '#ffd166' : '#f2a93b'; c.fillText(arrow, sx + 7, sy); }
+        if (arrow) { c.fillStyle = Math.floor(performance.now() / 400) % 2 ? "#ffd166" : "#f2a93b"; c.fillText(arrow, sx + 7, sy); }
+        // Kat adı tabelası (LED panel): bulunulan katın tam adı
+        const nm = NAMES[f] || ""; c.font = "700 8.5px system-ui,sans-serif";
+        const tw = c.measureText(nm).width + 14;
+        c.fillStyle = "rgba(10,24,32,0.92)"; c.beginPath(); c.roundRect ? c.roundRect(sx - tw / 2, sy - 24, tw, 13, 3) : c.rect(sx - tw / 2, sy - 24, tw, 13); c.fill();
+        c.strokeStyle = "#2ec4b6"; c.lineWidth = 1; c.stroke();
+        c.fillStyle = "#e9fffb"; c.fillText(nm, sx, sy - 17.5);
       });
     },
 

@@ -689,7 +689,7 @@
       if (!p) break;
       ch.patient = p; p.state = 'toLab'; p.labRef = ch;
       goTo(p, ch.seat[0], ch.seat[1], (e) => {
-        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(5, 8) * mod("labTime") * sf('laborant');
+        sitAt(e, ch.seat, 9); e.state = 'lab'; e.timer = rand(4, 6) * mod("labTime") * sf('laborant');
         const tech = staffById('laborant');
         tech.busy = true;
         goTo(tech, ch.tech[0], ch.tech[1], (t) => { faceToward(t, ch.seat[0], ch.seat[1]); say(t, 'Küçük bir iğne batması hissedeceksiniz.', 2400); });
@@ -705,7 +705,7 @@
     goTo(p, ex.bed[0], ex.bed[1], (e) => {
       sitAt(e, ex.bed, 13); e.state = 'exam';
       // Vaka hastası, Başhekim karar verene kadar odada kalır
-      e.timer = e.caseRef ? Infinity : rand(7, 11) * mod("examTime") * sf(ex.doctor);
+      e.timer = e.caseRef ? Infinity : rand(5, 8) * mod("examTime") * sf(ex.doctor);
       const doc = staffById(ex.doctor);
       doc.busy = true;
       goTo(doc, ex.docSpot[0], ex.docSpot[1], (d) => { faceToward(d, ex.bed[0], ex.bed[1]); say(d, 'Nasıl şikâyetiniz, anlatın lütfen.', 2600); });
@@ -823,7 +823,7 @@
     operating_table:  { name: 'Ameliyat Masası', action: 'İncele', icon: '🩻', info: 'Ameliyathane hazır. Travma hastaları stabilize edildikten sonra cerrahi değerlendirmeye alınabiliyor (acil travma ödülü +%50).' },
     surgical_lamp:    { name: 'Ameliyat Lambası', action: 'İncele', icon: '💡', info: 'Gölgesiz ameliyat lambası kalibre edildi.' },
     anesthesia:       { name: 'Anestezi Cihazı', action: 'İncele', icon: '😷', info: 'Anestezi cihazı günlük kontrolden geçti.' },
-    scrub:            { name: 'Cerrahi El Yıkama İstasyonu', action: 'İncele', icon: '🧼', info: 'Cerrahi el antisepsisi en az 2-3 dakika sürer. Enfeksiyon önlemenin temel adımıdır.' },
+    scrub:            { name: 'Cerrahi El Yıkama İstasyonu', action: 'İncele', icon: '🧼', info: 'Cerrahi el antisepsisi ameliyat öncesi el florasını azaltır. Cochrane derlemesine göre 3 dakikalık ilk fırçalama, 2 dakikalığa göre ellerdeki bakteri sayısını daha çok düşürdü (kanıt düzeyi düşük); hiçbir antiseptik türünün enfeksiyonu belirgin biçimde daha iyi önlediği gösterilemedi.', sources: ['handAntisepsis'] },
     ward_bed:         { name: 'Servis Yatağı', action: 'İncele', icon: '🛏️', info: 'Yatan hasta servisi: acil serviste stabilize edilen hastalar buraya yatırılıyor (+₺500 yatış geliri).' },
     incubator:        { name: 'Küvöz', action: 'İncele', icon: '👶', info: 'Pediatri servisi: çocuk vakalarında doğru uzman yönlendirmesi ek ödül getirir.' },
     nurse_station:    { name: 'Hemşire İstasyonu', action: 'İncele', icon: '📋', info: 'Hemşire istasyonu: ilaç saatleri ve hasta takip çizelgeleri burada tutuluyor.' },
@@ -832,7 +832,7 @@
     ecg:              { name: 'EKG Cihazı', action: 'İncele', icon: '💓', info: 'EKG kalbin elektriksel aktivitesini kaydeder; çarpıntı ve göğüs ağrısında temel tetkiktir.' },
     dialysis:         { name: 'Diyaliz Makinesi', action: 'İncele', icon: '🩸', info: 'Diyaliz ünitesi böbrek hastalarına haftada birkaç seans hizmet verir.' },
     pacs:             { name: 'Görüntüleme Arşivi (PACS)', action: 'İncele', icon: '🖥️', info: 'Tüm görüntüleme raporları dijital arşivde saklanıyor.' },
-    mri:              { name: 'MR Cihazı', action: 'İncele', icon: '🧲', info: 'MR güçlü manyetik alan kullanır; kalp pili gibi implantı olan hastalarda çekim öncesi uygunluk mutlaka kontrol edilir.' },
+    mri:              { name: 'MR Cihazı', action: 'İncele', icon: '🧲', info: 'MR güçlü manyetik alan kullanır: ferromanyetik cisimler (çelik içeren metal parçalar, bazı mermi çekirdekleri) çekilip mermi gibi fırlayabilir veya görüntüde artefakt yapar. Kalp pili / implant ve vücutta metal yabancı cisim olan hastalarda çekim öncesi tarama zorunludur.', sources: ['mriImplant', 'mriFerro'] },
     ct:               { name: 'BT Tarayıcı', action: 'İncele', icon: '🖥️', info: 'Bilgisayarlı tomografi inme ve travmada hızlı tanı sağlar; radyasyon dozu nedeniyle gereksiz çekimden kaçınılır.' },
     food_counter:     { name: 'Yemek Tezgâhı', action: '🍽️ Yemek Al (₺60)', icon: '🍽️' },
     coffee_bar:       { name: 'Kahve Köşesi', action: '☕ Kahve Al (₺20)', icon: '☕' },
@@ -938,6 +938,12 @@
       case 'archive_terminal': text = 'Vaka arşivi: henüz çözülmüş vaka yok.'; break;
       default: text = dv.info || 'Acil serviste şu an kritik hasta yok. Ambulans geldiğinde siren duyacaksınız.';
     }
+    if (dv.sources && VH.content) {
+      const node = document.createElement("div");
+      const p = document.createElement("p"); p.textContent = text; node.appendChild(p);
+      node.appendChild(VH.content.sourcesNode(dv.sources));
+      return { icon: dv.icon, title: dv.name, subtitle: dv.action, text, node };
+    }
     return { icon: dv.icon, title: dv.name, subtitle: dv.action, text };
   }
 
@@ -992,7 +998,19 @@
   function drawables(map) {
     const now = performance.now();
     const all = [player].concat(staff, patients, extraPeople).filter((e) => e.floor === map.floor && !e.gone);
-    return all.map((e) => {
+    // Temizlik görevlisinin paspas arabası: görevliyi yarım adım geriden izler; temizlikte "ıslak zemin" uyarısı açılır
+    const carts = [];
+    for (const e of all) {
+      if (e.kind !== "staff" || !e.look || e.look.carry !== "mop") continue;
+      const c = e._cart || (e._cart = { x: e.x - 0.6, y: e.y });
+      const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+      if (d > 0.75) { c.x += dx * (1 - 0.75 / d); c.y += dy * (1 - 0.75 / d); }
+      if (d > 4) { c.x = e.x - 0.6; c.y = e.y; }
+      const o = { k: "mop_cart", x: c.x - 0.5, y: c.y - 0.5, w: 1, h: 1, wet: !!(e.task && e.task.kind === "clean" && !e.moving) };
+      const [cx, cy] = map.worldToIso(c.x, c.y);
+      carts.push({ kind: "cart", key: map.depthAt(c.x, c.y), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
+    }
+    return carts.concat(all.map((e) => {
       const [sx, sy] = map.worldToIso(e.x, e.y);
       let angle = 0;
       if (e.lying) { const [ax, ay] = map.worldToIso(e.x + 1, e.y); angle = Math.atan2(ay - sy, ax - sx); }
@@ -1011,7 +1029,7 @@
           sitting: e.sitting, lift: e.lift, ring: e === player, lying: e.lying, angle, chair: !!e.chair, mood: moodOf(e), stretcher: !!e.stretcher && !e.lying, work: working,
         }),
       };
-    });
+    }));
   }
 
   function bubble(ctx, x, y, text, accent) {
@@ -1039,6 +1057,52 @@
     lines.forEach((l, i) => ctx.fillText(l, x, by + 6 + i * 15));
   }
 
+  // ---------------------------------------------------------------- Durum rozetleri ve yüzen yazılar
+  const WAIT_ST = new Set(['queue', 'waiting', 'labWait', 'pharmacy', 'regWait', 'toSeat']);
+  const TREAT_ST = new Set(['exam', 'lab', 'registering', 'imaging', 'surgery', 'dialysis', 'resident', 'scan']);
+  const floaters = [];
+  /** Dünya konumunda yukarı süzülen yazı (ör. +₺330, +★). */
+  function floatText(x, y, floor, text, color, dx) {
+    if (floaters.length > 40) floaters.shift();
+    floaters.push({ x, y, floor: floor || 0, text, color: color || '#ffd166', dx: dx || 0, t0: performance.now() });
+  }
+  function statusBadge(ctx, sx, sy, kind, p, now) {
+    const col = kind === 'wait' ? '#2f78d6' : kind === 'treat' ? '#2fa557' : '#e2a21b';
+    // ilerleme halkası: bekleme → kalan sabır; tedavi → zamanlayıcı; ödeme → dolu
+    let prog = 1;
+    if (kind === 'wait') prog = p.patience !== undefined ? p.patience / 100 : 1;
+    else if (kind === 'treat') {
+      if (isFinite(p.timer) && p.timer > 0) { p._tMax = Math.max(p._tMax && p._tState === p.state ? p._tMax : 0, p.timer); p._tState = p.state; prog = 1 - p.timer / p._tMax; }
+      else prog = (now / 1600) % 1;
+    }
+    ctx.fillStyle = 'rgba(10,20,30,0.35)'; ctx.beginPath(); ctx.arc(sx, sy + 1.5, 9.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy, 8.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(sx, sy, 10.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = kind === 'wait' && prog < 0.5 ? '#ffb347' : '#ffffff'; ctx.beginPath();
+    ctx.arc(sx, sy, 10.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, Math.min(1, prog))); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.fillStyle = '#fff'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    if (kind === 'wait') {
+      ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.stroke();
+      const a = now / 700;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy - 3.6); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a) * 3, sy + Math.sin(a) * 3); ctx.stroke();
+    } else if (kind === 'treat') {
+      ctx.fillRect(sx - 4.5, sy - 1.5, 9, 3); ctx.fillRect(sx - 1.5, sy - 4.5, 3, 9);
+      // parıltı
+      const a = now / 380;
+      for (let i = 0; i < 3; i++) {
+        const b = a + i * 2.1, r = 12 + Math.sin(now / 200 + i) * 1.5;
+        const px = sx + Math.cos(b) * r, py = sy + Math.sin(b) * r;
+        ctx.fillStyle = 'rgba(200,255,210,0.9)'; ctx.beginPath(); ctx.moveTo(px, py - 2.2); ctx.lineTo(px + 0.7, py); ctx.lineTo(px, py + 2.2); ctx.lineTo(px - 0.7, py); ctx.closePath(); ctx.fill();
+      }
+    } else {
+      ctx.font = '900 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#3a2600'; ctx.fillText('₺', sx, sy + 0.5);
+      // yeşil memnuniyet rozeti
+      ctx.fillStyle = '#2fa557'; ctx.beginPath(); ctx.arc(sx + 10, sy - 7, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx + 10, sy - 7.5, 2.6, 0.2, Math.PI - 0.2); ctx.stroke();
+    }
+  }
+
   /** Ekran-uzayı katmanı: konuşma balonları ve etkileşim ikonu. */
   function drawOverlay(ctx, vw, vh, focus, touch) {
     const cam = M().camera, z = cam.zoom, now = performance.now();
@@ -1052,6 +1116,37 @@
       const [sx, sy] = head(e);
       if (sx < -100 || sx > vw + 100 || sy < -60 || sy > vh + 60) continue;
       bubble(ctx, sx, sy + 2 * z, e.bubble.text, e.kind === 'staff' ? 'rgba(46,196,182,0.9)' : null);
+    }
+    // Karakter üstü durum rozetleri (yuvarlak, renkli, ilerleme halkalı):
+    //  mavi saat = bekliyor (halka: kalan sabır) · yeşil artı + parıltı = muayene/tetkik/ameliyat
+    //  altın ₺ + yeşil gülen yüz = tedavisi bitti, ödeme yaptı
+    if (z >= 0.75) {
+      for (const p of patients) {
+        if (p.bubble || p.floor !== player.floor || p.gone || p.caseRef && !p.caseDone) continue;
+        const st = p.state;
+        let kind = null;
+        if (p._paidAt && now - p._paidAt < 5000) kind = 'paid';
+        else if (TREAT_ST.has(st) || (p.lying && st !== 'leaving')) kind = 'treat';
+        else if (WAIT_ST.has(st)) kind = 'wait';
+        if (!kind || (kind === 'wait' && p.patience !== undefined && p.patience < 30)) continue;
+        const [sx0, sy0] = head(p);
+        const sx = sx0 + 12, sy = sy0 + (p.lying ? 16 : 2) + Math.sin(now / 420 + (p.id || 0)) * 1.5;
+        if (sx < -30 || sx > vw + 30 || sy < -30 || sy > vh + 30) continue;
+        statusBadge(ctx, sx, sy, kind, p, now);
+      }
+    }
+    // Yüzen +₺ / +★ partikülleri
+    for (let i = floaters.length - 1; i >= 0; i--) {
+      const f = floaters[i], age = (now - f.t0) / 1000;
+      if (age > 1.8) { floaters.splice(i, 1); continue; }
+      if (f.floor !== player.floor) continue;
+      const [ix, iy] = M().worldToIso(f.x, f.y);
+      const [sx, sy] = cam.toScreen(ix, iy - 56 - age * 34, vw, vh);
+      ctx.globalAlpha = Math.max(0, 1 - Math.max(0, age - 1.1) / 0.7);
+      ctx.font = '800 14px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,20,30,0.75)'; ctx.strokeText(f.text, sx + f.dx, sy);
+      ctx.fillStyle = f.color; ctx.fillText(f.text, sx + f.dx, sy);
+      ctx.globalAlpha = 1;
     }
     // Duygu / ihtiyaç simgeleri (konuşma balonu yokken): kızgın, susamış, yorgun personel
     ctx.font = '14px system-ui, "Segoe UI Emoji", sans-serif';
@@ -1148,7 +1243,7 @@
     // test yardımcıları
     _collides: collides,
     _findPath: findPath,
-    STATUS, EXAMS,
+    STATUS, EXAMS, floatText,
     spawnCasePatient,
     sendToLab,
     discharge,

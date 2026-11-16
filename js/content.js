@@ -221,6 +221,8 @@
     vitD: { t: 'Intestinal absorption of vitamin D: a systematic review', j: 'Nutr Rev', y: 2018, pmid: '29025082', doi: '10.1093/nutrit/nux034' },
     levoTiming: { t: 'Comparative efficacy of early morning versus bedtime administration of levothyroxine in children with hypothyroidism', j: 'Pediatr Endocrinol Diabetes Metab', y: 2021, pmid: '34008397', doi: '10.5114/pedm.2021.105635' },
     metforminB12: { t: 'Long-term Metformin Use and Vitamin B12 Deficiency in the Diabetes Prevention Program Outcomes Study', j: 'J Clin Endocrinol Metab', y: 2016, pmid: '26900641', doi: '10.1210/jc.2015-3754' },
+    handAntisepsis: { t: 'Surgical hand antisepsis to reduce surgical site infection', j: 'Cochrane Database Syst Rev', y: 2016, pmid: '26799160', doi: '10.1002/14651858.CD004288.pub3' },
+    mriFerro: { t: 'Magnetic Resonance Imaging of Patients With Retained Ballistic Projectiles: A Review of Ferromagnetism, Ammunition Composition, and Safety Protocols', j: 'J Magn Reson Imaging', y: 2026, pmid: '41517918', doi: '10.1002/jmri.70199' },
   };
   function sourcesNode(keys) {
     const box = document.createElement('div');

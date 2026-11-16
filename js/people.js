@@ -144,6 +144,10 @@
       case 'tablet': ctx.fillStyle = '#1d2329'; ctx.fillRect(x - 1, y - 7, 6, 8); ctx.fillStyle = '#2ec4b6'; ctx.fillRect(x, y - 6, 4, 6); break;
       case 'bag': ctx.fillStyle = '#7a5636'; rr(ctx, x - 1, y - 2, 7, 6, 1.5); break;
       case 'mop': ctx.strokeStyle = '#c39a6b'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x + 1, y - 20); ctx.lineTo(x + 3, y + 10); ctx.stroke(); ctx.fillStyle = '#eef2f4'; rr(ctx, x - 1, y + 8, 8, 4, 1.5); break;
+      case 'parcel': // iki elle taşınan karton koli (bant + medikal etiket)
+        ctx.fillStyle = '#b07d4a'; rr(ctx, x - 8, y - 9, 14, 10, 1.2); ctx.fillStyle = '#c99a63'; ctx.fillRect(x - 8, y - 9, 14, 3);
+        ctx.fillStyle = '#e8d3a8'; ctx.fillRect(x - 1.8, y - 9, 2.2, 10); ctx.fillStyle = '#fff'; ctx.fillRect(x + 1.5, y - 5, 4, 4);
+        ctx.fillStyle = '#d62828'; ctx.fillRect(x + 3, y - 4.6, 1, 3.2); ctx.fillRect(x + 2, y - 3.5, 3, 1); break;
       case 'kit': ctx.fillStyle = '#d62828'; rr(ctx, x - 1, y - 2, 8, 6, 1.5); ctx.fillStyle = '#fff'; ctx.fillRect(x + 2.3, y - 1, 1.4, 4); ctx.fillRect(x + 1, y + 0.3, 4, 1.4); break;
       default: break;
     }

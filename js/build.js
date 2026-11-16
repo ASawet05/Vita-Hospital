@@ -174,7 +174,7 @@
     const i = objs(f).indexOf(o);
     if (o.decor) return;
     if (i < 0 || i >= baseCount[f]) return;
-    layout().ver = 2;
+    layout().ver = 3;
     layout().moves[f + ':' + i] = [o.x, o.y, o.face || 'S', o.w, o.h];
     attached(o, f).forEach((p) => { const j = objs(f).indexOf(p); if (j >= 0 && j < baseCount[f]) layout().moves[f + ':' + j] = [p.x, p.y, p.face || 'S', p.w, p.h]; });
   }
@@ -203,7 +203,7 @@
     if (touched.size) E().buildDevices();
   }
   function sanitize(d) {
-    const out = { moves: {}, decor: [], ver: 2 };
+    const out = { moves: {}, decor: [], ver: 3 };
     if (!d || typeof d !== 'object') return out;
     const n = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
     const fOk = (f) => Number.isInteger(f) && f >= 0 && f < M().FLOOR_DEFS.length;
@@ -214,7 +214,9 @@
       const [x, y, face, w, h] = v;
       if (!n(x, 0, 60) || !n(y, 0, 60) || !FACES.includes(face) || !n(w, 1, 4) || !n(h, 1, 4)) return;
       // v1 kayıtlarında kampüs nesnelerinin sırası farklıydı: yalnızca bina içi taşımalar korunur
-      if (d.ver !== 2 && +m[1] === 0 && +m[2] >= M().campusStart) return;
+      if ((d.ver || 1) < 2 && +m[1] === 0 && +m[2] >= M().campusStart) return;
+      // v3: zemin, 1. ve 3. kat nesne listeleri yeni cihazlarla değişti; eski sıra numaralı taşımalar geçersiz
+      if ((d.ver || 1) < 3 && [0, 1, 3].includes(+m[1])) return;
       out.moves[key] = [Math.round(x), Math.round(y), face, Math.round(w), Math.round(h)];
     });
     (Array.isArray(d.decor) ? d.decor : []).slice(0, 120).forEach((v) => {
