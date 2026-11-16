@@ -199,6 +199,16 @@ itch.io'daki ücretsiz izometrik hastane ve araç paketleri lisans açısından 
 
 Bu yüzden hiçbir dosya kopyalanmadı. Oranlar, ışık-gölge ve ayrıntı düzeyi referans alınarak bütün çizimler koddan (Canvas) özgün olarak üretildi.
 
+### Görsel varlık politikası
+
+- **Serbest lisanslı varlıklar:** CC0 / Public Domain ya da ticari kullanıma ve yayına tamamen açık sprite, PNG ve SVG dosyaları `assets/` klasörüne alınabilir. Her dosya için kaynak ve lisans bu README'ye yazılır.
+- **Lisansı kısıtlı tasarımlar:** Dosya kopyalanmaz. Yalnızca stil referansı alınır (palet, oranlar, ışık-gölge düzeyi) ve özgün bir çizim üretilir. Belirli bir eserin birebir kopyası yapılmaz.
+- **İncelenen CC0 paketler (Kenney):** Isometric Vehicles ve Furniture Kit (OpenGameArt aynası) indirilip incelendi, ancak oyuna alınmadı:
+  - Araç sprite'ları ~32 px; oyundaki boyuta 5–6 kat büyütülünce bulanıklaşıyor.
+  - Mobilyalar ev tipi; hastane ekipmanı içermiyor.
+- **Bunun yerine:** Kenney render'larının 3D görünümü referans alınarak çizim kitine "render kalitesi" katmanı eklendi. Önbelleğe alınan her nesnede yüzey ışık geçişi, zemine yakın ortam kapanması, üst kenar parlaması ve yumuşak temas gölgesi kullanılır. Hareket eden araçlar görünüm anahtarlı paylaşılan sprite'larla aynı kalitede çizilir. Karakterlerde siluet konturu, kenar ışığı, saç parlaması ve iki katmanlı gölge bulunur.
+- **Durum:** Projede şu an harici dosya bulunmuyor; tüm grafikler koddan üretiliyor.
+
 ## Oyun döngüsü
 
 ### Klinik akış

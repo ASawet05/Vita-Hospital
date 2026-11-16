@@ -971,7 +971,8 @@
     const cs = [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]].map(([x, y]) => map.rotPt(x, y));
     const key = Math.max(...cs.map((c) => c[0])) + Math.max(...cs.map((c) => c[1])) - 1;
     const [cx, cy] = map.worldToIso(er.amb.x, er.amb.y);
-    return [{ kind: 'amb', key, cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) }];
+    o.spriteKey = ['amb', o.face, o.w, o.h, o.lights ? Math.floor(performance.now() / 180) % 2 : -1].join('|');
+    return [{ kind: 'amb', key, cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) }];
   }
 
   /** Zemin katmanı: dönen tepe lambalarının asfalta vuran kırmızı/mavi ışığı. */

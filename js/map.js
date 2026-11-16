@@ -681,7 +681,7 @@
   // Kat, rotasyon, yerleşim (inşa/taşıma) veya ekipman seviyesi değişince önbellekler sıfırlanır.
   const CHUNK = 512, SCALES = [0.5, 0.75, 1, 1.5, 2];
   const perf = { chunks: new Map(), sprites: new Map(), bounds: new Map(), px: 0, frame: 0, scale: 1, enabled: true, ratio: 1 };
-  function perfReset() { perf.chunks.clear(); perf.sprites.clear(); perf.px = 0; if (typeof wallSprites !== 'undefined') wallSprites.clear(); }
+  function perfReset() { perf.chunks.clear(); perf.sprites.clear(); perf.px = 0; wallSprites.clear(); }
   function scaleBucket(z) { const e = z * perf.ratio; if (e > 2.2) return 0; return SCALES.find((s) => s >= e - 0.05) || 2; }
   const staticFlat = (it) => it.o._alpha === undefined && !VH.art.isDynamic(it.o.k);
   function liveGround(ctx, x0, y0, x1, y1) {
@@ -752,7 +752,7 @@
       c.width = Math.ceil((x1 - x0) * s); c.height = Math.ceil((y1 - y0) * s);
       const g = c.getContext('2d');
       g.setTransform(s, 0, 0, s, -x0 * s, -y0 * s);
-      drawWall(g, it);
+      wallHQ = true; try { drawWall(g, it); } finally { wallHQ = false; }
       sp = { key, c, x0, y0, w: x1 - x0, h: y1 - y0 };
       wallSprites.set(it, sp);
     }
@@ -775,7 +775,7 @@
       c.width = Math.max(1, Math.ceil(w * s)); c.height = Math.max(1, Math.ceil(h * s));
       const g = c.getContext('2d');
       g.setTransform(s, 0, 0, s, (-it.cx - bb[0]) * s, (-it.cy - bb[1]) * s);
-      VH.art.draw(g, it);
+      VH.art.hq = true; try { VH.art.draw(g, it); } finally { VH.art.hq = false; }
       if (sp && sp.c) perf.px -= sp.c.width * sp.c.height;
       sp = { key, c, dx: bb[0], dy: bb[1], w, h, used: 0 };
       perf.sprites.set(o, sp);
@@ -790,6 +790,37 @@
     const arr = [...perf.sprites.entries()].filter(([, v]) => v.c).sort((a, b) => a[1].used - b[1].used);
     for (const [o, v] of arr) { if (perf.px < 20e6) break; perf.px -= v.c.width * v.c.height; perf.sprites.delete(o); }
   }
+  // Görünüm anahtarlı paylaşılan sprite'lar: hareket eden araçlar (konumdan bağımsız) yüksek kaliteyle bir kez çizilir.
+  // o.spriteKey görünümü tam tanımlar (tür, renk, yön, fren/ışık durumu...).
+  const shared = new Map();
+  let sharedBudget = 6, sharedFrame = -1;
+  function drawSprite(ctx, o) {
+    const [cx, cy] = worldToIso(o.x + (o.w || 1) / 2, o.y + (o.h || 1) / 2);
+    const it = { kind: 'obj', o, cx, cy };
+    const s = perf.scale;
+    if (!s || !perf.enabled || !o.spriteKey) { VH.art.draw(ctx, it); return; }
+    if (sharedFrame !== perf.frame) { sharedFrame = perf.frame; sharedBudget = 6; }
+    const key = o.spriteKey + '|' + rot + '|' + s;
+    let sp = shared.get(key);
+    if (!sp) {
+      if (sharedBudget <= 0) { VH.art.draw(ctx, it); return; }
+      sharedBudget--;
+      const bb = measure(it, 'S|' + o.spriteKey + '|' + rot);
+      const w = bb[2] - bb[0], h = bb[3] - bb[1];
+      if (w <= 0 || h <= 0) return;
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(w * s)); c.height = Math.max(1, Math.ceil(h * s));
+      const g = c.getContext('2d');
+      g.setTransform(s, 0, 0, s, (-cx - bb[0]) * s, (-cy - bb[1]) * s);
+      VH.art.hq = true; try { VH.art.draw(g, it); } finally { VH.art.hq = false; }
+      sp = { c, dx: bb[0], dy: bb[1], w, h, used: 0 };
+      shared.set(key, sp);
+      if (shared.size > 260) { const old = [...shared.entries()].sort((a, b) => a[1].used - b[1].used).slice(0, 60); old.forEach(([k]) => shared.delete(k)); }
+    }
+    sp.used = perf.frame;
+    ctx.drawImage(sp.c, cx + sp.dx, cy + sp.dy, sp.w, sp.h);
+  }
+
   /** Sıralı statik liste ile dinamik çizilebilirleri her karede yeniden sıralamadan birleştirir. */
   function mergeSorted(a, b) {
     if (!b.length) return a;
@@ -904,6 +935,11 @@
           quad(0, 1, h - 3, h, S(facadeTier >= 3 ? '#e6c66e' : '#2ec4b6'));
         }
       }
+      if (wallHQ) {
+        // render kalitesi: zemin birleşiminde ortam kapanması, üstte hafif ışık
+        quad(0, 1, 0, 10, "rgba(20,30,40,0.09)"); quad(0, 1, 0, 4, "rgba(20,30,40,0.08)");
+        if (full) quad(0, 1, h - 8, h, "rgba(255,255,255,0.10)");
+      }
       // panel derzi
       if ((it.s & 1) === 0) { ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1; const a = pt(0, 0), d = pt(0, h); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(d[0], d[1]); ctx.stroke(); }
     }
@@ -931,6 +967,7 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+  let wallHQ = false;
   // ---------------------------------------------------------------- Otomatik kapılar ve birim tabelaları
   const DOOR_SIGNS = {
     office: 'BAŞHEKİMLİK', exam1: '1 - MUAYENE', exam2: '2 - MUAYENE', lab: 'LABORATUVAR', pharmacy: 'ECZANE',
@@ -1316,6 +1353,7 @@
     updateDoors,
     /** Performans: cihaz piksel oranı (önbellek ölçeği), önbellek sıfırlama ve durum. */
     set pixelRatio(v) { perf.ratio = v; },
+    drawSprite,
     set cacheEnabled(v) { perf.enabled = !!v; },
     invalidate: () => perfReset(),
     get perfStats() { return { chunks: perf.chunks.size, sprites: perf.sprites.size, px: perf.px, scale: perf.scale }; },

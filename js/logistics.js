@@ -178,7 +178,8 @@
     const cs = [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]].map(([x, y]) => map.rotPt(x, y));
     const key = Math.max(...cs.map((c) => c[0])) + Math.max(...cs.map((c) => c[1])) - 1;
     const [cx, cy] = map.worldToIso(truck.x, truck.y);
-    return [{ kind: 'truck', key, cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) }];
+    o.spriteKey = ['truck', o.face, o.w, o.h].join('|');
+    return [{ kind: 'truck', key, cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) }];
   }
 
   // ---------------------------------------------------------------- Terminal uygulaması

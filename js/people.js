@@ -92,6 +92,11 @@
     if (st === 'short' || st === 'ponytail') { ctx.beginPath(); ctx.moveTo(-6.3, hy - 1.5); ctx.quadraticCurveTo(-1, hy - 3.8, 4, hy - 2.2); ctx.lineTo(6.3, hy - 1.5); ctx.lineTo(6.3, hy - 3); ctx.lineTo(-6.3, hy - 3); ctx.closePath(); ctx.fill(); }
     if (st === 'bun') { ctx.beginPath(); ctx.arc(-2, hy - 7.2, 3, 0, Math.PI * 2); ctx.fill(); }
     if (st === 'ponytail') { ctx.beginPath(); ctx.arc(-6, hy - 1, 2, 0, Math.PI * 2); ctx.fill(); }
+    if (st !== 'bald') {
+      // saç parlaması (ışık sol üstten)
+      ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.arc(0, hy - 1.5, 4.6, Math.PI * 1.18, Math.PI * 1.5); ctx.stroke();
+    }
   }
 
   // ---------------------------------------------------------------- Yüz
@@ -194,8 +199,11 @@
 
     ctx.save();
     ctx.translate(sx, sy);
-    ctx.fillStyle = 'rgba(10,30,40,0.28)';
-    ctx.beginPath(); ctx.ellipse(0, 0, chair ? 12 : 9, chair ? 6 : 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    // yumuşak temas gölgesi (iç koyu, dış dağılan)
+    ctx.fillStyle = 'rgba(10,30,40,0.12)';
+    ctx.beginPath(); ctx.ellipse(0.8, 0.4, chair ? 14 : 11, chair ? 7 : 5.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(10,30,40,0.26)';
+    ctx.beginPath(); ctx.ellipse(0, 0, chair ? 11 : 7.5, chair ? 5.2 : 3.6, 0, 0, Math.PI * 2); ctx.fill();
     if (pose.ring) {
       ctx.strokeStyle = 'rgba(46,196,182,0.95)'; ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.ellipse(0, 0, 13, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
@@ -245,7 +253,11 @@
     ctx.lineTo(8.2, hip + coatLen);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgba(15,25,35,0.32)'; ctx.lineWidth = 0.9; ctx.stroke();
+    // kenar ışığı (rim light) ve gövde gölgesi
+    ctx.strokeStyle = 'rgba(255,255,255,0.32)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(-6.8, top + 3); ctx.lineTo(-7.6, hip + coatLen - 1); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.10)'; ctx.fillRect(-7.5, hip + coatLen - 3, 15, 3);
     if (look.gown) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; for (let i = -6; i < 7; i += 4) ctx.fillRect(i, top + 4, 1.2, hip - top - 3); }
     if (look.stripes) { ctx.fillStyle = '#e8ff5a'; ctx.fillRect(-8, hip - 6, 16, 1.8); ctx.fillRect(-7.6, top + 6, 15.2, 1.5); }
     if (look.apron) { ctx.fillStyle = look.apron; rr(ctx, -5.5, top + 6, 11, hip - top - 4 + coatLen, 2); }
@@ -289,6 +301,7 @@
       ctx.rotate(rot);
       ctx.fillStyle = front ? sleeve : shade(sleeve, -0.12);
       rr(ctx, -1.6, 0, 3.2, chair || sit ? 10 : 11, 1.5);
+      ctx.strokeStyle = 'rgba(15,25,35,0.28)'; ctx.lineWidth = 0.6; ctx.stroke();
       ctx.fillStyle = hand;
       ctx.beginPath(); ctx.arc(0, chair || sit ? 11 : 12.2, 1.8, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
@@ -310,7 +323,8 @@
     const hg = ctx.createRadialGradient(1.5, hy - 2, 1, 0, hy, 7);
     hg.addColorStop(0, shade(look.skin, 0.08)); hg.addColorStop(1, shade(look.skin, -0.08));
     ctx.fillStyle = hg;
-    if (!back || look.hairStyle === 'bald') { ctx.beginPath(); ctx.arc(0, hy, 6, 0, Math.PI * 2); ctx.fill(); }
+    if (!back || look.hairStyle === 'bald') { ctx.beginPath(); ctx.arc(0, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = 'rgba(15,25,35,0.3)'; ctx.lineWidth = 0.7; ctx.stroke(); }
+    if (!back) { ctx.fillStyle = shade(look.skin, -0.12); ctx.beginPath(); ctx.arc(-6, hy + 0.5, 1.3, 0, Math.PI * 2); ctx.arc(6, hy + 0.5, 1.3, 0, Math.PI * 2); ctx.fill(); }
     if (!back) {
       face(ctx, look, hy, pose);
       hairFront(ctx, look, hy);

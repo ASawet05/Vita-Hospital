@@ -59,7 +59,13 @@
       const [rx, ry] = map.rotVec(nx, ny);
       if (rx + ry <= 0) continue;
       const col = (opt.faces && opt.faces[dir]) || color;
-      poly([B[a], B[b], T[b], T[a]], shade(col, rx > ry ? -0.07 : -0.2));
+      const fc = shade(col, rx > ry ? -0.07 : -0.2);
+      if (HQ && typeof col === 'string' && col[0] === '#' && Math.abs(z1 - z0) > 2.5) {
+        // Render kalitesi: yüzeyde yukarıdan aşağı ışık geçişi + zemine yakın hafif ortam kapanması (AO)
+        const g = ctx.createLinearGradient(0, Math.min(T[a][1], T[b][1]), 0, Math.max(B[a][1], B[b][1]));
+        g.addColorStop(0, shade(fc, 0.09)); g.addColorStop(0.55, fc); g.addColorStop(1, shade(fc, z0 < 1 ? -0.16 : -0.08));
+        poly([B[a], B[b], T[b], T[a]], g);
+      } else poly([B[a], B[b], T[b], T[a]], fc);
       if (opt.deco) for (const d of opt.deco) {
         if (d.dir !== dir && d.dir !== '*') continue;
         const ba = B[a], bb = B[b];
@@ -69,8 +75,16 @@
       }
     }
     poly(T, shade(opt.top || color, 0.1), opt.edge === false ? null : 'rgba(20,35,45,0.18)', 0.8);
+    if (HQ && opt.edge !== false && Math.abs(z1 - z0) > 1.5) {
+      // üst kenar parlaması (ön iki kenar): 3D render hissi
+      const fr = T.map((p, i) => [p, i]).sort((p, q) => q[0][1] - p[0][1])[0][1];
+      ctx.strokeStyle = 'rgba(255,255,255,0.38)'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(T[(fr + 3) % 4][0], T[(fr + 3) % 4][1]); ctx.lineTo(T[fr][0], T[fr][1]); ctx.lineTo(T[(fr + 1) % 4][0], T[(fr + 1) % 4][1]); ctx.stroke();
+    }
     if (opt.topDeco) opt.topDeco(T);
   }
+  // Yüksek kalite modu: yalnızca önbelleğe çizilen sprite'larda açılır (her karede maliyet yok)
+  let HQ = false;
 
   // ---------------------------------------------------------------- Nesne kiti
   function kit(o, queue) {
@@ -141,6 +155,11 @@
       shadow(u0, v0, u1, v1, a) {
         queue.push({ d: -1e9, z: 0, fn: () => {
           const pts = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].map(([u, v]) => { const [x, y] = W(u, v); return P(x, y, zb); });
+          if (HQ) {
+            // yumuşak temas gölgesi: dışa doğru açılan iki katman
+            const cx = pts.reduce((s, p) => s + p[0], 0) / 4, cy = pts.reduce((s, p) => s + p[1], 0) / 4;
+            poly(pts.map(([x, y]) => [cx + (x - cx) * 1.18 + 1.5, cy + (y - cy) * 1.18 + 1]), `rgba(10,30,40,${(a || 0.16) * 0.45})`);
+          }
           poly(pts, `rgba(10,30,40,${a || 0.16})`);
         } });
       },
@@ -673,6 +692,8 @@
     screenDeco,
     ecgLine,
     set wind(v) { wind = v; },
+    set hq(v) { HQ = !!v; },
+    get hq() { return HQ; },
     /** Yeni nesne türü ekle ya da var olanı sar (art_extra.js, equipment.js). */
     register(kind, fn, flat) { K[kind] = fn; if (flat) FLAT.add(kind); DYN.delete(kind); },
     /** Tür zamanla ya da oyun durumuyla değişiyor mu (animasyon, gece, cihaz durumu)? Değişmeyenler sprite önbelleğine alınır. */

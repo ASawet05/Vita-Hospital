@@ -22,7 +22,7 @@
     const L = LANES[lane];
     if (cars.some((c) => c.lane === lane && Math.abs(c.x - L.start) < 4)) return;
     const kind = Math.random() < 0.12 ? 'bus' : 'car';
-    cars.push({ lane, x: L.start, v: 0, vmax: kind === 'bus' ? 3.2 : rand(3.6, 5.2), color: pick(COLORS), kind, len: kind === 'bus' ? 3 : 2 });
+    cars.push({ lane, x: L.start, v: 0, vmax: kind === 'bus' ? 3.2 : rand(3.6, 5.2), color: pick(COLORS), kind, len: kind === 'bus' ? 3 : 2, suv: Math.random() < 0.35 });
   }
   const crossing = () => peds.some((p) => p.crossing);
   // Özel araçlar: ambulans ve lojistik kamyonu (trafik bunlara yol verir, bariyer bunlar için açılır)
@@ -69,9 +69,13 @@
     }
     for (let i = cars.length - 1; i >= 0; i--) { const c = cars[i], L = LANES[c.lane]; if ((c.x - L.end) * L.dir > 0) cars.splice(i, 1); }
   }
+  // Araç görünüm anahtarı: paylaşılan yüksek kaliteli sprite önbelleği için (gece farı açık/kapalı dahil)
+  const carKey = (o) => ['car', o.color, o.face, o.w, o.h, o.braking ? 1 : 0, o.suv ? 1 : 0, (H() && H().night > 0.1) ? 1 : 0].join('|');
   function carObj(c) {
     const L = LANES[c.lane];
-    return { k: c.kind === 'bus' ? 'city_bus' : 'car', x: c.x - c.len / 2, y: L.y0, w: c.len, h: 1, face: L.face, color: c.color, braking: c.braking };
+    const o = { k: c.kind === 'bus' ? 'city_bus' : 'car', x: c.x - c.len / 2, y: L.y0, w: c.len, h: 1, face: L.face, color: c.color, braking: c.braking, suv: !!c.suv };
+    if (o.k === 'car') o.spriteKey = carKey(o);
+    return o;
   }
 
   // ================================================================ Yerleşke içi otopark (sivil araçlar)
@@ -129,7 +133,10 @@
   function parkerObj(c) {
     const ns = c.heading === 'N' || c.heading === 'S';
     const w = ns ? 1 : 2, h = ns ? 2 : 1;
-    return { k: 'car', x: c.x - w / 2, y: c.y - h / 2, w, h, face: c.heading, color: c.color };
+    if (c.suv === undefined) c.suv = Math.random() < 0.35;
+    const o = { k: 'car', x: c.x - w / 2, y: c.y - h / 2, w, h, face: c.heading, color: c.color, suv: c.suv };
+    o.spriteKey = carKey(o);
+    return o;
   }
 
   // Şehir otobüsü (art kitiyle)
@@ -369,12 +376,12 @@
     for (const c of cars) {
       const o = carObj(c);
       const [cx, cy] = map.worldToIso(c.x, LANES[c.lane].y0 + 0.5);
-      out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
+      out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) });
     }
     for (const c of parkers) {
       const o = parkerObj(c);
       const [cx, cy] = map.worldToIso(c.x, c.y);
-      out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
+      out.push({ kind: 'car', key: keyOf(o), cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) });
     }
     for (const p of peds) {
       if (!p.dog) continue;
