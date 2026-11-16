@@ -267,6 +267,14 @@
       updateOneMedic(m, dt, key === 'medic2');
     }
   }
+  /** Acil vakayı kendiliğinden yönetebilecek personel (zemin kattaki uygun hemşire/doktor varlıkları). */
+  function erTeam() {
+    const ids = [];
+    if (has("hires", "erDoctor")) ids.push("erDoctor");
+    if (has("hires", "erNurse")) ids.push("erNurse");
+    if (VH.staff) VH.staff.hired.filter((h) => h.role === "nurse" || h.role === "doctor").forEach((h) => ids.push(h.id));
+    return ids.map((id) => E().staffById(id)).filter((s) => s && s.floor === 0 && !s.gone);
+  }
   function paramedicHandover() {
     const m = er.medic;
     if (!m || m.mode !== 'push') return;
@@ -483,17 +491,31 @@
       } else if (driveAmb(amb, dt)) er.amb = null;
     }
     const a = er.active;
+    // Acil ekip otomasyonu: Acil Tıp Uzmanı / Acil Hemşiresi ya da MedKariyer'den alınan hemşire-doktor varsa
+    // ambulans kapıya yanaştığı an biri dışarı çıkıp hastayı karşılar; triyaj ve stabilizasyonu ekip üstlenir.
+    const team = erTeam();
     if (!a) {
+      if (er.responder) { er.responder.busy = false; er.responder = null; }
       if (!er.amb) { er.nextIn -= dt; if (er.nextIn <= 0) startEmergency(); }
       return;
+    }
+    if (team.length && !er.responder && (a.phase === 'arrive' || a.phase === 'wait')) {
+      const r = team[0];
+      er.responder = r; r.busy = true; r.path = [];
+      E().say(r, 'Acil ekibi geliyor, sedyeyi alıyorum!', 2400);
+      E().goTo(r, ER_DOOR_OUT[0] - 0.9, ER_DOOR_OUT[1] + 0.6, (s) => {
+        a.met = true;
+        E().say(s, `${a.def.name}: hasta bende, acile alıyoruz!`, 2600);
+        E().goTo(s, TRIAGE_SPOT[0] - 0.9, TRIAGE_SPOT[1] + 0.7, (s2) => E().faceToward(s2, a.p.x, a.p.y));
+      });
     }
     a.timeLeft -= dt;
     if (a.timeLeft <= 10 && !er.warned) { er.warned = true; sound('alarm'); }
     // Otomasyon: Acil Tıp Uzmanı triyajı, acil hemşiresi stabilizasyonu kendiliğinden üstlenir
-    const nurses = (has('hires', 'erNurse') ? 1 : 0) + (VH.staff ? VH.staff.hired.filter((h) => h.role === 'nurse').length : 0);
-    if (a.phase === 'wait' && has('hires', 'erDoctor')) {
+    const nurses = team.length;
+    if (a.phase === "wait" && team.length) {
       a.autoT = (a.autoT || 0) + dt;
-      if (a.autoT > 9) { UI().toast('🧑‍⚕️ Acil Tıp Uzmanı triyajı yaptı.', 2200); triage(a.def.need, true); return; }
+      if (a.autoT > (has("hires", "erDoctor") ? 3 : 5)) { UI().toast("🧑‍⚕️ Acil ekibi triyajı yaptı, hasta sedyeyle üniteye alınıyor.", 2400); triage(a.def.need, true); return; }
     }
     if (a.phase === 'bay' && nurses) {
       a.autoB = (a.autoB || 0) + dt;
@@ -1077,6 +1099,7 @@
       else if (tab === 'personel') HIRES.forEach((u) => list.appendChild(itemCard('hires', u, rerender)));
       else if (tab === 'servis') SERVICES.forEach((u) => list.appendChild(itemCard('services', u, rerender)));
     },
+    erAuto: () => erTeam().length > 0,
     reqList, reqNode, casesTotal, addCase, floorOpen, serviceOfFloor,
     canBuy, money, BAYS_STATE: () => BAYS.map((b) => !!b.occ),
     onServed(p) {

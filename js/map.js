@@ -50,8 +50,8 @@
   // r: [x0, y0, x1, y1] (dahil)
   const ROOMS0 = {
     office:    { num: 7, name: 'Başhekimlik & Doktor Odası', r: [1, 1, 6, 8], floor: 'carpet', wall: 'core_straight' },
-    exam1:     { num: 3, name: 'Muayene Odası 1', r: [7, 1, 11, 8], floor: 'vinyl', wall: 'glass' },
-    exam2:     { num: 3, name: 'Muayene Odası 2', r: [12, 1, 16, 8], floor: 'vinyl', wall: 'glass' },
+    exam1:     { num: 1, label: '1 - Muayene Odası', name: 'Muayene Odası 1', r: [7, 1, 11, 8], floor: 'vinyl', wall: 'glass' },
+    exam2:     { num: 2, label: '2 - Muayene Odası', name: 'Muayene Odası 2', r: [12, 1, 16, 8], floor: 'vinyl', wall: 'glass' },
     lab:       { num: 4, name: 'Kan Alma & Biyo-Laboratuvar', r: [17, 1, 24, 8], floor: 'green', wall: 'glass' },
     pharmacy:  { num: 6, name: 'Eczane', r: [25, 1, 30, 8], floor: 'white', wall: 'glass' },
     corridor:  { num: 0, name: 'Koridor', r: [1, 9, 30, 10], floor: 'corridor', wall: 'core_handrail', noLabel: true },
@@ -651,6 +651,9 @@
       const ry0 = Math.min(a[1], b[1]), ry1 = Math.max(a[1], b[1]);
       const [cx, cy] = iso((rx0 + rx1) / 2, (ry0 + ry1) / 2);
       const it = { kind: 'obj', o, cx, cy, key: rx1 + ry1 - 1 + (o.z ? 0.05 : 0) };
+      // zemine yatık nesnelerin izo sınır kutusu (zemin önbellek parçalarına atamak için)
+      const pc = [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]].map(([x, y]) => worldToIso(x, y));
+      it.bb = [Math.min(...pc.map((p) => p[0])) - 6, Math.min(...pc.map((p) => p[1])) - 24, Math.max(...pc.map((p) => p[0])) + 6, Math.max(...pc.map((p) => p[1])) + 6];
       (o.flat || VH.art.isFlat(o.k) ? flats : items).push(it);
       if (o.k === 'lamp_post') { const [lx, ly] = worldToIso(o.x + 0.5, o.y + 0.5); lamps.push([lx, ly]); }
     });
@@ -666,6 +669,137 @@
     };
     if (fi >= 1 && fi <= 3) bounds.y1 += fi * STOREY; // aşağıdaki bina cephesine kaydırılabilsin
     cache = { floors: floorsList, items, flats, bounds, lamps };
+    perfReset();
+  }
+
+  // ---------------------------------------------------------------- Performans: önbellekler, kırpma, LOD
+  // 1) Zemin katmanı (karo dokuları + zemine yatık sabit nesneler) 512 izo-piksellik parçalar hâlinde
+  //    offscreen canvas'lara bir kez çizilir; her karede yalnızca görünen parçalar drawImage ile basılır.
+  // 2) Sabit (animasyonsuz) nesneler ilk görüldüklerinde kendi sprite'larına çizilir; sonra tek drawImage.
+  //    Animasyonlu/duruma bağlı türler (VH.art.isDynamic) her karede canlı çizilir.
+  // 3) Önbellek ölçeği yakınlaştırma × piksel oranına göre kademelidir; çok yakında (≥2.2) canlı çizim yapılır.
+  // Kat, rotasyon, yerleşim (inşa/taşıma) veya ekipman seviyesi değişince önbellekler sıfırlanır.
+  const CHUNK = 512, SCALES = [0.5, 0.75, 1, 1.5, 2];
+  const perf = { chunks: new Map(), sprites: new Map(), bounds: new Map(), px: 0, frame: 0, scale: 1, enabled: true, ratio: 1 };
+  function perfReset() { perf.chunks.clear(); perf.sprites.clear(); perf.px = 0; if (typeof wallSprites !== 'undefined') wallSprites.clear(); }
+  function scaleBucket(z) { const e = z * perf.ratio; if (e > 2.2) return 0; return SCALES.find((s) => s >= e - 0.05) || 2; }
+  const staticFlat = (it) => it.o._alpha === undefined && !VH.art.isDynamic(it.o.k);
+  function liveGround(ctx, x0, y0, x1, y1) {
+    for (const f of cache.floors) if (f.sx + 33 > x0 && f.sx - 33 < x1 && f.sy + 33 > y0 && f.sy - 1 < y1) drawFloor(ctx, f);
+    for (const it of cache.flats) if (staticFlat(it) && it.bb[2] > x0 && it.bb[0] < x1 && it.bb[3] > y0 && it.bb[1] < y1) VH.art.draw(ctx, it);
+  }
+  function chunkCanvas(cx, cy, s) {
+    const pad = 2, c = document.createElement('canvas');
+    c.width = Math.ceil((CHUNK + pad * 2) * s); c.height = c.width;
+    const g = c.getContext('2d');
+    g.setTransform(s, 0, 0, s, (-cx * CHUNK + pad) * s, (-cy * CHUNK + pad) * s);
+    liveGround(g, cx * CHUNK - pad, cy * CHUNK - pad, (cx + 1) * CHUNK + pad, (cy + 1) * CHUNK + pad);
+    return c;
+  }
+  /** Görünen zemin parçalarını çizer; bu karede üretilemeyen parça canlı çizilir. */
+  function drawGround(ctx, l, t, r, b) {
+    const s = perf.scale;
+    if (!s || !perf.enabled) { liveGround(ctx, l, t, r, b); return; }
+    let budget = 3;
+    const pad = 2;
+    for (let cy = Math.floor(t / CHUNK); cy <= Math.floor(b / CHUNK); cy++) {
+      for (let cx = Math.floor(l / CHUNK); cx <= Math.floor(r / CHUNK); cx++) {
+        const key = cx + ',' + cy + '@' + s;
+        let ch = perf.chunks.get(key);
+        if (!ch && budget > 0) { budget--; ch = { c: chunkCanvas(cx, cy, s), used: 0 }; perf.chunks.set(key, ch); }
+        if (ch) { ch.used = perf.frame; ctx.drawImage(ch.c, cx * CHUNK - pad, cy * CHUNK - pad, CHUNK + pad * 2, CHUNK + pad * 2); }
+        else liveGround(ctx, cx * CHUNK, cy * CHUNK, (cx + 1) * CHUNK, (cy + 1) * CHUNK);
+      }
+    }
+    if (perf.chunks.size > 48) {
+      const old = [...perf.chunks.entries()].sort((a, b2) => a[1].used - b2[1].used).slice(0, perf.chunks.size - 40);
+      old.forEach(([k]) => perf.chunks.delete(k));
+    }
+  }
+  // Sprite önbelleği: nesnenin gerçek piksel sınırları küçük bir ölçekte bir kez ölçülür
+  const scratch = document.createElement('canvas');
+  function measure(it, bkey) {
+    let bb = perf.bounds.get(bkey);
+    if (bb) return bb;
+    const o = it.o, span = ((o.w || 1) + (o.h || 1)) * 32 + 120, up = 420, down = ((o.w || 1) + (o.h || 1)) * 16 + 60;
+    const q = 0.25;
+    scratch.width = Math.ceil(span * 2 * q); scratch.height = Math.ceil((up + down) * q);
+    const g = scratch.getContext('2d');
+    g.setTransform(q, 0, 0, q, (span - it.cx) * q, (up - it.cy) * q);
+    VH.art.draw(g, it);
+    const d = g.getImageData(0, 0, scratch.width, scratch.height).data, W2 = scratch.width;
+    let x0 = W2, y0 = scratch.height, x1 = -1, y1 = -1;
+    for (let i = 3; i < d.length; i += 4) if (d[i]) { const p = (i - 3) / 4, x = p % W2, y = (p / W2) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    bb = x1 < 0 ? [0, 0, 0, 0] : [x0 / q - span - 6, y0 / q - up - 6, (x1 + 1) / q - span + 6, (y1 + 1) / q - up + 6];
+    perf.bounds.set(bkey, bb);
+    return bb;
+  }
+  const NO_SPRITE = new Set(['apartment', 'annex_tower']);
+  // Duvar sprite'ları: kapı olmayan duvar parçaları analitik sınır kutusuyla bir kez çizilir
+  const wallSprites = new Map();
+  function drawWallCached(ctx, it, budget) {
+    const s = perf.scale;
+    if (!s || !perf.enabled || it.w.type === 'door' || s > 1.5) { drawWall(ctx, it); return budget; }
+    const key = facadeTier + '|' + rot + '|' + s + '|' + fi;
+    let sp = wallSprites.get(it);
+    if (!sp || sp.key !== key) {
+      if (budget <= 0) { drawWall(ctx, it); return budget; }
+      budget--;
+      const sgn = it.run === 'R' ? 1 : -1, h = it.full ? WALL_FULL : WALL_CUT;
+      const x0 = Math.min(it.sx, it.sx + 32 * sgn) - 8, x1 = Math.max(it.sx, it.sx + 32 * sgn) + 8;
+      const y0 = it.sy - h - 12, y1 = it.sy + 20;
+      const c = document.createElement('canvas');
+      c.width = Math.ceil((x1 - x0) * s); c.height = Math.ceil((y1 - y0) * s);
+      const g = c.getContext('2d');
+      g.setTransform(s, 0, 0, s, -x0 * s, -y0 * s);
+      drawWall(g, it);
+      sp = { key, c, x0, y0, w: x1 - x0, h: y1 - y0 };
+      wallSprites.set(it, sp);
+    }
+    ctx.drawImage(sp.c, sp.x0, sp.y0, sp.w, sp.h);
+    return budget;
+  }
+  function drawObj(ctx, it, budget) {
+    const o = it.o, s = perf.scale;
+    const sway = o.k === 'tree' && camera.zoom >= 1; // ağaç salınımı yalnızca yakından görünür
+    if (!s || !perf.enabled || o._alpha !== undefined || o.ghost || NO_SPRITE.has(o.k) || sway || (o.k !== 'tree' && VH.art.isDynamic(o.k))) { VH.art.draw(ctx, it); return budget; }
+    const key = o.k + '|' + o.x + '|' + o.y + '|' + (o.w || 1) + '|' + (o.h || 1) + '|' + (o.face || 'S') + '|' + (o.lvl || 0) + '|' + rot + '|' + s;
+    let sp = perf.sprites.get(o);
+    if (!sp || sp.key !== key) {
+      if (budget <= 0) { VH.art.draw(ctx, it); return budget; }
+      budget--;
+      const bb = measure(it, o.k + '|' + (o.w || 1) + '|' + (o.h || 1) + '|' + (o.face || 'S') + '|' + (o.lvl || 0) + '|' + rot + '|' + (o.z || 0) + '|' + (o.ox || 0));
+      const w = bb[2] - bb[0], h = bb[3] - bb[1];
+      if (w <= 0 || h <= 0) { perf.sprites.set(o, { key, c: null }); return budget; }
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(w * s)); c.height = Math.max(1, Math.ceil(h * s));
+      const g = c.getContext('2d');
+      g.setTransform(s, 0, 0, s, (-it.cx - bb[0]) * s, (-it.cy - bb[1]) * s);
+      VH.art.draw(g, it);
+      if (sp && sp.c) perf.px -= sp.c.width * sp.c.height;
+      sp = { key, c, dx: bb[0], dy: bb[1], w, h, used: 0 };
+      perf.sprites.set(o, sp);
+      perf.px += c.width * c.height;
+    }
+    sp.used = perf.frame;
+    if (sp.c) ctx.drawImage(sp.c, it.cx + sp.dx, it.cy + sp.dy, sp.w, sp.h);
+    return budget;
+  }
+  function trimSprites() {
+    if (perf.px < 28e6) return;
+    const arr = [...perf.sprites.entries()].filter(([, v]) => v.c).sort((a, b) => a[1].used - b[1].used);
+    for (const [o, v] of arr) { if (perf.px < 20e6) break; perf.px -= v.c.width * v.c.height; perf.sprites.delete(o); }
+  }
+  /** Sıralı statik liste ile dinamik çizilebilirleri her karede yeniden sıralamadan birleştirir. */
+  function mergeSorted(a, b) {
+    if (!b.length) return a;
+    b.sort((p, q) => p.key - q.key);
+    const out = new Array(a.length + b.length);
+    let i = 0, j = 0, k = 0;
+    while (i < a.length && j < b.length) out[k++] = a[i].key <= b[j].key ? a[i++] : b[j++];
+    while (i < a.length) out[k++] = a[i++];
+    while (j < b.length) out[k++] = b[j++];
+    return out;
   }
 
   // ---------------------------------------------------------------- Çizim yardımcıları
@@ -799,19 +933,44 @@
   }
   // ---------------------------------------------------------------- Otomatik kapılar ve birim tabelaları
   const DOOR_SIGNS = {
-    office: 'BAŞHEKİMLİK', exam1: '1 · MUAYENE', exam2: '2 · MUAYENE', lab: 'LABORATUVAR', pharmacy: 'ECZANE',
+    office: 'BAŞHEKİMLİK', exam1: '1 - MUAYENE', exam2: '2 - MUAYENE', lab: 'LABORATUVAR', pharmacy: 'ECZANE',
     reception: 'KAYIT', waiting: 'BEKLEME', er: 'ACİL SERVİS', or1: 'AMELİYATHANE', scrub: 'HAZIRLIK', recovery: 'UYANDIRMA',
     surgclin: 'POLİKLİNİK', sterile: 'STERİL DEPO', ward1: 'SERVİS', peds: 'PEDİATRİ', nurse: 'HEMŞİRE', xray: 'RÖNTGEN',
     us: 'ULTRASON', ecg: 'EKG', dialysis: 'DİYALİZ', report: 'MR', dining: 'YEMEKHANE', kitchen: 'MUTFAK', cafe: 'KAFETERYA', dining2: 'SALON',
   };
   const EXT_SIGNS = { 'Ana Giriş': 'ANA GİRİŞ', 'Ambulans Girişi': 'ACİL GİRİŞ', 'Lojistik Kapısı': 'LOJİSTİK' };
   let doorAmt = [], doorAmtF = -1;
+  // Her oda için tek tabela: odanın koridora açılan kapılarından asansöre en az 4 hücre uzak olan ilki seçilir
+  // (iki oda arasındaki iç kapılara tabela konmaz). Böylece aynı adın tekrarı ve asansör tabelasıyla çakışma önlenir.
+  const signOwner = new Map();
+  function signOwners() {
+    if (signOwner.has(fi)) return signOwner.get(fi);
+    const own = {}, def = floors[fi].def;
+    const elev = def.objects.filter((o) => o.tag === "elevator");
+    const farFromElev = (d) => elev.every((o) => Math.hypot(d.x - o.x, d.y - o.y) >= 4);
+    const cand = {};
+    walls.forEach((w) => {
+      if (w.type !== "door") return;
+      const ids = [w.a, w.b];
+      if (!ids.includes("corridor") && ids.every((id) => id)) return;
+      const r = ids.find((id) => id && id !== "corridor" && DOOR_SIGNS[id]);
+      if (!r) return;
+      (cand[r] = cand[r] || new Set()).add(w.door);
+    });
+    Object.keys(cand).forEach((r) => {
+      const list = [...cand[r]].sort((a, b) => a - b);
+      own[r] = list.find((i) => farFromElev(def.doors[i])) ?? list[0];
+    });
+    signOwner.set(fi, own);
+    return own;
+  }
   function doorSign(w) {
     const d = floors[fi].def.doors[w.door];
     if (d && d.name && EXT_SIGNS[d.name]) return EXT_SIGNS[d.name];
-    const r = [w.a, w.b].find((id) => id && id !== 'corridor' && DOOR_SIGNS[id]);
-    if (!r) return '';
-    // İki oda arasındaki geçişte (ör. resepsiyon ↔ koridor) koridor dışındaki oda yazılır; ilk eşleşme yeterli
+    const ids = [w.a, w.b];
+    if (!ids.includes("corridor") && ids.every((id) => id)) return "";
+    const r = ids.find((id) => id && id !== "corridor" && DOOR_SIGNS[id]);
+    if (!r || signOwners()[r] !== w.door) return "";
     return DOOR_SIGNS[r];
   }
   /** Kapı kanatlarını yakındaki karakterlere göre açar/kapatır (ents: geçerli kattaki kişiler). */
@@ -834,7 +993,7 @@
     follow: true, target: null,
     toIso(px, py, vw, vh) { return [(px - vw / 2) / this.zoom + this.x, (py - vh / 2) / this.zoom + this.y]; },
     toScreen(ix, iy, vw, vh) { return [(ix - this.x) * this.zoom + vw / 2, (iy - this.y) * this.zoom + vh / 2]; },
-    pan(dx, dy) { this.x -= dx / this.zoom; this.y -= dy / this.zoom; this.follow = false; this.clamp(); },
+    pan(dx, dy) { this.x -= dx / this.zoom; this.y -= dy / this.zoom; this.follow = false; this.panGoal = null; this.clamp(); },
     zoomAt(f, px, py, vw, vh) {
       const [ix, iy] = this.toIso(px, py, vw, vh);
       this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * f));
@@ -851,12 +1010,21 @@
       this.y = Math.max(b.y0, Math.min(b.y1, this.y));
     },
     /** Yumuşak yakınlaştırma geçişi (oda odağı, kat değişimi). */
-    glide(z) { this.want = Math.max(this.minZoom, Math.min(this.maxZoom, z)); },
+    /** Kamerayı bir dünya noktasına yumuşakça kaydırır (takip kapalıyken). */
+    panTo(x, y) { this.panGoal = worldToIso(x, y); },
+    glide(z, speed) { this.want = Math.max(this.minZoom, Math.min(this.maxZoom, z)); this.gspeed = speed || 3.2; },
     update(dt) {
       if (this.want !== null) {
         const d = this.want - this.zoom;
-        if (Math.abs(d) < 0.004) { this.zoom = this.want; this.want = null; } else this.zoom += d * Math.min(1, dt * 3.2);
+        if (Math.abs(d) < 0.004) { this.zoom = this.want; this.want = null; } else this.zoom += d * Math.min(1, dt * (this.gspeed || 3.2));
       }
+      if (!this.follow && this.panGoal) {
+        const k = Math.min(1, dt * 5);
+        this.x += (this.panGoal[0] - this.x) * k; this.y += (this.panGoal[1] - 20 - this.y) * k;
+        if (Math.hypot(this.panGoal[0] - this.x, this.panGoal[1] - 20 - this.y) < 1) this.panGoal = null;
+        this.clamp();
+      }
+      if (this.follow) this.panGoal = null;
       if (!this.follow || !this.target) return;
       const [tx, ty] = worldToIso(this.target.x, this.target.y);
       const k = Math.min(1, dt * 6);
@@ -980,7 +1148,7 @@
     const mx = (T.A[0] + T.B[0]) / 2, my = (T.A[1] + T.B[1]) / 2 + zg + 12;
     ctx.save(); ctx.translate(mx, my); ctx.transform(1, (T.B[1] - T.A[1]) / Math.max(1, T.B[0] - T.A[0]), 0, 1, 0, 0);
     ctx.font = '900 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (night > 0.05) { ctx.shadowColor = '#5ff0d8'; ctx.shadowBlur = 12 * night; }
+    if (night > 0.05 && !VH.lod) { ctx.shadowColor = '#5ff0d8'; ctx.shadowBlur = 12 * night; }
     ctx.fillStyle = night > 0.05 ? '#d9fffa' : '#1f5f8b'; ctx.fillText('VITA HOSPITAL', 0, 0);
     ctx.restore();
     // Bulunulan katın döşeme alnı (kesit kenarı) ve tavanı açık kat plakası
@@ -1016,23 +1184,34 @@
 
     const [l, t] = camera.toIso(0, 0, vw, vh);
     const [r, b] = camera.toIso(vw, vh, vw, vh);
-    const L = l - 160, R = r + 160, T = t - 40, B = b + 240;
+    // Görüş alanı kırpması: ekran + %15 güvenlik payı (uzun nesneler için altta ek pay)
+    const mx = Math.max(64, (r - l) * 0.15), my = Math.max(40, (b - t) * 0.15);
+    const L = l - mx, R = r + mx, T = t - my, B = b + my + 150;
+    perf.frame++;
+    perf.scale = scaleBucket(camera.zoom);
+    const lod = camera.zoom < 0.75;
+    VH.lod = lod;
 
     if (fi > 0) drawStack(ctx, fx.night || 0);
-    for (const f of cache.floors) if (f.sx > L - 40 && f.sx < R + 40 && f.sy > T - 40 && f.sy < B) drawFloor(ctx, f);
-    for (const it of cache.flats) if (it.cx > L - 200 && it.cx < R + 200 && it.cy > T - 120 && it.cy < B + 120) VH.art.draw(ctx, it);
+    drawGround(ctx, l - 40, t - 40, r + 40, b + 40);
+    for (const it of cache.flats) if (!staticFlat(it) && it.bb[2] > L && it.bb[0] < R && it.bb[3] > T && it.bb[1] < B) VH.art.draw(ctx, it);
     if (hover && inBounds(hover.x, hover.y)) drawCellOutline(ctx, hover.x, hover.y, 'rgba(46,196,182,0.9)');
     if (fx.ground) fx.ground(ctx);
 
-    const list = extras && extras.length ? cache.items.concat(extras).sort((p, q) => p.key - q.key) : cache.items;
+    const list = extras && extras.length ? mergeSorted(cache.items, extras.slice()) : cache.items;
+    let budget = 24;
     for (const it of list) {
       const x = it.sx !== undefined ? it.sx : it.cx;
       const y = it.sy !== undefined ? it.sy : it.cy;
       if (x !== undefined && (x < L || x > R || y < T || y > B)) continue;
-      if (it.kind === 'wall') drawWall(ctx, it);
-      else if (it.kind === 'obj') VH.art.draw(ctx, it);
-      else if (it.draw) it.draw(ctx);
+      if (it.kind === 'wall') budget = drawWallCached(ctx, it, budget);
+      else if (it.kind === 'obj') {
+        // Uzak görünümde (LOD) masa üstü mikro eşyalar atlanır
+        if (lod && it.o.z && !it.o.big) continue;
+        budget = drawObj(ctx, it, budget);
+      } else if (it.draw) it.draw(ctx);
     }
+    trimSprites();
 
     // Gece nöbeti: karartma + sokak lambası ışıkları
     if (fx.night > 0) {
@@ -1073,7 +1252,9 @@
       const [ix, iy] = iso(Math.max(a[0], b[0]) - inset, Math.max(a[1], b[1]) - inset);
       const [sx, sy] = camera.toScreen(ix, iy, vw, vh);
       if (sx < -100 || sx > vw + 100 || sy < -20 || sy > vh + 20) continue;
-      const text = room.num ? room.num + ' · ' + room.name : room.name;
+      // Oda etiketi: muayene odaları kapı tabelasıyla birebir aynı numarayı taşır (1 - / 2 - Muayene Odası);
+      // diğer odalarda sıra numarası gösterilmez (çakışan numaralar kaldırıldı)
+      const text = room.label || room.name;
       const tw = ctx.measureText(text).width + 16;
       ctx.fillStyle = 'rgba(12,32,46,0.78)';
       ctx.beginPath();
@@ -1133,6 +1314,11 @@
     FLOOR_DEFS,
     get campusStart() { return CAMPUS_START; },
     updateDoors,
+    /** Performans: cihaz piksel oranı (önbellek ölçeği), önbellek sıfırlama ve durum. */
+    set pixelRatio(v) { perf.ratio = v; },
+    set cacheEnabled(v) { perf.enabled = !!v; },
+    invalidate: () => perfReset(),
+    get perfStats() { return { chunks: perf.chunks.size, sprites: perf.sprites.size, px: perf.px, scale: perf.scale }; },
     floorName(f) { return FLOOR_DEFS[f === undefined ? fi : f].name; },
     floorArrive(f) { return FLOOR_DEFS[f].arrive; },
     floorObjects(f) { return FLOOR_DEFS[f].objects; },

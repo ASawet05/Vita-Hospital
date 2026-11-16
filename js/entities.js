@@ -327,6 +327,11 @@
     const ox = player.x, oy = player.y;
     if (!collides(player.x + mx, player.y)) player.x += mx;
     if (!collides(player.x, player.y + my)) player.y += my;
+    // Kilitli (inşa edilmemiş) katta yalnızca asansör lobisinde durulabilir: inşaat bariyeri geçilmez
+    if (VH.hospital && VH.hospital.floorOpen && !VH.hospital.floorOpen(player.floor)) {
+      const [ax, ay] = M().floorArrive(player.floor);
+      player.x = Math.max(ax - 0.9, Math.min(ax + 0.35, player.x)); player.y = Math.max(ay - 0.75, Math.min(ay + 0.85, player.y));
+    }
     player.moving = Math.abs(player.x - ox) + Math.abs(player.y - oy) > 1e-5;
     if (player.moving) player.anim += dt * 11 * (input.run ? 1.4 : 1);
   }
@@ -860,6 +865,41 @@
     return { type: 'patient', ref: e, name: e.name, action: 'Hastayı Muayene Et', x: e.x, y: e.y };
   }
 
+  // ---------------------------------------------------------------- Görüş hattı (duvar geçişi) denetimi
+  /** a→b komşu hücre geçişi duvardan mı (cam bölmeler de duvar sayılır; kapı ve açık kemer serbest). */
+  function wallBetween(x, y, nx, ny, f) {
+    const w = M().edgeBetween(x, y, nx, ny, f);
+    return !!(w && w.type === 'wall');
+  }
+  /** (x0,y0)→(x1,y1) doğrusu bir duvar kenarını kesiyor mu. Köşegen geçişlerde iki yoldan biri açıksa geçer. */
+  function losBlocked(x0, y0, x1, y1, f) {
+    let cx = Math.floor(x0), cy = Math.floor(y0);
+    const tx = Math.floor(x1), ty = Math.floor(y1);
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.2) + 1;
+    for (let i = 1; i <= n && (cx !== tx || cy !== ty); i++) {
+      const k = i / n, nx = Math.floor(x0 + (x1 - x0) * k), ny = Math.floor(y0 + (y1 - y0) * k);
+      if (nx === cx && ny === cy) continue;
+      if (nx !== cx && ny !== cy) {
+        const viaX = !wallBetween(cx, cy, nx, cy, f) && !wallBetween(nx, cy, nx, ny, f);
+        const viaY = !wallBetween(cx, cy, cx, ny, f) && !wallBetween(cx, ny, nx, ny, f);
+        if (!viaX && !viaY) return true;
+      } else if (wallBetween(cx, cy, nx, ny, f)) return true;
+      cx = nx; cy = ny;
+    }
+    return false;
+  }
+  function sameSpace(t) {
+    if (!t || !isFinite(t.x) || !isFinite(t.y)) return true;
+    let tx = t.x, ty = t.y;
+    if (t.type === 'device' && t.ref && t.ref.x0 !== undefined) {
+      // cihaz dikdörtgeninde oyuncuya en yakın nokta, merkeze doğru biraz içeri çekilir
+      const d = t.ref;
+      tx = Math.max(d.x0 + 0.3, Math.min(d.x1 - 0.3, player.x)); ty = Math.max(d.y0 + 0.3, Math.min(d.y1 - 0.3, player.y));
+      if (d.x1 - d.x0 < 0.6) tx = d.x; if (d.y1 - d.y0 < 0.6) ty = d.y;
+    }
+    return !losBlocked(player.x, player.y, tx, ty, player.floor);
+  }
+
   /** Oyuncunun yakınındaki etkileşim hedefleri (en yakın önce, eylem başına tek). */
   function nearbyTargets() {
     const out = [];
@@ -875,6 +915,12 @@
     }
     for (const prov of VH.targetProviders || []) (prov(player) || []).forEach((t) => out.push(t));
     registerTargets(player).forEach((t) => out.push(t));
+    // Oda içi etkileşim izolasyonu: hedef ile oyuncu arasında (cam dahil) duvar varsa etkileşim yok.
+    // Aynı oda / açık kemer / kapı aralığından erişim serbesttir.
+    for (let i = out.length - 1; i >= 0; i--) {
+      const t = out[i];
+      if (!sameSpace(t)) out.splice(i, 1);
+    }
     // Aktif acil vakada ihtiyaç duyulan cihaz/hasta öne alınır
     if (VH.hospital && VH.hospital.priority) out.forEach((t) => { t.dist -= VH.hospital.priority(t); });
     out.sort((a, b) => a.dist - b.dist);
@@ -980,8 +1026,8 @@
   }
 
   function inRange(t) {
-    if (t.type === 'device') return rectDist(player.x, player.y, t.ref) <= RANGE_DEV;
-    return Math.hypot(t.ref.x - player.x, t.ref.y - player.y) <= RANGE_ENT;
+    if (t.type === "device") return rectDist(player.x, player.y, t.ref) <= RANGE_DEV && sameSpace(t);
+    return Math.hypot(t.ref.x - player.x, t.ref.y - player.y) <= RANGE_ENT && sameSpace({ type: t.type, x: t.ref.x, y: t.ref.y });
   }
 
   // ================================================================ Çizim
@@ -1009,6 +1055,13 @@
       const o = { k: "mop_cart", x: c.x - 0.5, y: c.y - 0.5, w: 1, h: 1, wet: !!(e.task && e.task.kind === "clean" && !e.moving) };
       const [cx, cy] = map.worldToIso(c.x, c.y);
       carts.push({ kind: "cart", key: map.depthAt(c.x, c.y), cx, cy, draw: (ctx) => VH.art.draw(ctx, { o }) });
+    }
+    // Kilitli katta asansör çıkışına sarı-siyah şeritli inşaat bariyeri
+    if (VH.hospital && VH.hospital.floorOpen && map.floor > 0 && !VH.hospital.floorOpen(map.floor)) {
+      const [ax, ay] = map.floorArrive(map.floor);
+      const o = { k: "construction_barrier", x: Math.floor(ax) + 1, y: Math.floor(ay), w: 1, h: 2 };
+      const [bx, by] = map.worldToIso(o.x + 0.5, o.y + 1);
+      carts.push({ kind: "barrier", key: map.depthAt(o.x + 0.5, o.y + 1.5), cx: bx, cy: by, draw: (ctx) => VH.art.draw(ctx, { o }) });
     }
     return carts.concat(all.map((e) => {
       const [sx, sy] = map.worldToIso(e.x, e.y);
@@ -1135,11 +1188,19 @@
         statusBadge(ctx, sx, sy, kind, p, now);
       }
     }
+    // Muayene/işlem yapan personelin başında da yeşil artı rozeti
+    if (z >= 0.75) for (const s of staff) {
+      if (s.bubble || s.floor !== player.floor || s.moving || !s.busy || s.floor < 0) continue;
+      const [sx0, sy0] = head(s);
+      const sx = sx0 + 12, sy = sy0 + 2 + Math.sin(now / 420 + 3) * 1.5;
+      if (sx < -30 || sx > vw + 30 || sy < -30 || sy > vh + 30) continue;
+      statusBadge(ctx, sx, sy, "treat", s, now);
+    }
     // Yüzen +₺ / +★ partikülleri
     for (let i = floaters.length - 1; i >= 0; i--) {
       const f = floaters[i], age = (now - f.t0) / 1000;
       if (age > 1.8) { floaters.splice(i, 1); continue; }
-      if (f.floor !== player.floor) continue;
+      if (f.floor !== player.floor || VH.lod) continue; // uzak görünümde (LOD) partikül çizilmez
       const [ix, iy] = M().worldToIso(f.x, f.y);
       const [sx, sy] = cam.toScreen(ix, iy - 56 - age * 34, vw, vh);
       ctx.globalAlpha = Math.max(0, 1 - Math.max(0, age - 1.1) / 0.7);

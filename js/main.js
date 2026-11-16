@@ -7,7 +7,9 @@
   let vw = 0, vh = 0, dpr = 1;
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Yüksek çözünürlüklü ekranlarda GPU yükünü sınırla
+    dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    if (VH.map) VH.map.pixelRatio = dpr;
     vw = window.innerWidth;
     vh = window.innerHeight;
     canvas.width = Math.round(vw * dpr);
@@ -55,7 +57,7 @@
     const cx = Math.floor(wx), cy = Math.floor(wy);
     VH.map.hover = { x: cx, y: cy };
     const room = VH.map.roomAt(cx, cy);
-    VH.ui.setRoomChip(room ? (room.num ? room.num + ' · ' : '') + room.name : '');
+    VH.ui.setRoomChip(room ? (room.label || room.name) : '');
   }
 
   function doInteract(t) {
@@ -84,6 +86,8 @@
     a: [-1, 0], arrowleft: [-1, 0], d: [1, 0], arrowright: [1, 0],
   };
 
+  const AUTO_ZOOM = 1.05;
+  let wasMoving = false;
   function readMoveInput() {
     let x = 0, y = 0;
     keys.forEach((k) => { const v = MOVE_KEYS[k]; if (v) { x += v[0]; y += v[1]; } });
@@ -94,6 +98,12 @@
     inp.x = x; inp.y = y;
     inp.run = keys.has('shift');
     if ((x || y) && !cam().follow) setFollow(true);
+    // Yürümeye başlayınca otomatik yakınlaşma: uzaklaştırılmış kamera ~0,35 sn içinde oynanış yakınlığına (1,05) döner
+    if ((x || y) && !wasMoving) {
+      const c = cam();
+      if (c.zoom < AUTO_ZOOM * 0.97 && !VH.build.active) { c.base = AUTO_ZOOM; c.focusF = 1; c.glide(AUTO_ZOOM, 9); lastRoomKey = ""; }
+    }
+    wasMoving = !!(x || y);
   }
 
   function bindInput() {
@@ -406,6 +416,8 @@
     if (params.get('follow') === '0') c.follow = false;
     if (params.get('labels') === '0') VH.map.labels = false;
     if (params.has('touch')) document.body.classList.add('touch');
+    if (params.has('nocache')) VH.map.cacheEnabled = false;
+    VH.map.pixelRatio = dpr;
     if (params.has('floor')) { VH.hospital.travel(+params.get('floor')); if (params.has('zoom')) { c.want = null; c.zoom = +params.get('zoom'); } if (params.has('x') && params.has('y')) { c.follow = false; c.centerOnWorld(+params.get('x'), +params.get('y')); } }
 
     VH.ui.hideLoader();

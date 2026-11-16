@@ -893,3 +893,28 @@ body.touch .act-btn kbd, body.touch kbd { display: none !important; }
 .req.ok { color: #6fdc8c; }
 .req.no { color: #ff8a8d; }
 .shop-card.locked-card { filter: grayscale(0.7); opacity: 0.9; }
+
+/* =====================================================================
+   v7 · Vaka Akış Şeması: boşta tek satır, öncelik renkli hasta sekmeleri, tıklanabilir aktif adım
+   ===================================================================== */
+#flow.idle { width: auto; max-width: calc(100vw - 24px); padding: 5px 12px; opacity: 0.92; }
+#flow.idle .flow-min, #flow.idle .flow-tabs { display: none; }
+#flow.idle .flow-kicker { color: #8fe3b0; }
+.flow-tab { --pc: #46c46a; }
+.flow-tab.prio-red { --pc: #ff5a5f; }
+.flow-tab.prio-yellow { --pc: #f2c94c; }
+.flow-tab.prio-green { --pc: #46c46a; }
+.flow-tab::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: var(--pc); vertical-align: 1px; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25); }
+.flow-tab.on { background: color-mix(in srgb, var(--pc) 85%, #ffffff 0%); border-color: var(--pc); color: #10202a; }
+.fs.active[data-step] { cursor: pointer; }
+.fs.active[data-step]:hover { outline: 2px solid rgba(46, 196, 182, 0.8); outline-offset: 1px; }
+/* Dokunmatik: VitaOS hızlı erişim düğmesi */
+#btn-os-touch { display: none; }
+body.touch #btn-os-touch {
+  display: flex; align-items: center; justify-content: center; position: fixed; z-index: 15;
+  right: max(14px, env(safe-area-inset-right)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 230px);
+  width: 58px; height: 58px; border-radius: 18px; border: 1px solid var(--line); background: rgba(13, 27, 38, 0.92);
+  color: var(--text); font-size: 24px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+body.touch #btn-os-touch span { position: absolute; bottom: -16px; font-size: 10px; font-weight: 800; color: var(--muted); }
+body.building #btn-os-touch { display: none !important; }

@@ -331,7 +331,7 @@
     k.custom(W / 2, 0.5, 52, (c, sx, sy) => {
       c.fillStyle = '#0f3d24'; c.fillRect(sx - 30, sy - 8, 60, 14);
       c.strokeStyle = '#7dff9a'; c.lineWidth = 1; c.strokeRect(sx - 30, sy - 8, 60, 14);
-      c.save(); c.shadowColor = '#46ff7a'; c.shadowBlur = 8 * glow;
+      c.save(); if (!VH.lod) { c.shadowColor = '#46ff7a'; c.shadowBlur = 8 * glow; }
       c.fillStyle = `rgba(90,255,130,${glow})`; c.fillRect(sx - 26, sy - 3.5, 9, 3); c.fillRect(sx - 23, sy - 6.5, 3, 9);
       c.fillStyle = '#eafff0'; c.font = '900 8px system-ui'; c.textAlign = 'left'; c.textBaseline = 'middle'; c.fillText('ECZANE', sx - 13, sy - 1);
       c.restore();
@@ -517,10 +517,109 @@
       const g = c.createRadialGradient(sx, sy - 3, 4, sx, sy - 3, 46);
       g.addColorStop(0, `rgba(95,240,216,${0.45 * n})`); g.addColorStop(1, 'rgba(95,240,216,0)');
       c.fillStyle = g; c.beginPath(); c.ellipse(sx, sy - 3, 46, 26, 0, 0, Math.PI * 2); c.fill();
-      c.shadowColor = '#5ff0d8'; c.shadowBlur = 10 * n;
+      if (!VH.lod) { c.shadowColor = '#5ff0d8'; c.shadowBlur = 10 * n; }
       c.fillStyle = '#e9fffb'; c.font = '800 9px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillText('✚ VITA HOSPITAL', sx, sy - 3);
       c.restore();
     });
+  });
+})();
+
+// ================================================================ v7: inşaat bariyeri, servis yatağı, EKG
+(function () {
+  const VH = window.VH, A = VH.art;
+  const R = (k, fn, flat) => A.register(k, fn, flat);
+  const now = () => performance.now();
+  // Kilitli katın asansör çıkışındaki sarı-siyah şeritli "İnşaat Alanı / Kapalı Kat" bariyeri (yerel: W=1, D=2)
+  R('construction_barrier', (k) => {
+    const D = k.D;
+    k.shadow(0.3, 0.05, 0.7, D - 0.05, 0.18);
+    for (const v of [0.15, D - 0.15]) { k.box(0.38, v - 0.06, 0.62, v + 0.06, 0, 30, '#e0b13a'); k.box(0.3, v - 0.12, 0.7, v + 0.12, 0, 3, '#2b333b'); }
+    const stripes = [];
+    for (let i = 0; i < 10; i++) stripes.push({ dir: '*', u0: i / 10, u1: (i + 0.5) / 10, z0: 20, z1: 28, color: '#1b1b1b', raw: true });
+    k.box(0.44, 0.05, 0.56, D - 0.05, 20, 28, '#f2c94c', { deco: stripes });
+    k.box(0.44, 0.05, 0.56, D - 0.05, 8, 12, '#f2c94c', { deco: stripes.map((s) => Object.assign({}, s, { z0: 8, z1: 12 })) });
+    // uyarı lambaları ve kilit levhası
+    const on = Math.floor(now() / 450) % 2;
+    for (const v of [0.15, D - 0.15]) k.ball(0.5, v, 33, 2.6, on ? '#ff9f1c' : '#7a4a10');
+    k.custom(0.5, D / 2, 40, (c, sx, sy) => {
+      c.fillStyle = 'rgba(20,24,30,0.92)'; c.fillRect(sx - 30, sy - 9, 60, 17);
+      c.strokeStyle = '#f2c94c'; c.lineWidth = 1.2; c.strokeRect(sx - 30, sy - 9, 60, 17);
+      c.fillStyle = '#f2c94c'; c.font = '800 6.5px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText("🔒 İNŞAAT ALANI", sx, sy - 3); c.fillStyle = "#e9edf0"; c.font = "700 5px system-ui"; c.fillText("KAPALI KAT", sx, sy + 4);
+    });
+  });
+
+  // Yatan hasta yatağı: tekerlekli şasi, yan korkuluklar, yastık, mavi-beyaz desenli nevresim,
+  // başucu monitörü; servis yataklarında ayak ucunda serum askısı
+  R("bed", (k) => {
+    const t = now(), ward = k.o.tag === "ward_bed";
+    k.shadow(0.04, 0.04, 0.96, 0.96, 0.2);
+    for (const [u, v] of [[0.15, 0.15], [0.85, 0.15], [0.15, 0.85], [0.85, 0.85]]) k.disc(u, v, 1, 2.6, "#2b333b");
+    k.box(0.12, 0.12, 0.88, 0.88, 3, 9, "#b8c4cb");
+    k.box(0.13, 0.13, 0.87, 0.87, 9, 15, "#f4f7f9", { top: "#ffffff" });
+    // nevresim: mavi zemin + beyaz şeritler
+    k.box(0.12, 0.36, 0.88, 0.88, 15, 17.5, "#3f7fbf", { top: "#4f8fd0", edge: false });
+    for (let i = 0; i < 4; i++) k.box(0.12, 0.42 + i * 0.12, 0.88, 0.46 + i * 0.12, 17.5, 17.8, "#e9f2fb", { edge: false });
+    k.box(0.11, 0.33, 0.89, 0.38, 15, 18.5, "#ffffff");
+    // yastık
+    k.box(0.22, 0.15, 0.78, 0.31, 15, 20.5, "#ffffff", { top: "#f3f6f8" });
+    // başlık ve ayak ucu panelleri, yan korkuluklar
+    k.box(0.08, 0.06, 0.92, 0.12, 3, 32, "#d6e0e6", { deco: [{ dir: "S", u0: 0.15, u1: 0.85, z0: 22, z1: 26, color: "#2ec4b6", raw: true }] });
+    k.box(0.08, 0.88, 0.92, 0.94, 3, 22, "#d6e0e6");
+    k.box(0.06, 0.3, 0.1, 0.7, 15, 21, "#9aa7b0"); k.box(0.9, 0.3, 0.94, 0.7, 15, 21, "#9aa7b0");
+    // başucu monitörü (kol üstünde, canlı ritim)
+    k.pole(0.9, 0.08, 32, 44, 1.6, "#9aa7b0");
+    k.box(0.72, 0.04, 1.0, 0.1, 42, 54, "#1b2329");
+    k.custom(0.86, 0.1, 48, (c, sx, sy) => {
+      c.fillStyle = "#06140f"; c.fillRect(sx - 7, sy - 4.5, 14, 9);
+      const ph = (t / 900) % 1;
+      c.strokeStyle = "#66ff99"; c.lineWidth = 0.9; c.beginPath();
+      for (let i = 0; i <= 14; i++) { const x = (i / 14 + ph) % 1, y = Math.abs(x - 0.5) < 0.04 ? -3 : Math.abs(x - 0.56) < 0.03 ? 2 : 0; i ? c.lineTo(sx - 7 + i, sy + y) : c.moveTo(sx - 7, sy + y); }
+      c.stroke();
+    });
+    if (ward) {
+      k.disc(0.97, 0.95, 0, 4, "#7e8d96");
+      k.pole(0.97, 0.95, 0, 46, 1.5, "#c9d1d6");
+      k.line(0.92, 0.95, 46, 1.02, 0.95, 46, 1.4, "#c9d1d6");
+      k.box(0.93, 0.92, 1.01, 0.98, 36, 44, "rgba(200,230,250,0.85)");
+      k.line(0.97, 0.95, 36, 0.85, 0.75, 18, 0.8, "rgba(160,200,230,0.9)");
+    }
+  });
+
+  // EKG cihazı: arabası, çok kanallı canlı kalp ritmi ekranı, kâğıt çıktısı ve elektrot kabloları
+  R("ecg", (k) => {
+    const t = now();
+    k.shadow(0.12, 0.2, 0.88, 0.85);
+    for (const [u, v] of [[0.2, 0.3], [0.8, 0.3], [0.2, 0.8], [0.8, 0.8]]) k.disc(u, v, 0, 2.4, "#2b333b");
+    k.pole(0.5, 0.55, 2, 22, 2.5, "#9aa7b0");
+    k.box(0.15, 0.25, 0.85, 0.85, 20, 28, "#e9eef1", { deco: [{ dir: "S", u0: 0.1, u1: 0.9, z0: 22, z1: 24, color: "#2ec4b6", raw: true }] });
+    k.box(0.22, 0.3, 0.78, 0.4, 28, 46, "#1b2329");
+    k.custom(0.5, 0.4, 37, (c, sx, sy) => {
+      c.fillStyle = "#04120d"; c.fillRect(sx - 12, sy - 8, 24, 16);
+      const cols = ["#66ff99", "#ffd166", "#5ab0ff"];
+      for (let r = 0; r < 3; r++) {
+        c.strokeStyle = cols[r]; c.lineWidth = 0.8; c.beginPath();
+        const yb = sy - 4.5 + r * 4.6, sh = (t / (700 + r * 90)) % 1;
+        for (let i = 0; i <= 24; i++) { const x = ((i / 24) + sh) % 1; const y = Math.abs(x - 0.3) < 0.025 ? -2.6 : Math.abs(x - 0.34) < 0.02 ? 1.4 : Math.abs(x - 0.62) < 0.05 ? -0.8 : 0; i ? c.lineTo(sx - 12 + i, yb + y) : c.moveTo(sx - 12, yb + y); }
+        c.stroke();
+      }
+      c.fillStyle = "#66ff99"; c.font = "700 3.6px system-ui"; c.textAlign = "right"; c.fillText("♥ " + (72 + Math.round(Math.sin(t / 2000) * 3)), sx + 11.5, sy - 5.5);
+    });
+    // kâğıt çıktısı
+    const pl = 6 + ((t / 400) % 6);
+    k.custom(0.7, 0.85, 26, (c, sx, sy) => { c.fillStyle = "#fff4f4"; c.fillRect(sx - 4, sy, 8, pl); c.strokeStyle = "#e07a7a"; c.lineWidth = 0.5; c.beginPath(); c.moveTo(sx - 3, sy + pl / 2); c.lineTo(sx - 1, sy + pl / 2 - 1.5); c.lineTo(sx, sy + pl / 2 + 1); c.lineTo(sx + 3, sy + pl / 2); c.stroke(); });
+    // elektrot kabloları
+    for (const [u, col] of [[0.25, "#d62828"], [0.35, "#f2c94c"], [0.45, "#2f9e44"]]) k.line(u, 0.85, 22, u - 0.15, 1.05, 8, 0.9, col);
+  });
+
+  // Eczane rafları: cam kapak ve parıltı
+  const shelf = A.get("pharmacy_shelf");
+  if (shelf) R("pharmacy_shelf", (k) => {
+    shelf(k);
+    const W = k.W;
+    k.box(0.02, 0.56, W - 0.02, 0.59, 3, 68, "rgba(170,215,238,0.22)", { edge: false, top: "rgba(170,215,238,0.3)" });
+    k.box(W / 2 - 0.01, 0.56, W / 2 + 0.01, 0.6, 3, 68, "#b8c4cb", { edge: false });
+    k.box(0.1, 0.58, 0.22, 0.6, 20, 60, "rgba(255,255,255,0.25)", { edge: false });
   });
 })();

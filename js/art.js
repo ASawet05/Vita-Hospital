@@ -561,7 +561,7 @@
         const g = VH.guide && VH.guide.current && VH.guide.current.target;
         let arrow = '';
         if (g && g.floor !== undefined && g.floor !== f) arrow = LV[g.floor] > LV[f] ? '▲' : '▼';
-        const NAMES = ["Zemin Kat", "1. Kat - Cerrahi", "2. Kat - Yatan Hasta", "3. Kat - Radyoloji", "B1 - Yemekhane"];
+        const NAMES = ["Zemin Kat · Asansör", "1. Kat · Cerrahi", "2. Kat · Yatan Hasta", "3. Kat · Radyoloji", "B1 · Yemekhane"];
         c.fillStyle = "#16323f"; c.fillRect(sx - 12, sy - 7, 24, 14);
         c.fillStyle = "#2ec4b6"; c.font = "800 9px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
         c.fillText(LBL[f] || String(f), sx - (arrow ? 4 : 0), sy);
@@ -660,6 +660,9 @@
   const FLAT = new Set(['play_mat', 'floor_decal', 'ambulance_bay', 'rug', 'road_mark', 'parking_lines', 'crosswalk']);
 
   let wind = 1;
+  // Kaynak kodda zaman, gece, rüzgâr veya canlı oyun durumu okuyan türler "dinamik" sayılır
+  const DYN = new Map();
+  const DYN_RE = /now\(\)|performance\.now|night\(\)|\bwind\b|Date\(|VH\.(world|floors|entities|hospital|guide|logistics|cases|terminal)|M\(\)\.floor\b|scanning\(|labBusy\(|servicesOpen\(|o\.(lights|braking|wet|open|color)\b/;
   VH.art = {
     get KINDS() { return Object.keys(K); },
     has: (kind) => !!K[kind],
@@ -671,7 +674,16 @@
     ecgLine,
     set wind(v) { wind = v; },
     /** Yeni nesne türü ekle ya da var olanı sar (art_extra.js, equipment.js). */
-    register(kind, fn, flat) { K[kind] = fn; if (flat) FLAT.add(kind); },
+    register(kind, fn, flat) { K[kind] = fn; if (flat) FLAT.add(kind); DYN.delete(kind); },
+    /** Tür zamanla ya da oyun durumuyla değişiyor mu (animasyon, gece, cihaz durumu)? Değişmeyenler sprite önbelleğine alınır. */
+    isDynamic(kind) {
+      if (DYN.has(kind)) return DYN.get(kind);
+      const fn = K[kind];
+      const src = fn ? String(fn) + (fn._src || "") : "";
+      const d = DYN_RE.test(src);
+      DYN.set(kind, d);
+      return d;
+    },
     get(kind) { return K[kind]; },
     /** Haritadaki bir nesneyi çiz. it: { o, ... } */
     draw(context, it) {

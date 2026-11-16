@@ -211,6 +211,12 @@
     buildGameControls(onAction) {
       const root = $('ui-root');
 
+      // Dokunmatik VitaOS düğmesi (sağ): masa başındaysa masaüstü, değilse salt okunur uzaktan özet açılır
+      const osb = el('button', { id: 'btn-os-touch', type: 'button', title: 'VitaOS' }, '🖥️');
+      osb.appendChild(el('span', {}, 'VitaOS'));
+      osb.addEventListener('click', (e) => { e.stopPropagation(); if (VH.terminal) VH.terminal.open(); });
+      root.appendChild(osb);
+
       // Joystick (sol alt)
       const zone = el('div', { id: 'joystick' });
       zone.setAttribute('aria-label', 'Sanal joystick');
@@ -260,7 +266,9 @@
 
       // Dokunmatik algılama
       const markTouch = () => document.body.classList.add('touch');
+      // Dokunmatik cihaz: kaba işaretçi, dokunma desteği + dar ekran ya da ilk dokunuş
       if (window.matchMedia && matchMedia('(pointer: coarse)').matches) markTouch();
+      else if (('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 900) markTouch();
       window.addEventListener('touchstart', markTouch, { once: true, passive: true });
     },
 
@@ -333,7 +341,7 @@
      * Aktif Vaka Akış Şeması paneli. model: guide.js akışı; flows: sekmeler; onTab(id).
      * DOM yalnızca yapı değişince yeniden kurulur; süre/bar her karede güncellenir.
      */
-    setFlow(model, flows, onTab) {
+    setFlow(model, flows, onTab, onStep) {
       let box = $('flow');
       if (!box) {
         box = el('div', { id: 'flow', role: 'region' });
@@ -343,26 +351,27 @@
           if (t && box._onTab) box._onTab(t.dataset.tab);
           if (e.target.closest('[data-file]') && VH.cases) VH.cases.openCaseFile();
           if (e.target.closest('[data-min]')) { box.classList.toggle('min'); }
+          if (e.target.closest('[data-step]') && box._onStep) box._onStep();
         });
         $('ui-root').appendChild(box);
       }
       if (!box._init) { box._init = true; if (window.innerWidth <= 640 || document.body.classList.contains('touch')) box.classList.add('min'); }
-      box._onTab = onTab;
+      box._onTab = onTab; box._onStep = onStep;
       const hud = $('hud');
       if (hud) {
         const hb = hud.getBoundingClientRect().bottom;
         const tk = tickerEl(); if (tk && tk._top !== hb + 6) { tk._top = hb + 6; tk.style.top = (hb + 6) + 'px'; }
         const top = hb + 44; if (box._top !== top) { box._top = top; box.style.top = top + 'px'; }
       }
-      const sig = model ? [model.id, model.title, model.patient, model.instruction, model.steps.map((s) => s.state).join(''), flows.map((f) => f.id).join()].join('|') : 'idle';
+      const sig = model ? [model.id, model.title, model.patient, model.instruction, model.steps.map((s) => s.state).join(''), flows.map((f) => f.id + f.prio + f.tab).join()].join('|') : 'idle';
       if (box._sig !== sig) {
         box._sig = sig;
         box.innerHTML = '';
         const head = el('div', { className: 'flow-head' });
-        head.appendChild(el('span', { className: 'flow-kicker' }, 'Aktif Vaka Akış Şeması'));
+        head.appendChild(el('span', { className: 'flow-kicker' }, model ? 'Aktif Vaka Akış Şeması' : 'Aktif Vaka: 0 · Tüm Birimler Akıcı'));
         const tabs = el('span', { className: 'flow-tabs' });
-        if (model && flows.length > 1) flows.forEach((f) => {
-          const b = el('button', { type: 'button', className: 'flow-tab' + (f.id === model.id ? ' on' : '') }, f.tab);
+        if (model && flows.length >= 1) flows.forEach((f) => {
+          const b = el('button', { type: 'button', className: 'flow-tab prio-' + (f.prio || 'green') + (f.id === model.id ? ' on' : '') }, f.tab);
           b.dataset.tab = f.id;
           tabs.appendChild(b);
         });
@@ -373,7 +382,7 @@
         box.appendChild(head);
         if (!model) {
           box.classList.add('idle');
-          box.appendChild(el('div', { className: 'flow-instr' }, '✓ Bekleyen acil vaka yok. Sıradaki ★ vaka hastası ya da ambulans yolda; bu arada eczane ve bekleme salonunu kontrol edin.'));
+          // Boşta: tek satırlık küçük özet şeridi (içi boş büyük kutu ekranı kapatmaz)
         } else {
           box.classList.remove('idle');
           box.classList.toggle('urgent', !!model.urgent);
@@ -386,6 +395,7 @@
           const steps = el('ol', { className: 'flow-steps' });
           model.steps.forEach((s, i) => {
             const li = el('li', { className: 'fs ' + s.state });
+            if (s.state === 'active') { li.dataset.step = '1'; li.title = 'Hastayı / odayı kamerada göster'; }
             li.appendChild(el('span', { className: 'fs-n' }, s.state === 'done' ? '✓' : String(i + 1)));
             li.appendChild(el('span', { className: 'fs-l' }, s.label));
             steps.appendChild(li);

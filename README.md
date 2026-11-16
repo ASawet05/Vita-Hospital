@@ -157,6 +157,48 @@ Uygulamalar:
 - **Vardiya sonu Başhekim Karnesi:** Hasta memnuniyeti, acil servis, klinik kalite, finans, temizlik ve personel A–F arası notlanır.
 - **Habersiz Sağlık Müfettişi:** Koridorlarda not alarak dolaşır, ardından raporunu verir.
 
+## Performans
+
+- **Zemin önbelleği:** Karo dokuları ve zemine yatık sabit nesneler 512 izo-piksellik parçalar hâlinde offscreen canvas'lara bir kez çizilir. Her karede yalnızca görünen parçalar `drawImage` ile basılır.
+- **Sprite önbelleği:** Animasyonsuz nesneler ve kapı olmayan duvar parçaları ilk görüldüklerinde kendi küçük canvas'larına çizilir. Animasyonlu ya da duruma bağlı türler (kaynakta zaman, gece veya canlı durum okuyanlar) her karede canlı çizilir.
+- **Önbellek ölçeği ve sıfırlama:** Önbellek yakınlaştırma × piksel oranına göre kademeli ölçeklenir. Kat, rotasyon, yerleşim veya ekipman seviyesi değişince sıfırlanır.
+- **Etkisi:** Ölçülen tuval çağrısı uzak görünümde 30.072'den 8.331'e, yakın görünümde 11.540'tan 3.241'e indi.
+- **Görüş alanı kırpması:** Ekranın %15 dışında kalan nesne, karakter ve araçlar çizilmez. Cihaz piksel oranı en fazla 1,75'tir.
+- **Pasif katlar:** Görünmeyen katlardaki karakterler ve partiküller çizilmez; tedavi, kasa ve stok hesapları arka planda sürer.
+- **Detay seviyesi (LOD):** Yakınlaştırma 0,75'in altındayken gölge bulanıklığı, partiküller, rozetler ve masa üstü mikro eşyalar gizlenir.
+- **Otomatik yakınlaşma:** Uzaklaştırılmış haritada yürümeye başlayınca kamera yaklaşık 0,35 sn içinde oynanış yakınlığına (1,05) döner.
+- **Test parametresi:** `?nocache` önbellekleri kapatır.
+
+## Vaka Akış Şeması ve otomasyon
+
+- **Boşta görünüm:** Aktif hasta yokken panel tek satıra iner: `Aktif Vaka: 0 · Tüm Birimler Akıcı`.
+- **Hasta sekmeleri:** Hasta geldiğinde öncelik renkli sekmeler açılır: kırmızı = acil, sarı = ★ vaka veya sabrı azalan hasta, yeşil = normal akış.
+- **Yolculuk şeması:** Seçili hastanın 4 adımı gösterilir: `Triyaj & Kayıt → Doktor Muayenesi → Kan Tahlili / MR → Eczane / Ameliyat`. Aktif adıma tıklanınca kamera hastaya ya da odaya kayar ve turkuaz işaret halkası belirir.
+- **Acil ekip otomasyonu:** Acil Tıp Uzmanı veya Acil Hemşiresi ya da MedKariyer'den alınan bir hemşire/doktor varsa, ambulans yanaştığında ekipten biri dışarı çıkıp hastayı karşılar. Triyajı (3–5 sn) ve stabilizasyonu ekip yapar. Başhekim üst katta ya da bilgisayardayken hasta dışarıda beklemez.
+- **Oda içi etkileşim izolasyonu:** Oyuncu ile hedef arasında duvar (cam bölmeler dahil) varsa etkileşim düğmesi çıkmaz. Aynı oda, açık kemer ve kapı aralığından erişim serbesttir.
+- **Kilitli kat bariyeri:** İnşa edilmemiş katta asansör çıkışında sarı-siyah şeritli "İnşaat Alanı · Kapalı Kat" bariyeri vardır. Oyuncu lobiden çıkamaz ama kamerayı sürükleyerek odaları inceleyebilir.
+
+## Görsel düzenlemeler (v7)
+
+- **Muayene odaları:** Oda etiketleri kapı tabelalarıyla birebir eşleşir: `1 - Muayene Odası` ↔ `1 - MUAYENE`, `2 - Muayene Odası` ↔ `2 - MUAYENE`. Çakışan oda numaraları kaldırıldı.
+- **Tek tabela kuralı:** Her odanın yalnızca bir kapı tabelası vardır; asansöre yakın kapı atlanır ve oda-oda iç kapılarına tabela konmaz. Böylece B1'deki yinelenen YEMEKHANE tabelaları ve asansör tabelası çakışması giderildi.
+- **Asansör tabelası:** `Zemin Kat · Asansör`, `1. Kat · Cerrahi`, `2. Kat · Yatan Hasta`, `3. Kat · Radyoloji`, `B1 · Yemekhane`.
+- **Cihazlar:**
+  - Servis yatakları: yastık, mavi-beyaz nevresim, korkuluk, canlı ritimli başucu monitörü ve serum askısı.
+  - EKG: üç kanallı canlı dalga ve kâğıt çıktısı.
+  - Eczane rafları: cam kapaklı.
+- **Rozetler:** Muayene yapan personelin başında da yeşil artı rozeti görünür.
+- **Dokunmatik cihazlar:** Klavye ipucu çubuğu gizlenir. Sol altta joystick, sağda bağlama duyarlı etkileşim düğmeleri ve **🖥️ VitaOS** hızlı erişim düğmesi bulunur.
+
+### Görsel varlık araştırması (itch.io)
+
+itch.io'daki ücretsiz izometrik hastane ve araç paketleri lisans açısından incelendi:
+
+- Hastane paketleri CC0 değil; ayrıca projeden daha önce telif temizliğiyle çıkarılmış paket ailesindendir.
+- Araç tarafındaki tek CC0 içerik, tek bir piksel-sanat sedandır ve oyunun vektörel stiline uymaz.
+
+Bu yüzden hiçbir dosya kopyalanmadı. Oranlar, ışık-gölge ve ayrıntı düzeyi referans alınarak bütün çizimler koddan (Canvas) özgün olarak üretildi.
+
 ## Oyun döngüsü
 
 ### Klinik akış

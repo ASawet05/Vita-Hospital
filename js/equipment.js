@@ -229,6 +229,7 @@
       if (!orig || orig._lv) return;
       const fn = (k) => { orig(k); extras(kind, k); };
       fn._lv = true;
+      fn._src = String(orig) + (orig._src || ""); // sprite önbelleği: iç çizimin canlılığı korunur
       VH.art.register(kind, fn, VH.art.isFlat(kind));
     });
   }
@@ -273,7 +274,7 @@
     const cam = M().camera, now = performance.now();
     // Onarım animasyonu: işi başındaki teknisyenin elinden kıvılcımlar
     for (const s of E().staff) {
-      if (!s.task || s.task.kind !== 'repair' || s.path.length || s.floor !== E().player.floor) continue;
+      if (!s.task || s.task.kind !== 'repair' || s.path.length || s.floor !== E().player.floor || VH.lod) continue;
       const [ix, iy] = M().worldToIso(s.x, s.y);
       const [sx, sy] = cam.toScreen(ix, iy - 22, vw, vh);
       // anahtar simgesi ve ilerleme çubuğu

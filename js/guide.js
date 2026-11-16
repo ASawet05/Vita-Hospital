@@ -13,6 +13,7 @@
   let flows = [];
   let current = null;
   let path = null, pathTimer = 0, pathKey = '';
+  let focusPing = null;
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const entTarget = (p, label, icon) => ({ floor: p.floor, x: p.x, y: p.y, label, icon, ent: p });
@@ -49,7 +50,10 @@
       bar = a.timeLeft / H().erMaxTime(a.def);
       if (!a.met && P.floor === 0 && dist(P, a.p) < 2.3) a.met = true;
       const unit = H().UNITS[a.def.need];
-      if (!a.met && (a.phase === 'arrive' || a.phase === 'wait')) {
+      const auto = H().erAuto && H().erAuto();
+      if (auto && (a.phase === 'arrive' || a.phase === 'wait')) {
+        cur = a.met ? 1 : 0; instr = '🧑‍⚕️ Acil ekibi ambulansı karşılıyor ve triyajı yapıyor. İsterseniz siz de yardım edin; diğer işlerinize devam edebilirsiniz.'; target = null;
+      } else if (!a.met && (a.phase === 'arrive' || a.phase === 'wait')) {
         cur = 0; instr = 'Ambulanstan inen hastayı acil girişinde karşılayın: yanına gidin.'; target = entTarget(a.p, 'Hastayı karşıla', '🚑');
       } else if (a.phase === 'arrive' || a.phase === 'wait') {
         cur = 1; instr = 'Hastaya "Acil Müdahale" (E) → yaşamsal bulgulara bakıp doğru üniteyi seçin.'; target = entTarget(a.p, 'Triyaj', '🩺');
@@ -62,7 +66,7 @@
       }
     }
     return {
-      id: 'er', tab: '🚑 Acil', title: 'Acil Vaka', patient: patient ? `${patient.name}, ${patient.age} yaş` : 'Ambulans yolda',
+      id: 'er', tab: patient ? '🚑 ' + shortName(patient) : '🚑 Acil', title: 'Acil Vaka', patient: patient ? `${patient.name}, ${patient.age} yaş` : 'Ambulans yolda',
       timer: a ? fmt(a.timeLeft) : null, bar, urgent: true,
       steps: labels.map((l, i) => ({ label: l, state: i < cur ? 'done' : i === cur ? 'active' : 'todo' })),
       instruction: instr, target, patientRef: patient,
@@ -92,7 +96,7 @@
       default: cur = 5; instr = 'Vaka sonuçlandı.';
     }
     return {
-      id: 'case', tab: '★ Vaka', title: `Vaka: ${a.c.title}`, patient: `${p.name}, ${p.age} yaş · ${a.c.complaint}`,
+      id: 'case', tab: '★ ' + shortName(p), title: `Vaka: ${a.c.title}`, patient: `${p.name}, ${p.age} yaş · ${a.c.complaint}`,
       timer: null, bar: p.patience !== undefined ? p.patience / 100 : null, urgent: false,
       steps: labels.map((l, i) => ({ label: l, state: i < cur ? 'done' : i === cur ? 'active' : 'todo' })),
       instruction: instr, target, patientRef: p,
@@ -109,6 +113,35 @@
       instruction: 'Eczane tezgâhında "İlaç Onayla": doğru kullanım bilgisi bonus ve kombo kazandırır.',
       target: deviceTarget(['pharmacy_counter'], 'İlaç Onayla', '💊'), patientRef: p,
     };
+  }
+
+  // Hasta yolculuğu akışları: acil/★ vaka dışındaki hastalar için 4 adımlı görsel şema ve öncelik sekmesi
+  // (kırmızı = acil, sarı = orta öncelik / sabrı azalan, yeşil = normal akış)
+  const J_LABELS = ['Triyaj & Kayıt', 'Doktor Muayenesi', 'Kan Tahlili / MR', 'Eczane / Ameliyat'];
+  const J_STEP = { queue: 0, regWait: 0, registering: 0, toSeat: 1, waiting: 1, toExam: 1, exam: 1, labWait: 2, toLab: 2, lab: 2, imaging: 2, scan: 2,
+    toPharmacy: 3, pharmacy: 3, surgery: 3, postop: 3, refresh: 1, leaving: 4 };
+  const shortName = (p) => { const s = String(p.name || 'Hasta').split(' '); return s[0] + (s[1] ? ' ' + s[1][0] + '.' : ''); };
+  function patientFlows() {
+    const list = E().patients.filter((p) => !p.gone && !p.erRef && !p.caseRef && J_STEP[p.state] !== undefined && p.state !== 'leaving' && p.state !== 'regWait' && E().pharmacyFront !== p && (p.floor || 0) >= 0);
+    list.sort((a, b) => (a.patience === undefined ? 100 : a.patience) - (b.patience === undefined ? 100 : b.patience));
+    return list.slice(0, 3).map((p) => {
+      const cur = J_STEP[p.state];
+      const pat = p.patience !== undefined ? Math.round(p.patience) : null;
+      const prio = pat !== null && pat < 40 ? 'yellow' : 'green';
+      let instr = '', target = null;
+      if (p.state === 'regWait') { instr = `${shortName(p)} kayıt bekliyor: resepsiyon bankosunda "Hastayı Kaydet".`; target = deviceTarget(['reception_desk'], 'Hastayı Kaydet', '📋'); }
+      else if (cur === 0) instr = `${shortName(p)} resepsiyonda kayıt sırasında.`;
+      else if (cur === 1) instr = `${shortName(p)} ${p.state === 'exam' ? 'muayene ediliyor' : 'muayene sırasını bekliyor'}${pat !== null ? ` (sabır %${pat})` : ''}.`;
+      else if (cur === 2) instr = `${shortName(p)} ${p.state === 'imaging' ? 'görüntüleme (MR/Röntgen) sırasında' : 'kan tahlilinde'}.`;
+      else if (p.state === 'pharmacy' && !E().core('pharmacist') && E().pharmacyFront === p) { instr = `${shortName(p)} eczanede: "İlaç Onayla" ile teslim edin.`; target = deviceTarget(['pharmacy_counter'], 'İlaç Onayla', '💊'); }
+      else instr = `${shortName(p)} ${p.state === 'surgery' ? 'ameliyat sürecinde' : 'eczane aşamasında'}.`;
+      return {
+        id: 'p' + p.id, tab: shortName(p), prio, title: 'Hasta Yolculuğu', patient: `${p.name}${p.age ? ', ' + p.age + ' yaş' : ''} · ${p.complaint || ''}`,
+        timer: null, bar: pat !== null ? pat / 100 : null, urgent: false,
+        steps: J_LABELS.map((l, i) => ({ label: l, state: i < cur ? 'done' : i === cur ? 'active' : 'todo' })),
+        instruction: instr + (target ? '' : ' Otomatik akışta; adıma tıklayınca kamera hastayı gösterir.'), target, focus: entTarget(p, shortName(p), '🧑'), patientRef: p,
+      };
+    });
   }
 
   // Serbest hedef (ör. "Başhekimlik bilgisayarına git"): varılınca kendiliğinden kapanır
@@ -214,6 +247,18 @@
 
   function drawOverlay(ctx, vw, vh) {
     const cam = M().camera, map = M(), now = performance.now(), P = E().player;
+    // Akış şemasından odaklanılan nokta: genişleyen turkuaz halka + aşağı ok
+    if (focusPing && now < focusPing.until && focusPing.floor === P.floor) {
+      const [ix, iy] = map.worldToIso(focusPing.x, focusPing.y);
+      const [sx, sy] = cam.toScreen(ix, iy, vw, vh);
+      const ph = ((focusPing.until - now) / 650) % 1;
+      ctx.save();
+      ctx.strokeStyle = `rgba(46,196,182,${0.25 + 0.6 * ph})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(sx, sy, 34 * (1.4 - ph) * cam.zoom, 17 * (1.4 - ph) * cam.zoom, 0, 0, Math.PI * 2); ctx.stroke();
+      const by = sy - 70 * cam.zoom + Math.sin(now / 160) * 5;
+      ctx.fillStyle = "#2ec4b6"; ctx.beginPath(); ctx.moveTo(sx - 9, by - 12); ctx.lineTo(sx + 9, by - 12); ctx.lineTo(sx, by); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (focusPing && now >= focusPing.until) focusPing = null;
     // Sabır / stabilite barları
     const er = H().er.active;
     for (const p of E().patients) {
@@ -279,18 +324,34 @@
     selectPatient(p) {
       if (p && p.erRef) selected = 'er';
       else if (p && p.caseRef) selected = 'case';
+      else if (p && p.id !== undefined) selected = 'p' + p.id;
     },
     update(dt) {
       const hadEr = flows.some((f) => f.id === 'er');
-      flows = [erFlow(), caseFlow(), pharmacyFlow(), registerFlow(), goalFlow()].concat((VH.flowProviders || []).map((f) => f())).filter(Boolean);
+      flows = [erFlow(), caseFlow(), pharmacyFlow(), registerFlow(), goalFlow()].concat((VH.flowProviders || []).map((f) => f()), patientFlows()).filter(Boolean);
+      flows.forEach((f) => { if (!f.prio) f.prio = f.id === 'er' ? 'red' : f.id === 'case' ? 'yellow' : f.urgent ? 'red' : 'green'; });
       // Yeni acil vaka geldiğinde akış şeması otomatik olarak aciline geçer
       if (!hadEr && flows.some((f) => f.id === 'er')) selected = 'er';
       if (!flows.find((f) => f.id === selected)) selected = flows.length ? flows[0].id : null;
       current = flows.find((f) => f.id === selected) || null;
       if (current) current.resolved = resolveTarget(current.target);
       updatePath(current && current.resolved, dt);
-      UI().setFlow(current, flows, (id) => { selected = id; });
+      UI().setFlow(current, flows, (id) => { selected = id; }, () => VH.guide.focusCurrent());
     },
+    /** Akış şemasında aktif adıma tıklanınca: kamera hedefe (hasta/oda) yumuşakça kayar, yön oku gösterilir. */
+    focusCurrent() {
+      if (!current) return;
+      const t = current.focus || current.target;
+      if (!t) return;
+      const P = E().player;
+      const r = (t.floor === undefined ? 0 : t.floor) === P.floor ? t : resolveTarget(t);
+      if (!r || !isFinite(r.x)) return;
+      const cam = M().camera;
+      cam.follow = false; cam.panTo(r.x, r.y);
+      if (UI().setToggle) UI().setToggle('btn-follow', false);
+      focusPing = { x: r.x, y: r.y, floor: P.floor, until: performance.now() + 2600 };
+    },
+    get focusPing() { return focusPing; },
     drawGround,
     drawOverlay,
   };
