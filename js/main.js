@@ -313,7 +313,8 @@
     const waiting = E.patients.filter((p) => p.state === 'waiting').length;
     const S = VH.cases.state;
     VH.ui.setChip('chip-budget', `💰 ₺${Math.round(S.budget).toLocaleString('tr-TR')}`);
-    VH.ui.setChip('chip-rep', `💎 ${S.reputation}`);
+    VH.ui.setChip('chip-rep', '🏅 ' + S.reputation);
+    if (VH.vip) VH.ui.setChip('chip-gems', '💎 ' + VH.vip.gems);
     const en = Math.round(VH.floors.energy);
     VH.ui.setChip('chip-energy', `${en < 30 ? '🥱' : '⚡'} %${en}`);
     const ce = document.getElementById('chip-energy'); if (ce) ce.classList.toggle('low', en < 30);
@@ -356,6 +357,7 @@
       VH.progress.update(dt);
       VH.world.update(dt, vw, vh);
       VH.logistics.update(dt);
+      if (VH.vip) VH.vip.update(dt);
       VH.surgery.update(dt);
       VH.floors.update(dt);
       VH.save.update(dt);
@@ -368,8 +370,10 @@
     targets = VH.ui.isDialogOpen() ? [] : VH.entities.nearbyTargets();
     VH.ui.setActions(targets);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map), VH.logistics.drawables(VH.map)),
+    VH.map.draw(ctx, vw, vh, VH.entities.drawables(VH.map).concat(VH.hospital.drawables(VH.map), VH.world.drawables(VH.map), VH.logistics.drawables(VH.map), VH.vip ? VH.vip.drawables(VH.map) : []),
       { ground: VH.world.drawGround, lights: VH.world.drawLights, night: VH.map.floor === 0 ? VH.hospital.night : VH.hospital.night * 0.35 });
+    // Gün batımı: turuncu atmosfer tonu (dinamik gün döngüsü)
+    if (VH.hospital.dusk > 0.02) { ctx.fillStyle = 'rgba(255,128,52,' + (0.13 * VH.hospital.dusk).toFixed(3) + ')'; ctx.fillRect(0, 0, vw, vh); }
     VH.world.drawSky(ctx, vw, vh);
     drawFocusDim(dt);
     drawLockedFloor(dt);
@@ -378,6 +382,7 @@
     VH.guide.drawOverlay(ctx, vw, vh);
     VH.entities.drawOverlay(ctx, vw, vh, targets[0], VH.ui.isTouch());
     VH.hospital.drawOverlay(ctx, vw, vh);
+    if (VH.vip) VH.vip.drawOverlay(ctx, vw, vh);
     hudTimer -= dt;
     if (hudTimer <= 0) { hudTimer = 0.25; updateHud(); }
   }
@@ -404,6 +409,7 @@
     VH.world.init();
     VH.logistics.init();
     VH.floors.init();
+    if (VH.vip) VH.vip.init();
     const c = cam();
     c.target = VH.entities.player;
 
@@ -426,6 +432,7 @@
       ['chip-level', ''],
       ['chip-budget', ''],
       ['chip-rep', ''],
+      ['chip-gems', ''],
       ['chip-energy', ''],
       ['chip-rating', ''],
       ['chip-shift', ''],

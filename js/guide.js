@@ -117,7 +117,7 @@
 
   // Hasta yolculuğu akışları: acil/★ vaka dışındaki hastalar için 4 adımlı görsel şema ve öncelik sekmesi
   // (kırmızı = acil, sarı = orta öncelik / sabrı azalan, yeşil = normal akış)
-  const J_LABELS = ['Triyaj & Kayıt', 'Doktor Muayenesi', 'Kan Tahlili / MR', 'Eczane / Ameliyat'];
+  const J_LABELS = ['Triyaj', 'Muayene', 'Tetkik', 'Eczane'];
   const J_STEP = { queue: 0, regWait: 0, registering: 0, toSeat: 1, waiting: 1, toExam: 1, exam: 1, labWait: 2, toLab: 2, lab: 2, imaging: 2, scan: 2,
     toPharmacy: 3, pharmacy: 3, surgery: 3, postop: 3, refresh: 1, leaving: 4 };
   const shortName = (p) => { const s = String(p.name || 'Hasta').split(' '); return s[0] + (s[1] ? ' ' + s[1][0] + '.' : ''); };

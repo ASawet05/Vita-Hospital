@@ -17,7 +17,7 @@
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const sound = (n) => { if (VH.audio) VH.audio.play(n); };
   const persist = () => { if (VH.save) VH.save.save(); };
-  const notify = (i, t, f, k) => { if (VH.notify) VH.notify(i, t, f, k); };
+  const notify = (i, t, f, k, g) => { if (VH.notify) VH.notify(i, t, f, k, g); };
 
   // ================================================================ 2. Kat: yatan hasta takibi
   const CARE = [['💉', 'Serum değişimi'], ['💊', 'İlaç saati'], ['🌡️', 'Ateş ve tansiyon ölçümü']];
@@ -44,6 +44,13 @@
       setTimeout(() => { p.gone = true; }, 1500);
     }
   }
+  /** Başhekim bizzat bakım yapıyorsa hızlı mini oyun; iyi sonuç ek ödül verir. */
+  function careGame(p) {
+    const c = ensureCare(p);
+    const MG = VH.minigames;
+    if (!c.need || !MG || !MG.enabled || MG.active) { doCare(p, true); return; }
+    MG.wardCare(c.need[1], p, (score) => { if (score >= 60) { S().budget += 100; if (E().floatText) E().floatText(p.x, p.y, 2, '+₺100', '#ffd166'); } doCare(p, true); });
+  }
   function updateWard(dt) {
     if (!H().has('services', 'ward')) return;
     const nurse = E().staffById('wardNurse');
@@ -51,7 +58,7 @@
       const c = ensureCare(p);
       if (!c.need) {
         c.next -= dt;
-        if (c.next <= 0) { c.need = pick(CARE); c.waited = 0; if (E().player.floor !== 2 && Math.random() < 0.5) notify(c.need[0], `2. Kat: ${p.name} için ${c.need[1].toLowerCase()} zamanı.`, 2, 'ward'); }
+        if (c.next <= 0) { c.need = pick(CARE); c.waited = 0; if (E().player.floor !== 2) notify(c.need[0], `2. Kat: ${p.name} için ${c.need[1].toLowerCase()} zamanı (dokunun: yol tarifi).`, 2, 'ward', { floor: 2, x: p.x, y: p.y, label: p.name, icon: c.need[0], title: 'Servis bakımı', instruction: `${p.name}: yatağın yanına gidip "${c.need[0]} ${c.need[1]}" seçin.` }); }
       } else {
         c.waited += dt;
         p.emote = { icon: c.need[0], until: performance.now() + 400 };
@@ -113,6 +120,7 @@
     const pay = byPlayer ? 1200 + score * 18 : 700;
     H().reward(byPlayer ? 2 + Math.floor(score / 35) : 1, 1, pay);
     if (VH.emit) VH.emit('imagingDone', { mod: item.mod, byPlayer });
+    if (byPlayer && score >= 60 && VH.progress && VH.progress.bump) VH.progress.bump('imagingGood');
     p.lying = false; p.lift = 0;
     if (item.er) {
       p.erStage = 'pharmacy';
@@ -152,6 +160,16 @@
       cancelAnimationFrame(scan.raf); scan.root.remove();
       const s = scan; scan = null; VH.paused = false;
       if (abort) return;
+      if (item.practice) {
+        // Kalibrasyon taraması (cihazda hasta yokken): nöbet başına bir kez küçük ödül
+        const first = practiceShift[item.mod] !== H().shift.n;
+        practiceShift[item.mod] = H().shift.n;
+        if (first && s.score >= 60) { S().budget += 200; H().reward(1, 0, 0); }
+        sound(s.score >= 60 ? 'success' : 'ok');
+        UI().openDialog({ icon: m.icon, title: `${m.name} Kalibrasyon Taraması`, subtitle: `${s.score}/100 puan`,
+          text: `${s.score >= 60 ? 'Cihaz kalibrasyonu ve okuma becerisi başarılı.' : 'Biraz daha pratik gerekiyor.'}${first && s.score >= 60 ? ' Nöbetin ilk başarılı taraması: +₺200, İtibar +1.' : ''}\nGerçek görüntülemeler "Daha fazla tetkik" kararı ya da acil sevkle gelen hastalarla yapılır.` });
+        return;
+      }
       const pay = imagingDone(item, s.score, true);
       sound(s.score >= 60 ? 'success' : 'ok');
       const node = el('div', {});
@@ -159,7 +177,6 @@
       node.appendChild(el('div', { className: 'deltas' })).appendChild(el('span', { className: 'delta up' }, `Bütçe +${money(pay)}`));
       node.appendChild(el('div', { className: 'sec-title' }, 'Rapor'));
       node.appendChild(el('p', { className: 'lesson' }, findingText(item)));
-      if (item.mod === 'mri' && VH.content) node.appendChild(VH.content.sourcesNode(['mriImplant']));
       node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı sadeleştirilmiş görüntüleme canlandırmasıdır.'));
       UI().openDialog({ icon: m.icon, title: `${m.name} Raporu`, subtitle: `${item.p.name}, ${item.p.age} yaş`, wide: true, node });
     };
@@ -169,9 +186,70 @@
     card.appendChild(el('div', { className: 'sg-sub' }, m.q.q));
     m.q.opts.map((o, i) => [o, i]).sort(() => Math.random() - 0.5).forEach(([[t, ok]]) => {
       const b = el('button', { type: 'button', className: 'opt-btn' }, t);
-      b.addEventListener('click', () => { if (ok) { scan.score += 30; sound('ok'); } else { sound('error'); UI().toast('Doğrusu: ' + m.q.opts.find((x) => x[1])[0], 4200); } runScan(); });
+      b.addEventListener('click', () => { if (ok) { scan.score += 30; sound('ok'); } else { sound('error'); UI().toast('Doğrusu: ' + m.q.opts.find((x) => x[1])[0], 4200); } (item.mod === 'ecg' ? runEcg : runScan)(); });
       card.appendChild(b);
     });
+    // 2b) EKG: akan ritim şeridinde anormal (geniş/erken) atımları hedef bölgeden geçerken yakala
+    function runEcg() {
+      head();
+      card.appendChild(el('div', { className: 'sg-title' }, 'Anormal atımları yakalayın'));
+      card.appendChild(el('div', { className: 'sg-sub' }, 'Ritim şeridi sola akar. Geniş, erken gelen anormal atım (kırmızımsı) turkuaz hedef bölgedeyken “YAKALA”ya basın. Normal atımda basmak puan düşürür (12 sn).'));
+      const cv = el('canvas', { className: 'sg-canvas' });
+      const W = 360, Hh = 220, dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = W * dpr; cv.height = Hh * dpr; card.appendChild(cv);
+      const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+      const btn = el('button', { type: 'button', className: 'dlg-btn sg-big' }, '⚡ YAKALA');
+      card.appendChild(btn);
+      // atım listesi: x (şerit üzerinde konum), anormal mi
+      const beats = [];
+      let x = 80;
+      for (let i = 0; i < 26; i++) { const ab = i > 2 && Math.random() < 0.22 && !(beats[i - 1] && beats[i - 1].ab); x += ab ? 44 : 64 + Math.random() * 8; beats.push({ x, ab, got: false }); }
+      const speed = 70, t0 = performance.now(), ZX = 120, ZW = 22;
+      let caught = 0, wrong = 0, missed = 0, flash = null, done = false;
+      const totalAb = () => beats.filter((b) => b.ab && b.x - (performance.now() - t0) / 1000 * speed < W).length;
+      btn.addEventListener('click', () => {
+        if (done) return;
+        const off = (performance.now() - t0) / 1000 * speed;
+        const b = beats.find((q) => !q.got && Math.abs(q.x - off - ZX) < ZW);
+        if (b && b.ab) { b.got = true; caught++; sound('ok'); flash = ['Yakalandı! VES', '#46c46a', performance.now()]; }
+        else { wrong++; sound('error'); flash = [b ? 'Normal atım' : 'Boşluk', '#ff8a8d', performance.now()]; }
+      });
+      const finish = () => {
+        if (done) return; done = true;
+        const ab = Math.max(1, totalAb());
+        scan.score += Math.max(10, Math.round((caught / ab) * 70) - wrong * 8);
+        scan.score = Math.min(100, scan.score);
+        close(false);
+      };
+      const draw = () => {
+        if (done || !scan) return;
+        const t = (performance.now() - t0) / 1000, off = t * speed;
+        ctx.fillStyle = '#04120d'; ctx.fillRect(0, 0, W, Hh);
+        ctx.strokeStyle = 'rgba(102,255,153,0.08)'; ctx.lineWidth = 1; for (let gx = 0; gx < W; gx += 18) { ctx.beginPath(); ctx.moveTo(gx, 30); ctx.lineTo(gx, 190); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(46,196,182,0.16)'; ctx.fillRect(ZX - ZW, 30, ZW * 2, 160);
+        ctx.strokeStyle = '#2ec4b6'; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(ZX, 30); ctx.lineTo(ZX, 190); ctx.stroke(); ctx.setLineDash([]);
+        ctx.lineWidth = 2; ctx.beginPath();
+        for (let px = 0; px <= W; px += 2) {
+          let y = 112;
+          for (const b of beats) {
+            const d = px - (b.x - off);
+            if (Math.abs(d) > 30) continue;
+            if (b.ab) { if (Math.abs(d) < 12) y = 112 - Math.cos(d / 12 * Math.PI / 2) * 52 + (d > 4 ? 30 * Math.sin((d - 4) / 8 * Math.PI) : 0); }
+            else { if (Math.abs(d) < 4) y = 112 - (4 - Math.abs(d)) * 13; else if (d > 4 && d < 9) y = 112 + (d - 4) * 4; else if (d > 14 && d < 28) y = 112 - Math.sin((d - 14) / 14 * Math.PI) * 9; }
+          }
+          px ? ctx.lineTo(px, y) : ctx.moveTo(px, y);
+        }
+        ctx.strokeStyle = '#66ff99'; ctx.stroke();
+        for (const b of beats) { const bx = b.x - off; if (b.ab && bx > 0 && bx < W) { ctx.fillStyle = b.got ? '#46c46a' : 'rgba(255,107,107,0.55)'; ctx.beginPath(); ctx.arc(bx, 50, 4, 0, Math.PI * 2); ctx.fill(); } }
+        ctx.fillStyle = '#fff'; ctx.font = '700 12px system-ui'; ctx.textAlign = 'left';
+        ctx.fillText(`Yakalanan: ${caught} · Hatalı: ${wrong}`, 10, 18);
+        ctx.textAlign = 'right'; ctx.fillText(`⏱ ${Math.max(0, 12 - t).toFixed(1)} sn`, W - 10, 18);
+        if (flash && performance.now() - flash[2] < 600) { ctx.fillStyle = flash[1]; ctx.textAlign = 'center'; ctx.font = '800 15px system-ui'; ctx.fillText(flash[0], W / 2, 210); }
+        if (t >= 12) { finish(); return; }
+        scan.raf = requestAnimationFrame(draw);
+      };
+      draw();
+    }
     // 2) Netleştir ve tanı koy: odak kaydırıcısını doğru frekansa getir, sonra hasarlı bölgeyi işaretle
     function runScan() {
       head();
@@ -375,7 +453,7 @@
         const c = p.care;
         if (!c || !c.need) continue;
         const d = Math.hypot(p.x - pl.x, p.y - pl.y);
-        if (d < 1.9) out.push({ type: 'ward', name: `${p.name} · ${c.need[1]}`, action: `${c.need[0]} ${c.need[1]}`, x: p.x, y: p.y, dist: d - 1, ref: p, handler: (t) => doCare(t.ref, true) });
+        if (d < 1.9) out.push({ type: 'ward', name: `${p.name} · ${c.need[1]}`, action: `${c.need[0]} ${c.need[1]}`, x: p.x, y: p.y, dist: d - 1, ref: p, handler: (t) => careGame(t.ref) });
       }
     }
     if (pl.floor === 3) {
@@ -428,6 +506,16 @@
 
   VH.targetProviders.push(targets);
   VH.flowProviders.push(imagingFlow, wardFlow);
+  // Radyoloji cihazları: bekleyen hasta varsa gerçek çekim, yoksa kalibrasyon (pratik) taraması mini oyunu
+  const practiceShift = {};
+  const RAD_TAGS = { mri: 'mri', mri_console: 'mri', xray: 'xray', ecg: 'ecg', ultrasound: 'ultrasound' };
+  VH.interactHandlers.push((t) => {
+    if (t.type !== 'device' || !RAD_TAGS[t.ref.tag]) return false;
+    const mod = RAD_TAGS[t.ref.tag];
+    const real = imaging.find((it) => it.ready && it.mod === mod);
+    startScan(real || { practice: true, mod, p: { name: 'Kalibrasyon fantomu', age: 0 } });
+    return true;
+  });
   VH.interactHandlers.push((t) => {
     if (t.type === 'device' && t.ref.tag === 'food_counter') { eat('food'); return true; }
     if (t.type === 'device' && t.ref.tag === 'coffee_bar') { eat('coffee'); return true; }

@@ -356,7 +356,7 @@
       O('dialysis', 8, 10, { tag: 'dialysis' }), O('blood_chair', 9, 10),
       O('dialysis', 11, 10, { tag: 'dialysis' }), O('blood_chair', 12, 10),
       O('mri', 15, 11, { w: 3, h: 2, tag: 'mri' }),
-      O('control_booth', 20, 9, { w: 3, h: 2 }),
+      O('control_booth', 20, 9, { w: 3, h: 2, tag: 'mri_console' }),
       O('radiation_sign', 15, 10, { block: false }),
       O('terminal', 21, 12, { tag: 'pacs' }),
       O('elevator', 1, 7, { tag: 'elevator' }),
@@ -379,7 +379,7 @@
       O('stove', 16, 1, { w: 2 }), O('stove', 19, 1, { w: 2 }), O('med_cabinet', 22, 1),
       O('food_counter', 16, 4, { w: 4, tag: 'food_counter' }),
       O('cash_register', 20, 4, { tag: 'food_counter' }),
-      O('menu_board', 21, 3),
+      O('menu_board', 22, 5), // tezgâhın önünde, okunur konumda
       O('tray_stack', 15, 1),
       ...[2, 5, 8, 11].map((x) => O('cafe_table', x, 2)),
       ...[2, 8, 11].map((x) => O('cafe_table', x, 4)),

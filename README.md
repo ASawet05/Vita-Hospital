@@ -157,6 +157,50 @@ Uygulamalar:
 - **Vardiya sonu Başhekim Karnesi:** Hasta memnuniyeti, acil servis, klinik kalite, finans, temizlik ve personel A–F arası notlanır.
 - **Habersiz Sağlık Müfettişi:** Koridorlarda not alarak dolaşır, ardından raporunu verir.
 
+## Prestij sistemleri ve yeni mekanikler (v9)
+
+- **Elmas (💎):** Kariyer hedefleri, hava ambulansı kurtarmaları, gizemli vakalar ve Şehir Sağlık Ligi ödülleriyle kazanılır. HUD'da 💎 olarak görünür. İtibar artık 🏅 simgesiyle gösterilir.
+- **VitaOS · Prestij & Kariyer:**
+  - Kademeli kariyer hedefleri, ör. "10 kritik ambulans vakasını kurtar", "Ameliyathanede 5 operasyon", "Radyolojide 8 doğru tanı".
+  - Prestij Mağazası:
+    - VIP uzman kadro (muayene ve tahlil %15 hızlı)
+    - Lüks konfor dekorasyonu
+    - Altın cihaz teması
+    - Anında lojistik teslimatı
+    - Helikopter pisti
+    - Otonom temizlik robotları ve sensörlü el dezenfektanı istasyonları
+    - B1 Espresso Barı ve Masaj Koltukları
+- **Helikopter pisti ve hava ambulansı:** Bahçeye inşa edilir (₺60.000 + 25 💎). Hava ambulansı pervane ve siren animasyonuyla iner ve 90 sn'lik "Altın Saat" VIP travma vakası getirir. Defibrilatör ve damar yolu mini oyunları peş peşe 50+ puanla tamamlanırsa: +₺6.000 (gece ×1,5), İtibar +5, +15 💎.
+- **Gizemli vaka:** Belirsiz semptomlarla gelen hastanın başında mor "?" işareti görünür.
+  - Tahlil mini oyunundan sonra Teşhis Panosu açılır: tahlil tablosu ve görüntüleme bulgusu.
+  - 3 olası tanıdan doğrusu seçilirse 3x ödül, İtibar +6 ve +5 💎.
+  - 6 senaryo: hipotiroidi, B12 eksikliği, çölyak, primer hiperparatiroidi, hipertiroidi, derin ven trombozu.
+- **Personel Akademisi:** Doktor ve hemşirelere Travma Cerrahisi, Hızlı Triyaj ve İleri Radyoloji kursları verilir. Eğitimli personelin önlüğüne altın uzmanlık rozeti takılır ve işlem hızı %15 artar.
+- **Şehir Sağlık Ligi:** 3 rakip hastaneyle puan sıralaması yapılır; her 3 nöbette bir lig haftası kapanır. 1. sıra "Yılın Hastanesi" unvanı, ₺10.000 belediye teşviki ve 10 💎 kazandırır.
+- **Günlük görevler:** 15 görev tipinden her gün 4 görev sunulur: servis bakımı, akademi, radyoloji, ameliyat, mini oyun serisi, kombo, cihaz bakımı, sıfır kaçışlı nöbet vb.
+- **Teftişler:** Denetim olaylarında süreli hijyen görevleri vardır. Dezenfektan istasyonları ve temizlik robotları hijyen puanını artırır.
+- **Gün döngüsü:** Gündüz nöbetinin sonunda gün batımı (turuncu atmosfer), ardından akşam olur; gece nöbeti sonunda şafak söker. Gece gelen acil vakalar **%50 Gece Nöbeti Bonusu** verir.
+
+## Yeni etkileşimler ve düzeltmeler (v9)
+
+- **Ameliyat masası:** Masada hasta varsa gerçek ameliyat, yoksa "Eğitim Ameliyatı" mini oyunu açılır (nöbette ilk başarıda +₺300, İtibar +1). Anestezi aşamasında ibre yeşil bölgede toplam 3 sn tutulur.
+- **Radyoloji:** MR cihazı, MR kontrol konsolu, röntgen, ultrason ve EKG tıklanınca bekleyen hasta varsa gerçek çekim, yoksa kalibrasyon taraması açılır. EKG'de akan ritimdeki anormal atımlar zamanında yakalanır.
+- **2. kat servis bakımı:** Serum değişimi (damla hızı), ilaç saati (kiloya göre doz) ve ateş-tansiyon yorumu 3–5 sn'lik mini oyunlardır. Üst şeritteki servis uyarısına dokununca hastaya yol tarif edilir.
+- **Acil sedyesi:** Bay'deki hastaya yaklaşıp etkileşince doğru cihazla bağlantı ve oksijen/serum ya da defibrilatör mini oyunu doğrudan açılır.
+- **Kaynakça:** Oyunun hiçbir ekranında kaynak, referans ya da PubMed yazısı gösterilmez.
+- **Eczane danışmanlığı:** Her ilaç için tam cümleli bir soru ve üç gerçekçi seçenek vardır; yanlış seçenekler sık görülen yanlış inanışlardır.
+- **Arayüz ve görsel düzeltmeler:**
+  - Asansör tabelası kapının tam üstünde sabit durur.
+  - Nöbet karnesi kazanılan gerçek itibarı gösterir; itibar 100 tavanındayken kazanılanlar da sayılır.
+  - B1 menü panosu tezgâhın önüne taşındı.
+  - Küçültülmüş Akış Şeması'na dokununca ayrıntı açılır.
+- **Ekipman seviye görselleri:**
+  - Sv.2/Sv.3 sedye: hidrolik kolon, korkuluk, yoğun bakım monitörü, serum askısı ve kontrol paneli.
+  - Analizör: çift ekran; Sv.3'te cam kabinli otomatik hat, tüp rayı ve LED'ler.
+  - Muayene odası Sv.3: monitör, dijital tanı seti ve paravan.
+  - Eczane Sv.3: camlı ilaç dağıtım robotu.
+- **Ambulans:** Asfalta vuran dönen kırmızı-mavi siren hüzmeleri eklendi.
+
 ## Ünite mini oyunları (v8)
 
 Her biri 5–10 saniye sürer. Açıkken simülasyon duraklar; ✕ ile atlanırsa normal akış sürer, bonus verilmez.
@@ -358,7 +402,8 @@ js/world.js      Trafik, yayalar, güvercinler, kuşlar, yağmur, far ışıklar
 js/art_city.js   Korkuluk, nizamiye, bariyer, apartman, çocuk parkı, ek bina, yemekhane eşyaları, MR, kamyon
 js/art_med.js    Ayrıntılı tıbbi cihazlar (MR + kontrol kabini, ameliyathane, laboratuvar, eczane, başhekimlik), süs havuzu
 js/art_vehicles.js Hacimli araç modelleri (sedan/SUV, ambulans, lojistik kamyoneti, otobüs)
-js/minigames.js  Ünite mini oyunları (oksijen/serum, defibrilatör, santrifüj + tahlil, hızlı reçete)
+js/minigames.js  Ünite mini oyunları (oksijen/serum, defibrilatör, santrifüj + tahlil, hızlı reçete, servis bakımı)
+js/vip.js        Prestij sistemleri (elmas, mağaza, helikopter pisti, gizemli vaka, akademi, lig, kariyer, robotlar)
 js/logistics.js  Eczane stoku, sipariş, lojistik kamyonu ve kurye, yedek parça teslimatı
 js/terminal.js   Başhekimlik bilgisayarı (Yönetim Terminali), uyarı merkezi, Başhekim Karnesi
 js/surgery.js    Ameliyathane akışı ve cerrahi mini oyunlar
@@ -381,7 +426,7 @@ Test parametreleri:
 
 Vaka ve acil senaryoları, genel kabul görmüş temel klinik bilgilere dayanır: uyarı işaretleri, ilk yaklaşım ve doğru yönlendirme. Değerler eğitim amaçlı sadeleştirilmiştir. Bu içerik bir hekim değerlendirmesinin yerini tutmaz.
 
-Bazı senaryolar PubMed'de yer alan kaynaklarla desteklenmiştir. İlgili sonuç ekranlarında DOI bağlantısıyla gösterilir:
+Bazı senaryolar PubMed'de yer alan kaynaklarla desteklenmiştir. Kaynaklar yalnızca içerik hazırlığında kullanılır; oyunun içinde kaynakça gösterilmez:
 
 - Uyku apnesi ve trafik kazası riski: J Clin Sleep Med 2009 ([PMID 20465027](https://pubmed.ncbi.nlm.nih.gov/20465027/))
 - Çölyak hastalığı kılavuzları:

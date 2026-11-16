@@ -494,7 +494,7 @@
       a.labGame = true;
       MG.lab(a.c.labs, (score) => {
         a.labScore = score;
-        if (score >= 80) { state.budget += 150; state.reputation = Math.min(100, state.reputation + 1); UI().toast('🧪 Kusursuz laboratuvar analizi: +₺150, İtibar +1', 2400); }
+        if (score >= 80) { state.budget += 150; VH.hospital.reward(1, 0, 0); UI().toast('🧪 Kusursuz laboratuvar analizi: +₺150, İtibar +1', 2400); }
         openLabReportInner();
       });
       return;
@@ -594,7 +594,7 @@
     const missedFlag = c.questions.some((q) => q.flag) && !a.clues.some((q) => q.flag);
     let safety = r.safety;
     if (missedFlag && grade !== 'best') safety -= 4;
-    state.reputation = clamp(state.reputation + r.rep);
+    VH.hospital.reward(r.rep, 0, 0);
     state.safety = clamp(state.safety + safety);
     // Açılan servislerin ek katkıları (Aşama 5)
     const bonusNotes = [];
@@ -609,7 +609,7 @@
     if (VH.emit) VH.emit('caseSolved', { id: c.id, grade, hasty, choice, child: c.age < 13, p: a.patient, c });
     if (mult > 1) {
       bonus += r.budget * (mult - 1);
-      state.reputation = clamp(state.reputation + (mult - 1) * 2);
+      VH.hospital.reward((mult - 1) * 2, 0, 0);
       bonusNotes.push(`🔥 ${mult}x Klinik Karar Kombosu: bütçe ödülü ${mult} katı, itibar +${(mult - 1) * 2}`);
     }
     if (choice === 'tests' && state.services.radiology && grade !== 'risky') { bonus += 1000; bonusNotes.push('📡 Tetkikler Radyoloji katında yapıldı: +₺1.000'); }
@@ -644,7 +644,6 @@
 
     node.appendChild(el('div', { className: 'sec-title' }, 'Eğitsel değerlendirme'));
     node.appendChild(el('p', { className: 'lesson' }, c.lesson));
-    if (c.sources && VH.content) node.appendChild(VH.content.sourcesNode(c.sources));
     const best = Object.keys(c.grades).find((k) => c.grades[k] === 'best');
     if (choice !== best) node.appendChild(el('p', { className: 'lesson' }, `En güvenli yaklaşım: [${OPTIONS[best].n}] ${OPTIONS[best].title} (${OPTIONS[best].desc(c)})`));
     node.appendChild(el('div', { className: 'sec-title' }, choice === 'complete' ? 'Oluşturulan takip planı' : 'Hastaya verilecek yaşam tarzı önerileri'));

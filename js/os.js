@@ -345,7 +345,7 @@
       fill.style.width = score + '%'; fill.style.background = score > 75 ? '#46c46a' : score > 55 ? '#f2c94c' : '#ff9f43';
       trk.appendChild(fill); bar.appendChild(trk); b.appendChild(bar);
       b.appendChild(el('span', { className: 'opt-desc' }, `🎓 ${SCHOOLS[h % SCHOOLS.length]} · 🕒 Deneyim: ${exp} yıl`));
-      b.appendChild(el('span', { className: 'opt-desc' }, tr ? `${tr.icon} ${tr.name}: ${tr.desc}` : 'Referansları olumlu, özel bir özelliği belirtilmemiş.'));
+      b.appendChild(el('span', { className: 'opt-desc' }, tr ? `${tr.icon} ${tr.name}: ${tr.desc}` : 'İş geçmişi olumlu, özel bir özelliği belirtilmemiş.'));
       b.appendChild(el('span', { className: 'shop-meta' }, `Maaş beklentisi ${money(c.salary)}/nöbet · İşe alım ücreti ${money(c.fee)}`));
       card.appendChild(b);
       const full = st.hired.filter((x) => x.role === c.role).length >= R.max;
@@ -578,6 +578,8 @@
   VH.os = {
     open, close, isOpen, launch,
     openTab(tab) { const id = TAB_APP[tab] || 'yonetim'; if (id === 'kariyer' && tab === 'ilan') browserTab = 'basvuru'; launch(id); if (wins.get(id)) render(id); },
+    /** Başka modüllerin masaüstüne uygulama eklemesi (Düzenleme Modu her zaman sonda kalır). */
+    registerApp(app, icon) { if (APPS.some((a) => a.id === app.id)) return; if (icon) ICON[app.id] = icon; APPS.splice(APPS.length - 1, 0, app); if (app.tabs) app.tabs.forEach((t) => { TAB_APP[t] = app.id; }); },
     get windows() { return [...wins.keys()]; },
     APPS,
   };

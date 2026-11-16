@@ -70,7 +70,6 @@
     node.appendChild(d);
     if (stagesNote) node.appendChild(el('p', { className: 'muted' }, stagesNote));
     node.appendChild(el('p', { className: 'lesson' }, def.surgery.lesson));
-    if (def.sources) node.appendChild(VH.content.sourcesNode(def.sources));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı, sadeleştirilmiş canlandırmadır; gerçek cerrahi teknik öğretmez.'));
     UI().openDialog({ icon: '🩻', title: def.surgery.name, subtitle: `${item.p.name}, ${item.p.age} yaş · Hasta uyandırma odasına alındı`, wide: true, node });
   }
@@ -95,6 +94,16 @@
     VH.paused = false;
     if (aborted) return;
     const score = Math.max(0, Math.min(100, Math.round(g.scores.reduce((a, b) => a + b, 0))));
+    if (g.item.practice) {
+      // Eğitim ameliyatı (masada hasta yokken): nöbet başına bir kez küçük ödül
+      const sh = H().shift;
+      const first = practiceShift !== sh.n;
+      practiceShift = sh.n;
+      if (first && score >= 60) { S().budget += 300; H().reward(1, 0, 0); }
+      UI().openDialog({ icon: '🎓', title: 'Eğitim Ameliyatı Tamamlandı', subtitle: `${score}/100 puan`,
+        text: `${score >= 60 ? 'Başarılı bir simülasyon!' : 'Biraz daha pratik gerekiyor.'} ${first && score >= 60 ? 'Nöbetin ilk başarılı eğitimi: +₺300, İtibar +1.' : ''}\nGerçek ameliyatlar acilden gelen travma/apandisit/kalça kırığı hastalarıyla başlar.` });
+      return;
+    }
     const res = finish(g.item, score, true);
     resultDialog(g.item, score, res, `Kontrol listesi ${Math.round(g.scores[0])}/10 · Anestezi ${Math.round(g.scores[1])}/30 · Kesi ${Math.round(g.scores[2])}/30 · Dikiş ${Math.round(g.scores[3])}/30`);
   }
@@ -139,14 +148,13 @@
       box.appendChild(b);
     });
     game.card.appendChild(box);
-    if (VH.content) game.card.appendChild(VH.content.sourcesNode(['surgicalChecklist', 'fasting']));
     go.addEventListener('click', () => { game.scores[0] = 10; stageAnesthesia(); });
     game.card.appendChild(go);
   }
 
   // 1) Anestezi dengesi: nabız ve oksijen ibresini doz düğmeleriyle yeşil güvenli bölgede tut
   function stageAnesthesia() {
-    frame('Anestezi Dengesi', 'Anestezi derinliği kendiliğinden kayar. "− Doz" / "+ Doz" düğmelerini basılı tutarak ibreyi yeşil güvenli bölgede tutun: nabız ve oksijen dengede kalsın (9 sn).', 1);
+    frame('Anestezi Dengesi', 'Anestezi derinliği kendiliğinden kayar. "− Doz" / "+ Doz" düğmelerini basılı tutarak ibreyi yeşil güvenli bölgede toplam 3 sn tutun: nabız ve oksijen dengede kalsın (en fazla 9 sn).', 1);
     const { ctx, W, H: Hh } = canvas();
     const half = 0.1 * tol();
     let n = 0.5, v = 0, t = 0, inZone = 0, hold = 0, last = performance.now(), done = false;
@@ -186,10 +194,11 @@
       ctx.fillStyle = spo2 < 92 ? '#ff8a8d' : '#7fd8ff'; ctx.fillText('SpO₂ %' + spo2, W - 110, 26);
       ctx.fillStyle = '#1d3b4f'; ctx.fillRect(20, Hh - 20, W - 40, 8);
       ctx.fillStyle = '#46c46a'; ctx.fillRect(20, Hh - 20, (W - 40) * Math.min(1, t / 9), 8);
-      ctx.fillStyle = '#fff'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Güvenli bölgede: ' + inZone.toFixed(1) + ' sn', W / 2, Hh - 26);
-      if (t >= 9) {
+      ctx.fillStyle = '#fff'; ctx.font = '600 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Güvenli bölgede: ' + inZone.toFixed(1) + ' / 3,0 sn', W / 2, Hh - 26);
+      if (t >= 9 || inZone >= 3) {
         done = true;
-        game.scores[1] = Math.round(30 * Math.min(1, inZone / 7.5));
+        game.scores[1] = Math.round(30 * Math.min(1, inZone / 3) - Math.max(0, t - 5) * 1.5);
+        game.scores[1] = Math.max(0, game.scores[1]);
         sound(game.scores[1] >= 20 ? 'ok' : 'error');
         setTimeout(stageIncision, 400);
         return;
@@ -340,6 +349,15 @@
 
   VH.targetProviders.push(targets);
   VH.flowProviders.push(flow);
+  // Ameliyat masası: hasta masadaysa gerçek ameliyat; değilse eğitim (simülasyon) ameliyatı mini oyunu
+  let practiceShift = -1;
+  const PRACTICE = { practice: true, p: { name: 'Eğitim mankeni', age: 30 }, def: { id: 'appendicitis', surgery: { name: 'Eğitim Ameliyatı · Laparoskopik Apendektomi' } } };
+  VH.interactHandlers.push((t) => {
+    if (!(t.type === 'device' && ['operating_table', 'anesthesia', 'surgical_lamp'].includes(t.ref.tag))) return false;
+    const item = queue.find((q) => q.onTable);
+    startGame(item || PRACTICE);
+    return true;
+  });
 
   VH.surgery = {
     wants, admit, update, startGame, endGame,

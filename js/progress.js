@@ -34,8 +34,8 @@
     const d = EVENTS[ev.id], g = d && d.goal;
     if (!g || ev.done) return;
     ev.done = true;
-    if (ok) { S().budget += g.reward; S().reputation = clamp(S().reputation + g.rep, 0, 100); sound('combo'); }
-    else { S().reputation = clamp(S().reputation - 2, 0, 100); sound('error'); }
+    if (ok) { S().budget += g.reward; VH.hospital.reward(g.rep, 0, 0); sound('combo'); }
+    else { VH.hospital.reward(-2, 0, 0); sound('error'); }
     if (VH.notify) VH.notify(ok ? '🏅' : '⌛', ok ? `Kriz görevi başarıldı: ${d.name} · +${money(g.reward)}, İtibar +${g.rep}` : `Kriz görevi kaçırıldı: ${d.name} (İtibar −2)`, 0, 'crisis');
     if (VH.emit) VH.emit('crisis', { id: ev.id, ok });
   }
@@ -51,7 +51,8 @@
     if (bin) return;
     litter.push({ id: litterId++, x: cx + 0.3 + Math.random() * 0.4, y: cy + 0.3 + Math.random() * 0.4, v: Math.floor(Math.random() * 3), claimed: null });
   }
-  const cleanliness = () => clamp(100 - litter.length * 7, 0, 100);
+  // Hijyen: yerdeki çöpler düşürür; dezenfektan istasyonları ve temizlik robotları (VH.vip) artırır
+  const cleanliness = () => clamp(100 - litter.length * 7 + (VH.vip && VH.vip.hygieneBonus ? VH.vip.hygieneBonus() : 0), 0, 100);
   function clean(l, by) {
     const i = litter.indexOf(l);
     if (i < 0) return;
@@ -103,9 +104,9 @@
     flu:        { icon: '🦠', name: 'Grip Salgını', dur: 150, goal: { key: 'served', n: 6, text: '6 hastayı taburcu et', reward: 4000, rep: 4 }, desc: 'Solunum yolu şikâyetiyle gelen hasta sayısı arttı. Hasta akışı %40 fazla, taburcu geliri +%30.' },
     heat:       { icon: '🌡️', name: 'Sıcak Hava Dalgası', dur: 150, goal: { key: 'refresh', n: 3, text: '3 hasta su sebili/otomattan sıvı alsın', reward: 2500, rep: 2 }, desc: 'Sıcak çarpması ve sıvı kaybı vakaları artıyor. Serum ünitesini hazır tutun; su sebilleri daha çok kullanılır.' },
     mci:        { icon: '🚑', name: 'Zincirleme Trafik Kazası', dur: 220, goal: { key: 'er', n: 2, text: '2 kazazedeyi stabilize et', reward: 3000, rep: 5 }, desc: 'Arka arkaya 2 acil vaka geliyor! Her başarılı müdahale +₺1.500 ek ödül.' },
-    inspection: { icon: '📋', name: 'Sağlık Bakanlığı Denetimi', dur: 100, desc: 'Denetçiler yolda! Süre bitince hastane puanınız değerlendirilecek: çöpleri toplayın, cihaz bakımlarını yapın.' },
+    inspection: { icon: '📋', name: 'Sağlık Bakanlığı Denetimi', dur: 100, goal: { key: 'clean', n: 3, text: 'Hijyen: 3 çöp toplat ve dezenfektan istasyonlarını hazır tut', reward: 3000, rep: 3 }, desc: 'Denetçiler yolda! Süre bitince hastane puanınız değerlendirilecek: çöpleri toplayın, cihaz bakımlarını yapın.' },
     donation:   { icon: '🎁', name: 'Hayırsever Bağışı', dur: 6, desc: 'Bir hayırsever hastaneye bağış yaptı. Bağış miktarı hastane puanına göre belirlenir.' },
-    surprise:   { icon: '🕵️', name: 'Habersiz Müfettiş Denetimi', dur: 60, desc: 'Takım elbiseli biri koridorlarda not alıyor… Habersiz bir Sağlık Müfettişi denetimi olabilir!' },
+    surprise:   { icon: '🕵️', name: 'Habersiz Müfettiş Denetimi', dur: 60, goal: { key: 'clean', n: 2, text: 'Müfettiş gitmeden 2 çöp toplat (hijyen)', reward: 2500, rep: 3 }, desc: 'Takım elbiseli biri koridorlarda not alıyor… Habersiz bir Sağlık Müfettişi denetimi olabilir!' },
   };
   const ev = { id: null, t: 0, n: 0 };
   let eventTimer = 75;
@@ -157,7 +158,7 @@
     else if (r >= 2.5) { budget = 2000; rep = 2; grade = 'Yeterli'; }
     else { budget = -3000; rep = -5; grade = 'Yetersiz'; }
     S().budget += budget;
-    S().reputation = clamp(S().reputation + rep, 0, 100);
+    VH.hospital.reward(rep, 0, 0);
     if (r >= 3.5) { data().inspections = (data().inspections || 0) + 1; bump('inspectionPass'); }
     sound(r >= 2.5 ? 'success' : 'error');
     const node = el('div', {});
@@ -219,6 +220,11 @@
     { id: 'repair', icon: '🔧', text: () => 'Bir cihaza bakım yap', n: [1], reward: 1500 },
     { id: 'refresh', icon: '🥤', text: (n) => `${n} hasta otomat/su sebilini kullansın`, n: [3, 5], reward: 1200 },
     { id: 'shiftClean', icon: '😊', text: () => 'Hiç hasta kaçırmadan bir nöbeti bitir', n: [1], reward: 3000 },
+    { id: 'ward', icon: '🛏️', text: (n) => `Serviste ${n} yatan hasta bakımı yap`, n: [2, 3, 4], reward: 2200 },
+    { id: 'train', icon: '🎓', text: () => 'Bir personele eğitim ya da akademi kursu aldır', n: [1], reward: 2000 },
+    { id: 'imaging', icon: '🧲', text: (n) => `Radyolojide ${n} çekimi bizzat yap`, n: [1, 2], reward: 2400 },
+    { id: 'surgery', icon: '🩻', text: () => 'Ameliyathanede bir operasyonu bizzat yap', n: [1], reward: 3000 },
+    { id: 'mini', icon: '🎮', text: (n) => `${n} ünite mini oyununu 60+ puanla bitir`, n: [2, 3], reward: 2200 },
   ];
   const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -233,7 +239,7 @@
     const R = seeded(day.split('-').reduce((a, v) => a * 31 + +v, 7));
     const pool = TASKS.slice();
     const list = [];
-    while (list.length < 3 && pool.length) {
+    while (list.length < 4 && pool.length) {
       const t = pool.splice(Math.floor(R() * pool.length), 1)[0];
       const n = t.n[Math.floor(R() * t.n.length)];
       list.push({ id: t.id, n, p: 0, claimed: false });
@@ -252,7 +258,7 @@
     const def = TASKS.find((x) => x.id === t.id);
     t.claimed = true;
     S().budget += def.reward;
-    S().reputation = clamp(S().reputation + 2, 0, 100);
+    VH.hospital.reward(2, 0, 0);
     sound('success');
     UI().toast(`🎯 Görev tamamlandı: +${money(def.reward)}, İtibar +2`, 2600);
     if (dl.list.every((x) => x.claimed)) {
@@ -391,13 +397,13 @@
     const out = { counters: {}, ach: {}, daily: null, streak: 0, lastFull: '', price: 'normal', inspections: 0 };
     if (!d || typeof d !== 'object') return out;
     const n = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
-    const keys = ['surgery', 'imaging', 'delivered', 'ward', 'served', 'er', 'cases', 'caseBest', 'counsel', 'combo3', 'clean', 'decor', 'repair', 'refresh', 'shiftClean', 'train', 'hire', 'shifts', 'inspectionPass'];
+    const keys = ['surgery', 'imaging', 'delivered', 'ward', 'served', 'er', 'cases', 'caseBest', 'counsel', 'combo3', 'clean', 'decor', 'repair', 'refresh', 'shiftClean', 'train', 'hire', 'shifts', 'inspectionPass', 'mini', 'mystery', 'heli', 'imagingGood'];
     keys.forEach((k) => { if (d.counters && n(d.counters[k], 0, 1e7)) out.counters[k] = Math.round(d.counters[k]); });
     ACH.forEach((a) => { if (d.ach && n(d.ach[a.id], 1, 9e15)) out.ach[a.id] = d.ach[a.id]; });
     if (d.daily && typeof d.daily.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.daily.day) && Array.isArray(d.daily.list)) {
-      const list = d.daily.list.slice(0, 3).filter((t) => t && TASKS.find((x) => x.id === t.id) && n(t.n, 1, 50) && n(t.p, 0, 50))
+      const list = d.daily.list.slice(0, 4).filter((t) => t && TASKS.find((x) => x.id === t.id) && n(t.n, 1, 50) && n(t.p, 0, 50))
         .map((t) => ({ id: t.id, n: Math.round(t.n), p: Math.min(Math.round(t.n), Math.round(t.p)), claimed: t.claimed === true }));
-      if (list.length === 3) out.daily = { day: d.daily.day, list };
+      if (list.length >= 3) out.daily = { day: d.daily.day, list };
     }
     if (n(d.streak, 0, 3650)) out.streak = Math.round(d.streak);
     if (typeof d.lastFull === 'string' && /^(\d{4}-\d{2}-\d{2})?$/.test(d.lastFull)) out.lastFull = d.lastFull;
@@ -453,7 +459,8 @@
     factor, incomeMult, rating, ratingParts, cleanliness, erPool,
     get litter() { return litter; },
     get event() { return ev.id ? { id: ev.id, t: ev.t, def: EVENTS[ev.id] } : null; },
-    dropLitter, clean, claimLitter, claim, ensureDaily, startEvent, endEvent, inspect, sanitize,
+    dropLitter, clean, claimLitter, claim, ensureDaily, startEvent, endEvent, inspect, sanitize, bump,
+    get counters() { return cnt(); },
     renderGeneral, renderTasks, drawGround, starText,
     init() { ensureDaily(); checkAch(); },
     update(dt) {

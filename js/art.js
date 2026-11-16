@@ -601,24 +601,22 @@
       k.box(0.02, 0.02, 0.98, 0.98, 0, 66, '#aab6bd', { deco: [
         { dir: '*', u0: 0.15, u1: 0.49, z0: 0, z1: 50, color: '#d3dce1' }, { dir: '*', u0: 0.51, u1: 0.85, z0: 0, z1: 50, color: '#d3dce1' },
         { dir: '*', u0: 0.4, u1: 0.6, z0: 54, z1: 61, color: '#16323f', raw: true }] });
-      k.custom(0.5, 0.5, 66, (c, sx, sy) => {
-        // Dinamik kat göstergesi: bulunulan kat + hedef katın yönü
+      // Kapının tam üstüne sabit LED tabela: kat göstergesi + bulunulan katın tam adı (+ hedef kat yönü)
+      k.custom(0.5, 0.99, 59, (c, sx, sy) => {
         const LBL = ['Z', '1', '2', '3', 'B1'], LV = [0, 1, 2, 3, -1];
+        const NAMES = ['Zemin Kat · Asansör', '1. Kat · Cerrahi', '2. Kat · Yatan Hasta', '3. Kat · Radyoloji', 'B1 · Yemekhane'];
         const f = M().floor;
         const g = VH.guide && VH.guide.current && VH.guide.current.target;
         let arrow = '';
         if (g && g.floor !== undefined && g.floor !== f) arrow = LV[g.floor] > LV[f] ? '▲' : '▼';
-        const NAMES = ["Zemin Kat · Asansör", "1. Kat · Cerrahi", "2. Kat · Yatan Hasta", "3. Kat · Radyoloji", "B1 · Yemekhane"];
-        c.fillStyle = "#16323f"; c.fillRect(sx - 12, sy - 7, 24, 14);
-        c.fillStyle = "#2ec4b6"; c.font = "800 9px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillText(LBL[f] || String(f), sx - (arrow ? 4 : 0), sy);
-        if (arrow) { c.fillStyle = Math.floor(performance.now() / 400) % 2 ? "#ffd166" : "#f2a93b"; c.fillText(arrow, sx + 7, sy); }
-        // Kat adı tabelası (LED panel): bulunulan katın tam adı
-        const nm = NAMES[f] || ""; c.font = "700 8.5px system-ui,sans-serif";
-        const tw = c.measureText(nm).width + 14;
-        c.fillStyle = "rgba(10,24,32,0.92)"; c.beginPath(); c.roundRect ? c.roundRect(sx - tw / 2, sy - 24, tw, 13, 3) : c.rect(sx - tw / 2, sy - 24, tw, 13); c.fill();
-        c.strokeStyle = "#2ec4b6"; c.lineWidth = 1; c.stroke();
-        c.fillStyle = "#e9fffb"; c.fillText(nm, sx, sy - 17.5);
+        const nm = NAMES[f] || '';
+        c.font = '700 6.6px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        const tw = Math.max(46, c.measureText(nm).width + 22);
+        c.fillStyle = 'rgba(10,24,32,0.95)'; c.beginPath(); if (c.roundRect) c.roundRect(sx - tw / 2, sy - 6, tw, 12, 2.5); else c.rect(sx - tw / 2, sy - 6, tw, 12); c.fill();
+        c.strokeStyle = '#2ec4b6'; c.lineWidth = 0.8; c.stroke();
+        c.fillStyle = '#2ec4b6'; c.font = '900 6.8px system-ui,sans-serif'; c.fillText(LBL[f] || String(f), sx - tw / 2 + 7, sy + 0.5);
+        c.fillStyle = '#e9fffb'; c.font = '700 6.6px system-ui,sans-serif'; c.fillText(nm, sx + 3, sy + 0.5);
+        if (arrow) { c.fillStyle = Math.floor(performance.now() / 400) % 2 ? '#ffd166' : '#f2a93b'; c.fillText(arrow, sx + tw / 2 - 6, sy + 0.5); }
       });
     },
 

@@ -830,19 +830,20 @@
     iv:               { name: 'Serum (IV) Askısı', action: 'Acil Müdahale', icon: '💧' },
     elevator:         { name: 'Asansör', action: 'Asansör', icon: '🛗' },
     // Üst katlar
-    operating_table:  { name: 'Ameliyat Masası', action: 'İncele', icon: '🩻', info: 'Ameliyathane hazır. Travma hastaları stabilize edildikten sonra cerrahi değerlendirmeye alınabiliyor (acil travma ödülü +%50).' },
+    operating_table:  { name: 'Ameliyat Masası', action: '🩺 Ameliyat Masası', icon: '🩻', info: 'Ameliyathane hazır. Travma hastaları stabilize edildikten sonra cerrahi değerlendirmeye alınabiliyor (acil travma ödülü +%50).' },
     surgical_lamp:    { name: 'Ameliyat Lambası', action: 'İncele', icon: '💡', info: 'Gölgesiz ameliyat lambası kalibre edildi.' },
     anesthesia:       { name: 'Anestezi Cihazı', action: 'İncele', icon: '😷', info: 'Anestezi cihazı günlük kontrolden geçti.' },
     scrub:            { name: 'Cerrahi El Yıkama İstasyonu', action: 'İncele', icon: '🧼', info: 'Cerrahi el antisepsisi ameliyat öncesi el florasını azaltır. Cochrane derlemesine göre 3 dakikalık ilk fırçalama, 2 dakikalığa göre ellerdeki bakteri sayısını daha çok düşürdü (kanıt düzeyi düşük); hiçbir antiseptik türünün enfeksiyonu belirgin biçimde daha iyi önlediği gösterilemedi.', sources: ['handAntisepsis'] },
     ward_bed:         { name: 'Servis Yatağı', action: 'İncele', icon: '🛏️', info: 'Yatan hasta servisi: acil serviste stabilize edilen hastalar buraya yatırılıyor (+₺500 yatış geliri).' },
     incubator:        { name: 'Küvöz', action: 'İncele', icon: '👶', info: 'Pediatri servisi: çocuk vakalarında doğru uzman yönlendirmesi ek ödül getirir.' },
     nurse_station:    { name: 'Hemşire İstasyonu', action: 'İncele', icon: '📋', info: 'Hemşire istasyonu: ilaç saatleri ve hasta takip çizelgeleri burada tutuluyor.' },
-    xray:             { name: 'Röntgen Cihazı', action: 'İncele', icon: '🩻', info: 'Radyoloji katı açık: "Daha fazla tetkik" kararları hastane içinde yapılıyor (+₺1.000).' },
-    ultrasound:       { name: 'Ultrason', action: 'İncele', icon: '📡', info: 'Ultrason cihazı radyasyon kullanmaz; birçok tetkikte ilk basamaktır.' },
-    ecg:              { name: 'EKG Cihazı', action: 'İncele', icon: '💓', info: 'EKG kalbin elektriksel aktivitesini kaydeder; çarpıntı ve göğüs ağrısında temel tetkiktir.' },
+    xray:             { name: 'Röntgen Cihazı', action: '🩻 Röntgen Çek', icon: '🩻', info: 'Radyoloji katı açık: "Daha fazla tetkik" kararları hastane içinde yapılıyor (+₺1.000).' },
+    ultrasound:       { name: 'Ultrason', action: '📡 Ultrason Yap', icon: '📡', info: 'Ultrason cihazı radyasyon kullanmaz; birçok tetkikte ilk basamaktır.' },
+    ecg:              { name: 'EKG Cihazı', action: '💓 EKG Çek', icon: '💓', info: 'EKG kalbin elektriksel aktivitesini kaydeder; çarpıntı ve göğüs ağrısında temel tetkiktir.' },
     dialysis:         { name: 'Diyaliz Makinesi', action: 'İncele', icon: '🩸', info: 'Diyaliz ünitesi böbrek hastalarına haftada birkaç seans hizmet verir.' },
     pacs:             { name: 'Görüntüleme Arşivi (PACS)', action: 'İncele', icon: '🖥️', info: 'Tüm görüntüleme raporları dijital arşivde saklanıyor.' },
-    mri:              { name: 'MR Cihazı', action: 'İncele', icon: '🧲', info: 'MR güçlü manyetik alan kullanır: ferromanyetik cisimler (çelik içeren metal parçalar, bazı mermi çekirdekleri) çekilip mermi gibi fırlayabilir veya görüntüde artefakt yapar. Kalp pili / implant ve vücutta metal yabancı cisim olan hastalarda çekim öncesi tarama zorunludur.', sources: ['mriImplant', 'mriFerro'] },
+    mri_console:      { name: 'MR Kontrol Konsolu', action: 'Tarama Yap', icon: '🖥️' },
+    mri:              { name: 'MR Cihazı', action: '🧲 MR Taraması', icon: '🧲', info: 'MR güçlü manyetik alan kullanır: ferromanyetik cisimler (çelik içeren metal parçalar, bazı mermi çekirdekleri) çekilip mermi gibi fırlayabilir veya görüntüde artefakt yapar. Kalp pili / implant ve vücutta metal yabancı cisim olan hastalarda çekim öncesi tarama zorunludur.', sources: ['mriImplant', 'mriFerro'] },
     ct:               { name: 'BT Tarayıcı', action: 'İncele', icon: '🖥️', info: 'Bilgisayarlı tomografi inme ve travmada hızlı tanı sağlar; radyasyon dozu nedeniyle gereksiz çekimden kaçınılır.' },
     food_counter:     { name: 'Yemek Tezgâhı', action: '🍽️ Yemek Al (₺60)', icon: '🍽️' },
     coffee_bar:       { name: 'Kahve Köşesi', action: '☕ Kahve Al (₺20)', icon: '☕' },
@@ -981,19 +982,13 @@
       case 'exam_bed': text = 'Muayene sedyesi temiz ve hazır.'; break;
       case 'analyzer': case 'centrifuge': case 'microscope': {
         const n = patients.filter((p) => p.labDone && p.state !== 'leaving').length;
-        text = `${dv.name} hazır. İşlenen numune: ${n}. Referans aralığı dışındaki değerler burada görüntülenecek.`;
+        text = `${dv.name} hazır. İşlenen numune: ${n}. Normal aralık dışındaki değerler burada görüntülenecek.`;
         break;
       }
       case 'pharmacy_counter': text = `Onay bekleyen reçete/bilgilendirme: ${pharmacyQueue.length}.`; break;
       case 'chief_desk': text = 'Başhekim Yönetim & İnşa Paneli: bütçe ve itibar biriktikçe yeni servisler açabileceksiniz.'; break;
       case 'archive_terminal': text = 'Vaka arşivi: henüz çözülmüş vaka yok.'; break;
       default: text = dv.info || 'Acil serviste şu an kritik hasta yok. Ambulans geldiğinde siren duyacaksınız.';
-    }
-    if (dv.sources && VH.content) {
-      const node = document.createElement("div");
-      const p = document.createElement("p"); p.textContent = text; node.appendChild(p);
-      node.appendChild(VH.content.sourcesNode(dv.sources));
-      return { icon: dv.icon, title: dv.name, subtitle: dv.action, text, node };
     }
     return { icon: dv.icon, title: dv.name, subtitle: dv.action, text };
   }

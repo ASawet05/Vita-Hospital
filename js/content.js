@@ -224,23 +224,9 @@
     handAntisepsis: { t: 'Surgical hand antisepsis to reduce surgical site infection', j: 'Cochrane Database Syst Rev', y: 2016, pmid: '26799160', doi: '10.1002/14651858.CD004288.pub3' },
     mriFerro: { t: 'Magnetic Resonance Imaging of Patients With Retained Ballistic Projectiles: A Review of Ferromagnetism, Ammunition Composition, and Safety Protocols', j: 'J Magn Reson Imaging', y: 2026, pmid: '41517918', doi: '10.1002/jmri.70199' },
   };
-  function sourcesNode(keys) {
-    const box = document.createElement('div');
-    box.className = 'sources';
-    const h = document.createElement('div');
-    h.className = 'src-title'; h.textContent = '📚 Kaynak (PubMed)';
-    box.appendChild(h);
-    (keys || []).forEach((k) => {
-      const s = SOURCES[k];
-      if (!s) return;
-      const a = document.createElement('a');
-      a.href = s.doi ? 'https://doi.org/' + s.doi : 'https://pubmed.ncbi.nlm.nih.gov/' + s.pmid + '/';
-      a.target = '_blank'; a.rel = 'noopener noreferrer';
-      a.textContent = `${s.t}. ${s.j}, ${s.y}. ${s.doi ? 'DOI: ' + s.doi : 'PMID: ' + s.pmid}`;
-      box.appendChild(a);
-    });
-    return box;
-  }
+  // Kaynaklar yalnızca içerik üretiminde arka planda kullanılır; oyunun hiçbir ekranında kaynakça gösterilmez.
+  // (Eski çağrılar güvenle çalışsın diye boş bir parça döner.)
+  function sourcesNode() { return document.createDocumentFragment(); }
 
   // Ameliyat gerektiren ve görüntüleme gerektiren acil senaryolar
   ER.push(
@@ -289,5 +275,111 @@
   if (H.RX.koah) H.RX.koah.sources = ['inhalerErrors'];
   Object.assign(H.CASE_RX, { c08: 'metformin', c10: 'levotiroksin', c11: 'ppi' });
 
+  // ---------------------------------------------------------------- Eczane danışmanlığı (v9)
+  // Her ilaç için tam cümleli bir danışmanlık sorusu ve üç gerçekçi seçenek: biri doğru, ikisi hastaların
+  // sık düştüğü makul görünen yanlışlar (alaycı/mantıksız seçenek yok). Bilimsel kaynaklar yalnızca içerik
+  // hazırlanırken arka planda kullanıldı; oyunda kaynakça gösterilmez.
+  const RXV = {
+    demir: ['Demir tabletini teslim ederken hastaya alım zamanıyla ilgili ne önerirsiniz?',
+      'Aç karnına ya da hekimin önerdiği şekilde alın; çay ve kahveyi tabletten en az 1–2 saat uzak tutun. Dışkının koyulaşması beklenen bir durumdur.',
+      'Tableti kahvaltıda çayla birlikte alın; böylece mide daha az rahatsız olur ve emilim değişmez.',
+      'Kendinizi iyi hissettiğiniz anda tedaviyi bırakabilirsiniz; demir depoları birkaç günde dolar.'],
+    dvit: ['D vitamini damlasını nasıl kullanması gerektiğini hastaya nasıl anlatırsınız?',
+      'Önerilen dozu, yağ içeren bir öğünle birlikte düzenli kullanın; kontrol tahlilini zamanında yaptırın.',
+      'Unuttuğunuz günlerin dozlarını hafta sonu toplu olarak alarak telafi edin.',
+      'Yaz aylarında güneşe çıktığınız sürece doz ve kontrol önemli değildir, istediğiniz kadar kullanabilirsiniz.'],
+    b12: ['B12 tedavisine başlayan hastaya hangi bilgiyi verirsiniz?',
+      'Hekimin belirlediği doz ve sürede aksatmadan kullanın; uyuşma ya da halsizlik geçse bile kontrol tahlilini atlamayın.',
+      'Belirtiler birkaç gün içinde geçtiyse tedaviyi bırakabilirsiniz; B12 eksikliği tekrar etmez.',
+      'Etkisini hızlandırmak için dozu kendiniz ikiye katlayabilirsiniz.'],
+    magnezyum: ['Magnezyum takviyesi alan hastaya hangi kullanım önerisini yaparsınız?',
+      'Akşam yemekten sonra alın; ishal olursa ya da böbrek hastalığınız varsa hekime bildirin.',
+      'Kramp girdiği gecelerde birkaç tableti birden alın, sonraki günlerde ara verin.',
+      'Demir ve kalsiyum takviyelerinizle aynı anda yutun; hepsi birlikte daha iyi emilir.'],
+    cinko: ['Çinko takviyesini teslim ederken hastayı nasıl bilgilendirirsiniz?',
+      'Yemekle birlikte alın; demir takviyesiyle aynı saatte almayın ve önerilen süreyi aşmayın.',
+      'Aç karnına alın; bulantı olursa bu etkinin işaretidir, dozu artırın.',
+      'Uzun süre yüksek dozda kullanmak bağışıklığı her zaman güçlendirir, süre sınırı yoktur.'],
+    folat: ['Folik asit kullanacak hastaya hangi bilgiyi verirsiniz?',
+      'Her gün aynı saatte, hekimin önerdiği süre boyunca alın; gebelik planı varsa hekiminize mutlaka söyleyin.',
+      'Haftanın bir günü toplu doz almak günlük kullanımla aynı etkiyi sağlar.',
+      'Yeşil yapraklı sebze yiyorsanız tableti istediğiniz zaman bırakabilirsiniz.'],
+    agri: ['Kısa süreli ağrı kesici verilen hastaya hangi güvenli kullanım bilgisini verirsiniz?',
+      'Tok karnına ve önerilen en düşük dozda kullanın; birkaç günden uzun sürecekse ya da mide yanması olursa hekime başvurun.',
+      'Ağrı tekrar etmesin diye ağrınız olmasa da her gün düzenli almaya devam edin.',
+      'Etki etmezse aynı gün içinde başka bir ağrı kesiciyle birlikte alabilirsiniz.'],
+    sivi: ['Ağızdan sıvı-tuz (ORS) paketini hastaya nasıl hazırlatırsınız?',
+      'Paketi tarif edilen miktarda temiz suyla hazırlayın, yudum yudum için; kusma, idrarda azalma ya da halsizlik artarsa başvurun.',
+      'Daha etkili olsun diye paketi yarı miktar suyla koyu hazırlayın.',
+      'Tadı daha iyi olsun diye meyve suyu ya da gazlı içecekle karıştırın.'],
+    sevk: ['Uzman/tetkik yönlendirmesi yapılan hastaya hangi bilgiyi verirsiniz?',
+      'Randevu bilgisini ve hangi uyarı belirtilerinde (şiddetli ağrı, bayılma, nefes darlığı) acile başvurması gerektiğini yazılı olarak verin.',
+      'Belirtiler geçerse randevuya gitmesine gerek olmadığını söyleyin.',
+      'Randevuya kadar belirtiler için kendi seçtiği takviyeleri kullanabileceğini söyleyin.'],
+    inhaler: ['Kurtarıcı inhaler verilen hastaya kullanım tekniğini nasıl anlatırsınız?',
+      'Önce nefesinizi tamamen verin, inhaleri sıkarken yavaş ve derin nefes alın, 10 saniye tutun; haftada birkaç kezden sık ihtiyaç olursa hekime başvurun.',
+      'Nefes darlığı geçene kadar art arda istediğiniz kadar sıkın; ne kadar çok o kadar iyi.',
+      'İnhaleri sıkarken burnunuzdan nefes almanız ilacın akciğere daha iyi ulaşmasını sağlar.'],
+    seker: ['Kan şekeri düşüklüğü yaşayan hastaya hangi bilgiyi verirsiniz?',
+      'Titreme ve terlemede hemen hızlı etkili şeker (meyve suyu, glukoz tableti) alın, 15 dakika sonra tekrar ölçün; ilaç dozlarınızı hekiminizle gözden geçirin.',
+      'Şeker düştüğünde bir sonraki ilaç dozunuzu ikiye katlayın.',
+      'Öğün atlamak kan şekerini dengeler; düşüklük olursa sadece dinlenin.'],
+    alerji: ['Fıstık alerjisi olan hastaya hangi bilgiyi verirsiniz?',
+      'Ürün etiketlerini okuyun, fıstık içerenlerden kaçının; hekim yazdıysa adrenalin oto-enjektörünü her zaman yanınızda taşıyın ve kullanımını öğrenin.',
+      'Az miktarda fıstık yemek vücudu alıştırır; reaksiyon olursa kendiliğinden geçer.',
+      'Belirti olursa önce birkaç saat bekleyin, geçmezse antihistaminik alın; acile gitmeye gerek yoktur.'],
+    laktoz: ['Laktoz intoleransı tanısı alan hastaya beslenme konusunda ne önerirsiniz?',
+      'Laktozsuz süt kullanın; yoğurt, kefir ve olgun peynirle kalsiyum alımınızı koruyun.',
+      'Tüm süt ürünlerini ömür boyu tamamen kesin; kalsiyum takviyesine de gerek yoktur.',
+      'Belirtiler olmasın diye her gün düzenli ishal kesici ilaç kullanın.'],
+    kafein: ['Kafeine bağlı çarpıntı yaşayan hastaya ne önerirsiniz?',
+      'Kafeini kademeli azaltın, öğleden sonra almayın; bayılma ya da göğüs ağrısı olursa hemen başvurun.',
+      'Yorgunluğu gidermek için kahve yerine enerji içeceği tüketin; kalbe etkisi daha azdır.',
+      'Uyumakta zorlanırsanız yatmadan önce bir kadeh alkol almanız uykuyu düzenler.'],
+    gut: ['Gut atağı için ilaç verilen hastayı nasıl bilgilendirirsiniz?',
+      'İlacı hekimin yazdığı doz ve sürede kullanın; bol su için, alkol ve sakatattan kaçının.',
+      'Ağrı geçince ilacı bırakabilir, kırmızı eti dilediğiniz kadar tüketebilirsiniz.',
+      'Ağrıyan eklemi sıcak suyla ovarak ilaç ihtiyacını azaltabilirsiniz.'],
+    koah: ['KOAH tanılı hastaya inhaler ve oksijen kullanımı konusunda hangi bilgiyi verirsiniz?',
+      'İnhalerlerinizi her gün düzenli ve doğru teknikle kullanın; sigarayı bırakma desteği alın, grip ve zatürre aşılarınızı yaptırın.',
+      'Nefes darlığında evdeki oksijen akışını kendiniz en yükseğe çıkarabilirsiniz.',
+      'Rahatladığınız dönemlerde koruyucu inhalerlerinizi bırakabilirsiniz.'],
+    antibiyotik: ['Antibiyotik reçetelenen hastaya hangi kullanım bilgisini verirsiniz?',
+      'Antibiyotiği saatinde ve hekimin söylediği süre boyunca kullanın; ateş yeniden yükselir ya da döküntü olursa başvurun.',
+      'Ateş düşünce ilacı bırakın, kalanını bir sonraki hastalık için saklayın.',
+      'Etkisi daha hızlı olsun diye ilk gün dozu ikiye katlayın.'],
+    karbon: ['Karbonmonoksit zehirlenmesi atlatan hastaya taburculukta ne önerirsiniz?',
+      'Soba ve bacayı her yıl kontrol ettirin, yatmadan önce sobayı söndürün ve karbonmonoksit dedektörü takın.',
+      'Baş ağrısı olursa pencereleri kapatıp odayı daha sıcak tutun.',
+      'Geceleri sobanın havasını kısıp yanar halde bırakmak daha güvenlidir.'],
+    inme: ['İnme geçiren hastanın yakınına taburculukta hangi bilgiyi verirsiniz?',
+      'İlaçlarını aksatmadan kullanmasını sağlayın; yüzde kayma, kolda güçsüzlük ya da konuşma bozukluğu olursa hemen 112 aranmalıdır.',
+      'Belirti tekrarlarsa birkaç saat dinlenip geçmesini bekleyin.',
+      'Tansiyon ilacını yalnızca baş ağrısı olduğu günlerde verin.'],
+    antikoagulan: ['Kan sulandırıcı (varfarin) kullanan hastaya hangi bilgiyi verirsiniz?',
+      'Her gün aynı saatte alın, INR kontrollerine gidin; yeni ilaç, bitkisel ürün ya da takviyeye başlamadan hekime danışın, yeşil yapraklı sebze miktarını aniden değiştirmeyin.',
+      'Kanama olmadığı sürece bitkisel çay ve takviyelerin ilaçla etkileşimi olmaz.',
+      'Unuttuğunuz dozu ertesi gün iki doz birden alarak telafi edin.'],
+    metformin: ['Metformin başlanan hastaya hangi kullanım bilgisini verirsiniz?',
+      'Yemekle birlikte alın; mide şikâyeti olursa hekime söyleyin. Uzun süreli kullanımda B12 düzeyiniz düzenli kontrol edilmeli.',
+      'Kan şekeriniz düzelince ilacı hekime danışmadan bırakabilirsiniz.',
+      'Daha etkili olması için aç karnına ve öğün atlayarak alın.'],
+    ppi: ['Mide koruyucu (PPI) kullanan hastaya hangi bilgiyi verirsiniz?',
+      'Hekiminizin belirlediği süre kadar, genellikle kahvaltıdan önce alın; gerekçesiz yıllarca sürdürmeyin, uzun kullanımda B12 ve magnezyum açısından kontrol olun.',
+      'Yan etkisi olmadığı için ömür boyu her gün güvenle kullanabilirsiniz.',
+      'Mide yanması olduğu günlerde her yemekten sonra iki tablet birden alın.'],
+    levotiroksin: ['Tiroid hormonu (levotiroksin) başlanan hastaya hangi bilgiyi verirsiniz?',
+      'Her gün aynı saatte, genellikle aç karnına alın; demir ve kalsiyum takviyelerini birkaç saat arayla kullanın, kontrol tahlillerini aksatmayın.',
+      'Kendinizi iyi hissettiğiniz günlerde ilacı atlayabilirsiniz.',
+      'Demir ve kalsiyum takviyesiyle aynı anda yutmak emilimi artırır.'],
+  };
+  Object.keys(RXV).forEach((k) => {
+    const rx = H.RX[k];
+    if (!rx) return;
+    const [q, ok, w1, w2] = RXV[k];
+    rx.q = q;
+    rx.opts = [[ok, true], [w1, false], [w2, false]];
+    delete rx.sources;
+  });
   VH.content = { cases: CASES.length, er: ER.length, rx: Object.keys(RX).length, SOURCES, sourcesNode };
 })();

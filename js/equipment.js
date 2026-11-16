@@ -165,13 +165,28 @@
   const LEVEL_COL = ['#9aa7b0', '#2ec4b6', '#f2c94c'];
   function extras(kind, k) {
     const L = k.o.lvl || 1;
+    // Prestij: Altın Cihaz Teması — tüm cihazlarda altın kaide şeridi ve parıltı
+    if (VH.vip && VH.vip.theme === 'gold') {
+      k.box(0.06, 0.06, k.W - 0.06, 0.12, 0, 3.5, '#e6c66e', { edge: false });
+      k.custom(k.W / 2, 0.5, 2, (c, sx, sy) => { c.fillStyle = 'rgba(255,215,110,0.35)'; c.beginPath(); c.ellipse(sx, sy, 14, 6, 0, 0, Math.PI * 2); c.fill(); });
+    }
     if (L < 2) return;
     const W = k.W, col = LEVEL_COL[L - 1];
     switch (kind) {
       case 'gurney':
         k.box(0.2, 0.3, W - 0.46, 0.7, 18, 19.5, L >= 3 ? '#1f7a8c' : '#2ec4b6', { edge: false });
         k.box(0.2, 0.2, W - 0.2, 0.23, 22, 24, col); k.box(0.2, 0.77, W - 0.2, 0.8, 22, 24, col);
-        if (L >= 3) { k.pole(0.18, 0.24, 18, 44, 2, '#6f7d87'); k.box(0.08, 0.18, 0.34, 0.26, 40, 52, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 42, 50, '#062a22')] }); k.custom(0.21, 0.26, 46, (c, sx, sy) => VH.art.ecgLine(c, sx, sy, 5)); }
+        // Sv.2: hidrolik kolonlu, yan korkuluklu sedye
+        k.cyl(W / 2, 0.5, 3.5, 2, 12, '#9aa7b0');
+        k.box(0.2, 0.18, W - 0.2, 0.21, 19, 26, col); k.box(0.2, 0.79, W - 0.2, 0.82, 19, 26, col);
+        if (L >= 3) {
+          // Sv.3: akıllı yoğun bakım yatağı — başucu ritim monitörü, serum askısı, ayak ucunda dijital kontrol paneli
+          k.pole(0.18, 0.24, 18, 44, 2, '#6f7d87'); k.box(0.08, 0.18, 0.34, 0.26, 40, 52, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 42, 50, '#062a22')] }); k.custom(0.21, 0.26, 46, (c, sx, sy) => VH.art.ecgLine(c, sx, sy, 5));
+          k.pole(0.12, 0.85, 0, 50, 1.6, '#c9d1d6');
+          k.box(0.06, 0.8, 0.18, 0.9, 40, 49, 'rgba(200,232,250,0.95)', { edge: false });
+          k.line(0.12, 0.85, 40, 0.4, 0.6, 22, 0.8, 'rgba(127,184,230,0.9)');
+          k.box(W - 0.22, 0.32, W - 0.12, 0.68, 14, 26, '#e9eef1', { deco: [VH.art.screenDeco('E', 0.12, 0.88, 17, 24, '#0b3a5a'), VH.art.screenDeco('W', 0.12, 0.88, 17, 24, '#0b3a5a')] });
+        }
         break;
       case 'monitor': case 'ecg': case 'defibrillator':
         k.box(0.62, 0.44, 0.94, 0.54, 30, 44, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 32, 42, '#0b3a5a')] });
@@ -188,12 +203,31 @@
         break;
       case 'analyzer': case 'centrifuge': case 'microscope':
         k.box(0.05, 0.1, 0.95, 0.18, 0, 6, col);
-        if (L >= 3 && kind === 'analyzer') k.box(0.15, 0.1, 0.85, 0.2, 6, 14, '#b5ab95', { deco: [{ dir: '*', u0: 0, u1: 1, z0: 9, z1: 11, color: '#2ec4b6', raw: true }] });
+        if (kind === 'analyzer') {
+          // Sv.2: çift ekranlı ünite
+          k.box(W - 0.42, 0.14, W - 0.1, 0.2, 44, 60, '#1b2329', { deco: [VH.art.screenDeco('S', 0.08, 0.92, 46, 58, '#0b3a5a')] });
+          k.custom(W - 0.26, 0.2, 52, (c, sx, sy) => { c.fillStyle = '#5ff0d8'; for (let i = 0; i < 3; i++) c.fillRect(sx - 6, sy - 4 + i * 3, 4 + i * 3, 1.4); });
+          if (L >= 3) {
+            // Sv.3: cam kabinli tam otomatik analiz hattı — tüp taşıma rayı ve yanıp sönen LED şerit
+            const t = performance.now();
+            k.box(0.04, 0.92, W - 0.04, 1.02, 0, 30, '#c9d1d6');
+            k.box(0.04, 0.9, W - 0.04, 1.04, 30, 31.5, '#7e8d96');
+            const n = Math.round(W * 6), off = (t / 1600) % 1;
+            for (let i = 0; i < n; i++) { const u = 0.08 + ((i + off) / n) * (W - 0.16); k.box(u - 0.025, 0.95, u + 0.025, 0.99, 31.5, 38, 'rgba(235,242,246,0.95)', { top: ['#d62828', '#8e44ad', '#2f78b3', '#2f9e44', '#f2c94c'][i % 5], edge: false }); }
+            k.box(0.02, 0.06, W - 0.02, 0.94, 0, 62, 'rgba(160,210,235,0.16)', { top: 'rgba(160,210,235,0.22)', edge: false });
+            for (let i = 0; i < 8; i++) { const on = Math.floor(t / 250 + i) % 3 !== 0; k.box(0.1 + i * (W - 0.2) / 8, 0.93, 0.14 + i * (W - 0.2) / 8, 0.95, 58, 61, on ? '#46c46a' : '#164a2a', { edge: false }); }
+          }
+        }
         break;
       case 'exam_table':
         k.box(W - 0.45, 0.28, W - 0.15, 0.72, 25, 27, col);
         k.box(0.3, 0.3, W - 0.55, 0.7, 21.6, 22.2, '#ffffff', { edge: false });
-        if (L >= 3) { k.pole(0.15, 0.25, 0, 46, 2, '#6f7d87'); k.box(0.05, 0.2, 0.35, 0.28, 42, 56, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 44, 54, '#0f5e66')] }); }
+        if (L >= 3) {
+          // Sv.3: bilgisayar monitörü, duvar tipi dijital tanı seti (otoskop/oftalmoskop) ve modern buzlu cam paravan
+          k.pole(0.15, 0.25, 0, 46, 2, '#6f7d87'); k.box(0.05, 0.2, 0.35, 0.28, 42, 56, '#1b2329', { deco: [VH.art.screenDeco('S', 0.1, 0.9, 44, 54, '#0f5e66')] });
+          k.box(W - 0.5, 0.02, W - 0.1, 0.08, 36, 48, '#e9eef1', { deco: [VH.art.screenDeco('S', 0.08, 0.5, 39, 45, '#0b3a5a'), { dir: 'S', u0: 0.6, u1: 0.68, z0: 38, z1: 46, color: '#2b333b', raw: true }, { dir: 'S', u0: 0.78, u1: 0.86, z0: 38, z1: 46, color: '#2b333b', raw: true }] });
+          k.box(-0.05, 0.85, W * 0.6, 0.9, 0, 44, 'rgba(210,232,242,0.55)', { top: '#c9d1d6', edge: false, deco: [{ dir: '*', u0: 0, u1: 1, z0: 40, z1: 44, color: '#c9d1d6', raw: true }, { dir: '*', u0: 0, u1: 1, z0: 0, z1: 3, color: '#9aa7b0', raw: true }] });
+        }
         break;
       case 'or_table': case 'anesthesia': case 'surgical_lamp':
         k.box(0.1, 0.1, 0.9, 0.18, 0, 4, col);
@@ -208,6 +242,18 @@
         break;
       case 'med_cabinet': case 'pharmacy_shelf':
         k.box(0.15, 0.85, 0.85, 0.92, 2, 6, col);
+        if (L >= 3 && kind === 'pharmacy_shelf') {
+          // Sv.3: rafların yanında camlı otomatik ilaç dağıtım robotu (kartezyen kol + teslim haznesi)
+          const u0 = W + 0.02, u1 = W + 0.95;
+          k.box(u0, 0.05, u1, 0.6, 0, 6, '#5d6a74');
+          k.box(u0, 0.05, u1, 0.6, 6, 70, 'rgba(160,210,235,0.22)', { top: '#c9d1d6', edge: false });
+          for (const u of [u0, u1]) for (const v of [0.05, 0.6]) k.box(u - 0.02, v - 0.02, u + 0.02, v + 0.02, 0, 70, '#9aa7b0');
+          for (let r = 0; r < 4; r++) for (let i = 0; i < 4; i++) k.box(u0 + 0.08 + i * 0.2, 0.08, u0 + 0.22 + i * 0.2, 0.14, 12 + r * 13, 18 + r * 13, ['#ef476f', '#ffd166', '#06d6a0', '#118ab2'][(i + r) % 4], { edge: false });
+          k.box(u0 + 0.05, 0.3, u1 - 0.05, 0.34, 46, 48, '#7e8d96');
+          k.box(u0 + 0.4, 0.26, u0 + 0.52, 0.38, 30, 46, '#2ec4b6');
+          k.box(u0 + 0.36, 0.24, u0 + 0.56, 0.4, 27, 30, '#2b333b');
+          k.box(u0 + 0.25, 0.55, u0 + 0.7, 0.62, 10, 20, '#173447', { deco: [{ dir: 'S', u0: 0.1, u1: 0.9, z0: 12, z1: 18, color: '#5ff0d8', raw: true }] });
+        }
         break;
       case 'counter': case 'pharmacy_counter':
         if (k.o.tag === 'pharmacy_counter') {

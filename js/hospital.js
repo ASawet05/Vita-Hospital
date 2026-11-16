@@ -114,7 +114,7 @@
    */
   function mod(k) {
     let v = baseMod(k);
-    for (const m of [VH.staff, VH.equipment, VH.progress, VH.build, VH.floors]) if (m && m.factor) v *= m.factor(k);
+    for (const m of [VH.staff, VH.equipment, VH.progress, VH.build, VH.floors, VH.vip]) if (m && m.factor) v *= m.factor(k);
     return v;
   }
 
@@ -144,7 +144,7 @@
   const SHIFT_LEN = 300; // oyun saniyesi
   const freshStats = () => ({ treated: 0, er: 0, erFail: 0, cases: 0, pharmacy: 0, angry: 0, rep0: S().reputation, budget0: S().budget, spent: 0, bestCombo: 1 });
   const shift = { n: 1, t: SHIFT_LEN, stats: null };
-  let nightF = 0;
+  let nightF = 0, dusk = 0;
   const isNightShift = () => shift.n % 2 === 0;
   const erTimeBonus = () => (has('upgrades', 'erKit') ? 20 : 0) + (has('hires', 'erNurse') ? 10 : 0) + (VH.equipment ? VH.equipment.erBonus() : 0);
   const incomePerMin = () => SERVICES.reduce((s, sv) => s + (has('services', sv.id) ? sv.income : 0), 0);
@@ -156,6 +156,7 @@
 
   function reward(rep, safety, budget) {
     const st = S();
+    if (shift.stats && rep) shift.stats.repGain = (shift.stats.repGain || 0) + rep; // karne: tavana (100) takılsa da kazanılan itibar sayılır
     st.reputation = clamp(st.reputation + rep);
     st.safety = clamp(st.safety + safety);
     st.budget += budget;
@@ -372,18 +373,21 @@
     }, bay.via);
   }
 
-  function startStabilize(dv, byPlayer) {
+  function startStabilize(dv, byPlayer, resume) {
     const a = er.active;
-    a.phase = 'stab';
-    a.stab = 3 * mod('stabTime');
-    if (VH.equipment) a.stab *= VH.equipment.stabFactor(dv.tag);
-    if (VH.emit) VH.emit('deviceUse', { tag: dv.tag });
-    a.stabMax = a.stab;
-    a.device = dv;
-    UI().toast(`🩺 ${dv.name} ile stabilizasyon başladı. Cihazın yanında kalın!`, 2600);
+    if (!resume) {
+      a.phase = 'stab';
+      a.stab = 3 * mod('stabTime');
+      if (VH.equipment) a.stab *= VH.equipment.stabFactor(dv.tag);
+      if (VH.emit) VH.emit('deviceUse', { tag: dv.tag });
+      a.stabMax = a.stab;
+      a.device = dv;
+      UI().toast(`🩺 ${dv.name} ile stabilizasyon başladı. Cihazın yanında kalın!`, 2600);
+    }
     // Başhekim bizzat bağlıyorsa ünite mini oyunu: oksijen/serum bağlama ya da defibrilatör senkron şoku
     const MG = VH.minigames;
-    if (byPlayer && MG && MG.enabled && !MG.active) {
+    if (byPlayer && MG && MG.enabled && !MG.active && !a.mgDone && ['oxygen', 'ventilator', 'iv', 'defibrillator'].includes(dv.tag)) {
+      a.mgDone = true;
       const done = (score) => {
         if (!er.active || er.active !== a) return;
         if (score >= 60) { a.stab *= score >= 85 ? 0.15 : 0.35; a.timeLeft += 4; UI().toast('⚡ Ustaca müdahale: stabilizasyon hızlandı (+4 sn)', 2400); }
@@ -401,7 +405,9 @@
     const max = d.time + erTimeBonus();
     const mult = comboHit(a.timeLeft / max, 'Acil Müdahale');
     const rep = 6 + Math.floor(a.timeLeft / 15) + (mult - 1) * 2;
-    const budget = Math.round((2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0)) * mult);
+    const nightBonus = isNightShift();
+    const budget = Math.round((2000 * (surgeryBonus ? 1.5 : 1) + (ward ? 500 : 0)) * mult * (nightBonus ? 1.5 : 1));
+    if (nightBonus) UI().toast('🌙 Gece Nöbeti Bonusu: acil vaka ödülü +%50', 2400);
     reward(rep, 3, budget);
     shift.stats.er++; addCase();
     if (a.p && E().floatText) { E().floatText(a.p.x, a.p.y, a.p.floor || 0, "+₺" + budget, "#ffd166", -12); E().floatText(a.p.x, a.p.y, a.p.floor || 0, "+★" + rep, "#8fe39f", 20); }
@@ -417,7 +423,6 @@
     deltas.appendChild(el('span', { className: 'delta' }, `Kalan süre: ${fmtTime(a.timeLeft)}`));
     node.appendChild(deltas);
     node.appendChild(el('p', { className: 'lesson' }, d.why));
-    if (d.sources && VH.content) node.appendChild(VH.content.sourcesNode(d.sources));
     if (surgeryBonus) node.appendChild(el('p', { className: 'lesson' }, '🩻 Cerrahi servis: travma hastası ameliyathane değerlendirmesine alındı (ödül +%50).'));
     node.appendChild(el('p', { className: 'lesson' }, (VH.surgery && VH.surgery.wants(d) ? '🩻 Son adım: hasta ameliyat için 1. kattaki ameliyathaneye alınıyor. Asansörle çıkıp ameliyatı yapın (ya da cerrah üstlensin).' : VH.floors && VH.floors.wantsImagingER(d) ? '📡 Sonraki adım: hasta görüntüleme için 3. kattaki radyoloji birimine alınıyor.' : '💊 Son adım: hasta eczaneye geçiyor. Tezgâhta "İlaç Onayla" ile doğru bilgilendirmeyi yapıp taburcu edin.') + (ward ? ' Ardından gözlem için yatan hasta servisine alınacak (+₺500 dahil).' : '')));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Eğitim amaçlı sadeleştirilmiş senaryodur.'));
@@ -605,7 +610,7 @@
     const node = el('div', {});
     node.appendChild(el('p', {}, `Hasta: ${p.name}${p.age ? ', ' + p.age + ' yaş' : ''}`));
     node.appendChild(el('p', {}, `Teslim edilecek: 💊 ${rx.name}`));
-    node.appendChild(el('div', { className: 'sec-title' }, 'Hastaya hangi bilgilendirmeyi yapacaksınız?'));
+    node.appendChild(el('div', { className: 'sec-title' }, rx.q || 'Hastaya teslim sırasında hangi kullanım bilgisini verirsiniz?'));
     p.rxOrder.forEach((i) => {
       const [text, ok] = rx.opts[i];
       const b = el('button', { type: 'button', className: 'opt-btn' });
@@ -613,7 +618,6 @@
       b.addEventListener('click', () => counsel(p, ok, rx));
       node.appendChild(b);
     });
-    if (rx.sources && VH.content) node.appendChild(VH.content.sourcesNode(rx.sources));
     node.appendChild(el('div', { className: 'disclaimer' }, 'Takviye ve ilaçlar yalnızca hekim/eczacı önerisiyle kullanılmalıdır.'));
     UI().openDialog({ icon: '💊', title: 'İlaç Onayı & Bilgilendirme', subtitle: 'Eczane', wide: true, node, actions: [{ label: 'Kapat', ghost: true }] });
   }
@@ -803,7 +807,7 @@
     const st = shift.stats;
     const summary = {
       n: shift.n, night: isNightShift(), treated: st.treated, er: st.er, erFail: st.erFail, cases: st.cases, pharmacy: st.pharmacy, angry: st.angry,
-      rep: S().reputation - st.rep0, income: Math.round(S().budget - st.budget0 + st.spent), bestCombo: st.bestCombo,
+      rep: st.repGain !== undefined ? Math.round(st.repGain) : S().reputation - st.rep0, income: Math.round(S().budget - st.budget0 + st.spent), bestCombo: st.bestCombo,
     };
     // Modüller (maaş bordrosu, bakım, değerlendirme) özete ek kart ekler
     summary.extra = [];
@@ -962,6 +966,13 @@
     if (t.type === 'patient' && t.ref.erRef) {
       if (!a || a.p !== t.ref) return true;
       if (a.phase === 'arrive' || a.phase === 'wait') openTriage();
+      // Sedyedeki hasta: doğru ünitenin cihazıyla bağlantıyı başlat (oksijen/serum/defibrilatör mini oyunu)
+      else if (a.phase === 'bay') {
+        const tags = UNITS[a.def.need].tags;
+        const P = E().player;
+        const dv = E().devices.filter((d) => d.floor === 0 && tags.includes(d.tag)).sort((x, y) => Math.hypot(x.x - P.x, x.y - P.y) - Math.hypot(y.x - P.x, y.y - P.y))[0];
+        if (dv) startStabilize(dv, true);
+      } else if (a.phase === 'stab' && !a.mgDone && a.device && VH.minigames && VH.minigames.enabled) startStabilize(a.device, true, true);
       else UI().openDialog({ icon: '🚑', title: `${a.def.name}, ${a.def.age} yaş`, subtitle: `Kalan süre ${fmtTime(a.timeLeft)}`,
         text: a.phase === 'toBay' ? 'Hasta sedyeye alınıyor…' : `Gerekli müdahale: ${UNITS[a.def.need].device}. Cihazın yanına gidip "Acil Müdahale" seçin ve stabilizasyon bitene kadar yanında kalın.` });
       return true;
@@ -994,7 +1005,24 @@
     const key = Math.max(...cs.map((c) => c[0])) + Math.max(...cs.map((c) => c[1])) - 1;
     const [cx, cy] = map.worldToIso(er.amb.x, er.amb.y);
     o.spriteKey = ['amb', o.face, o.w, o.h, o.lights ? Math.floor(performance.now() / 180) % 2 : -1].join('|');
-    return [{ kind: 'amb', key, cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) }];
+    const out = [{ kind: 'amb', key, cx, cy, draw: (ctx) => VH.map.drawSprite(ctx, o) }];
+    if (o.lights && !VH.lod) {
+      // Asfalta vuran dönen siren hüzmeleri (kırmızı/mavi), ambulanstan önce çizilir
+      out.push({ kind: 'ambfx', key: key - 3, cx, cy, draw: (ctx) => {
+        const t = performance.now() / 1000;
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 2; i++) {
+          const a = t * 4.2 + i * Math.PI;
+          const col = i ? '60,130,255' : '255,60,60';
+          const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, 120);
+          g.addColorStop(0, `rgba(${col},0.38)`); g.addColorStop(1, `rgba(${col},0)`);
+          ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy);
+          ctx.ellipse(cx, cy, 120, 60, 0, a - 0.35, a + 0.35); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+      } });
+    }
+    return out;
   }
 
   /** Zemin katmanı: dönen tepe lambalarının asfalta vuran kırmızı/mavi ışığı. */
@@ -1068,6 +1096,7 @@
     mod, level, incomePerMin, has, devLevel, comboHit, comboBreak,
     get gameTime() { return gameTime; },
     get night() { return nightF; },
+    get dusk() { return dusk; },
     get isNightShift() { return isNightShift(); },
     erMaxTime: (def) => def.time + erTimeBonus(),
     init() {
@@ -1099,7 +1128,11 @@
       // vardiya
       if (!VH.paused) shift.t -= dt;
       S().shiftN = shift.n; S().shiftT = Math.round(shift.t);
-      const target = isNightShift() ? 1 : 0;
+      // Dinamik gün döngüsü: gündüz nöbetinin son üçte birinde gün batımı → akşam; gece nöbeti tam gece,
+      // sonunda şafak. dusk: gün batımı turuncu tonu (0..1)
+      const pr = 1 - Math.max(0, shift.t) / SHIFT_LEN;
+      const target = isNightShift() ? (pr < 0.85 ? 1 : 1 - (pr - 0.85) / 0.15 * 0.6) : (pr < 0.62 ? 0 : (pr - 0.62) / 0.38 * 0.75);
+      dusk = isNightShift() ? (pr > 0.85 ? (pr - 0.85) / 0.15 * 0.6 : 0) : (pr < 0.5 ? 0 : Math.sin(Math.min(1, (pr - 0.5) / 0.5) * Math.PI) * 1);
       nightF += Math.sign(target - nightF) * Math.min(Math.abs(target - nightF), dt / 6);
       if (shift.t <= 0 && !VH.paused) endShift();
       UI().setAlert(alertText());

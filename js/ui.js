@@ -351,6 +351,7 @@
           if (t && box._onTab) box._onTab(t.dataset.tab);
           if (e.target.closest('[data-file]') && VH.cases) VH.cases.openCaseFile();
           if (e.target.closest('[data-min]')) { box.classList.toggle('min'); }
+          else if (box.classList.contains('min') && !e.target.closest('[data-tab]')) box.classList.remove('min'); // küçültülmüş kutuya dokununca ayrıntı açılır
           if (e.target.closest('[data-step]') && box._onStep) box._onStep();
         });
         $('ui-root').appendChild(box);
@@ -468,5 +469,5 @@
       tickerPush({ icon: '', text, dur: Math.max(1600, ms || 1800), prio: false });
     },
   };
-  VH.notify = (icon, text, floor, kind) => VH.ui.notify(icon, text, floor, kind);
+  VH.notify = (icon, text, floor, kind, goal) => VH.ui.notify(icon, text, floor, kind, goal);
 })();

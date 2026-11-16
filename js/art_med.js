@@ -699,3 +699,56 @@
     });
   });
 })();
+
+// ================================================================ v9: prestij nesneleri
+(function () {
+  const VH = window.VH, A = VH.art;
+  const R = (k, fn, flat) => A.register(k, fn, flat);
+  const now = () => performance.now();
+  // Helikopter pisti: beton daire, sarı halka, beyaz "H", köşe ışıkları (gece yanıp söner)
+  R('helipad', (k) => {
+    const W = k.W, D = k.D, t = now();
+    k.flat([[0.05, 0.05], [W - 0.05, 0.05], [W - 0.05, D - 0.05], [0.05, D - 0.05]], 0.3, '#8e979d');
+    k.custom(W / 2, D / 2, 0.6, (c, sx, sy) => {
+      const rx = W * 32 * 0.46, ry = D * 16 * 0.46;
+      c.fillStyle = '#6f777d'; c.beginPath(); c.ellipse(sx, sy, rx, ry, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#f2c94c'; c.lineWidth = 3; c.beginPath(); c.ellipse(sx, sy, rx * 0.86, ry * 0.86, 0, 0, Math.PI * 2); c.stroke();
+      c.save(); c.translate(sx, sy); c.scale(1, 0.5); c.rotate(Math.PI / 4);
+      c.fillStyle = '#ffffff'; c.fillRect(-14, -16, 6, 32); c.fillRect(8, -16, 6, 32); c.fillRect(-8, -3, 16, 6);
+      c.restore();
+      const on = Math.floor(t / 600) % 2;
+      for (const [ux, uy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { c.fillStyle = on ? '#5ff0d8' : '#1d6f86'; c.beginPath(); c.arc(sx + ux * rx, sy + uy * ry, 2.6, 0, Math.PI * 2); c.fill(); }
+    });
+  }, true);
+  // Sensörlü el dezenfektanı standı: ayaklı direk, hazne, sensör LED'i ve damlama tepsisi
+  R('sanitizer_stand', (k) => {
+    const t = now();
+    k.disc(0.5, 0.5, 0, 6, '#7e8d96');
+    k.pole(0.5, 0.5, 0, 30, 2.4, '#c9d1d6');
+    k.box(0.38, 0.4, 0.62, 0.56, 30, 46, '#f4f7f8', { deco: [{ dir: 'S', u0: 0.15, u1: 0.85, z0: 38, z1: 44, color: '#2ec4b6', raw: true }] });
+    k.box(0.42, 0.46, 0.58, 0.6, 26, 28, '#9aa7b0');
+    k.custom(0.5, 0.56, 34, (c, sx, sy) => { c.fillStyle = Math.floor(t / 900) % 2 ? '#46c46a' : '#1e5a2e'; c.beginPath(); c.arc(sx, sy, 1.4, 0, Math.PI * 2); c.fill(); });
+  });
+  // B1 espresso barı: tezgâh, çift gruplu espresso makinesi, öğütücü, fincanlar, buhar
+  R('espresso_bar', (k) => {
+    const W = k.W, t = now();
+    k.shadow(0.02, 0.2, W - 0.02, 0.95);
+    k.box(0.04, 0.3, W - 0.04, 0.92, 0, 26, '#4a3324', { deco: [{ dir: 'S', u0: 0.02, u1: 0.98, z0: 18, z1: 21, color: '#c9a25a', raw: true }] });
+    k.box(0, 0.26, W, 0.96, 26, 28, '#e9e2d6');
+    k.box(0.3, 0.38, 1.1, 0.7, 28, 44, '#c9d1d6', { deco: [{ dir: 'S', u0: 0.1, u1: 0.9, z0: 32, z1: 36, color: '#2b333b', raw: true }] });
+    k.box(1.3, 0.42, 1.55, 0.66, 28, 46, '#2b333b');
+    for (let i = 0; i < 3; i++) k.cyl(1.7 + i * 0.1, 0.8, 2.2, 28, 31, '#ffffff');
+    k.custom(0.7, 0.55, 46, (c, sx, sy) => { for (let j = 0; j < 2; j++) { const ph = ((t / 1400) + j / 2) % 1; c.fillStyle = `rgba(255,255,255,${0.35 * (1 - ph)})`; c.beginPath(); c.arc(sx + Math.sin(ph * 5) * 2, sy - ph * 14, 2 + ph * 3, 0, Math.PI * 2); c.fill(); } });
+    k.custom(W / 2, 0.96, 22, (c, sx, sy) => { c.fillStyle = '#ffd166'; c.font = '800 5.5px system-ui'; c.textAlign = 'center'; c.fillText('☕ ESPRESSO', sx, sy); });
+  });
+  // Masaj koltuğu: koyu deri gövde, ayak bölümü, kontrol kumandası
+  R('massage_chair', (k) => {
+    k.shadow(0.08, 0.1, 0.92, 0.92);
+    k.box(0.15, 0.25, 0.85, 0.8, 0, 14, '#2b2f36');
+    k.box(0.12, 0.25, 0.88, 0.8, 14, 20, '#3a3f47', { top: '#4a505a' });
+    k.box(0.15, 0.1, 0.85, 0.28, 14, 46, '#2b2f36', { deco: [{ dir: '*', u0: 0.15, u1: 0.85, z0: 22, z1: 40, color: '#353a42' }] });
+    k.box(0.08, 0.3, 0.16, 0.78, 16, 28, '#2b2f36'); k.box(0.84, 0.3, 0.92, 0.78, 16, 28, '#2b2f36');
+    k.box(0.25, 0.8, 0.75, 0.98, 2, 12, '#3a3f47');
+    k.box(0.86, 0.5, 0.94, 0.58, 28, 31, '#2ec4b6');
+  });
+})();

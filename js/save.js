@@ -45,6 +45,7 @@
       dev: st.dev, shiftN: st.shiftN, shiftT: st.shiftT, shiftLog: (st.shiftLog || []).slice(-10),
       solved: st.solved.slice(-300),
       casesTotal: st.casesTotal || 0,
+      vip: st.vip,
       order: st.order, idx: st.idx,
       stats: { registered: E.stats.registered, served: E.stats.served, ticket: E.stats.ticket },
       introSeen: VH.cases.introSeen,
@@ -96,6 +97,7 @@
       equip: VH.equipment ? VH.equipment.sanitize(d.equip) : null,
       layout: VH.build ? VH.build.sanitize(d.layout) : null,
       prog: VH.progress ? VH.progress.sanitize(d.prog) : null,
+      vip: VH.vip ? VH.vip.sanitize(d.vip) : null,
       core: d.core && typeof d.core === 'object' ? flags(d.core, ['receptionist', 'pharmacist', 'doctor2']) : null,
       logi: VH.logistics ? VH.logistics.sanitize(null, d) : null,
       energy: num(d.energy, 100, 0, 100),
@@ -131,6 +133,7 @@
     if (c.equip) st.equip = c.equip;
     if (c.layout) st.layout = c.layout;
     if (c.prog) st.prog = c.prog;
+    if (c.vip) st.vip = c.vip;
     // Eski kayıtlarda çekirdek kadro alanı yoksa tam kadro kabul edilir (ilerleme kaybolmasın)
     st.core = c.core || { receptionist: true, pharmacist: true, doctor2: true };
     if (c.logi) { st.stock = c.logi.stock; st.pending = c.logi.pending; st.parts = c.logi.parts; }

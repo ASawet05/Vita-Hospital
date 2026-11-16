@@ -73,7 +73,7 @@
     c.appendChild(el('div', { className: 'grade', style: `border-color:${good ? '#46a758' : '#edae49'}` }, `${good ? '✅' : '⚠️'} ${cur.title} · ${score}/100`));
     lines.forEach((l) => c.appendChild(el('p', { className: 'sg-sub' }, l)));
     const b = el('button', { type: 'button', className: 'dlg-btn sg-big' }, okLabel || 'Devam');
-    b.addEventListener('click', () => { close(); onDone(score); });
+    b.addEventListener('click', () => { close(); if (score >= 60 && VH.progress && VH.progress.bump) VH.progress.bump('mini'); onDone(score); });
     c.appendChild(b);
     sound(good ? 'success' : 'error');
   }
@@ -228,7 +228,7 @@
     function report() {
       const rows = (labs && labs.length ? labs : randomLabs()).slice(0, 6);
       const abn = new Set(rows.map((r, i) => (r.value < r.lo || r.value > r.hi ? i : -1)).filter((i) => i >= 0));
-      frame(1, 'Referans dışı değerleri işaretleyin', `Rapordaki anormal (yüksek/düşük) sonuçlara dokunun, sonra Onayla. (${abn.size} anormal değer var)`, () => onDone(Math.max(0, score)));
+      frame(1, 'Normal aralık dışındaki değerleri işaretleyin', `Rapordaki anormal (yüksek/düşük) sonuçlara dokunun, sonra Onayla. (${abn.size} anormal değer var)`, () => onDone(Math.max(0, score)));
       const tbl = el('div', { className: 'mg-lab' });
       const picked = new Set();
       rows.forEach((r, i) => {
@@ -378,7 +378,74 @@
     cur.card.appendChild(deliver);
   }
 
+  // ================================================================ 5) Servis bakımı (3–5 sn)
+  //  Serum değişimi: damla hızını hedefe getirip kısa süre tut · İlaç saati: kiloya göre doğru dozu seç ·
+  //  Ateş ve tansiyon: ölçüm değerlerini doğru yorumla
+  function wardCare(need, patient, onDone) {
+    const kind = /Serum/.test(need) ? 'iv' : /İlaç/.test(need) ? 'med' : 'vital';
+    open(kind === 'iv' ? '💉' : kind === 'med' ? '💊' : '🌡️', need, ['Bakım']);
+    const name = patient && patient.name ? patient.name : 'Hasta';
+    if (kind === 'iv') {
+      const target = [30, 40, 50][Math.floor(Math.random() * 3)];
+      frame(0, `Serum damla hızını ${target} damla/dk yapın`, `${name}: yeni serum takıldı. Roller klempi ayarlayıp hızı hedefe getirin ve 1,5 sn sabit tutun (5 sn).`, () => onDone(0));
+      const { ctx, W, H } = canvas();
+      const sl = el('input', { type: 'range', min: '0', max: '80', value: '10', className: 'sg-slider' });
+      cur.card.appendChild(sl);
+      let v = 10, hold = 0, last = performance.now(); const t0 = last;
+      sl.addEventListener('input', () => { v = +sl.value; });
+      loop(() => {
+        const t = performance.now(), dt = Math.min(0.05, (t - last) / 1000); last = t;
+        const ok = Math.abs(v - target) <= 3;
+        if (ok) hold += dt; else hold = Math.max(0, hold - dt);
+        ctx.fillStyle = '#0b2430'; ctx.fillRect(0, 0, W, H);
+        // damla odacığı ve düşen damlalar
+        ctx.fillStyle = 'rgba(210,235,250,0.9)'; rr(ctx, 60, 30, 46, 70, 8); ctx.fill();
+        ctx.fillStyle = 'rgba(90,160,216,0.6)'; ctx.fillRect(64, 70, 38, 26);
+        const per = v > 0 ? 60 / v : 99, ph = ((t - t0) / 1000 % per) / per;
+        if (v > 0) { ctx.fillStyle = '#5aa0d8'; ctx.beginPath(); ctx.arc(83, 40 + ph * 30, 3, 0, Math.PI * 2); ctx.fill(); }
+        gauge(ctx, 250, 130, 70, v / 80, (target - 3) / 80, (target + 3) / 80, `${Math.round(v)} damla/dk`, `hedef ${target}`);
+        ctx.fillStyle = '#2b3a46'; rr(ctx, 40, 186, 280, 10, 5); ctx.fill();
+        ctx.fillStyle = '#46c46a'; rr(ctx, 40, 186, 280 * Math.min(1, hold / 1.5), 10, 5); ctx.fill();
+        if (hold >= 1.5 || t - t0 > 5000) {
+          const s = hold >= 1.5 ? Math.max(60, 100 - Math.round(Math.max(0, (t - t0) / 1000 - 2) * 12)) : 30;
+          result(s, [hold >= 1.5 ? 'Damla hızı doğru, serum güvenle akıyor.' : 'Hız hedefte tutulamadı; hemşire düzeltti.'], onDone);
+          return false;
+        }
+      });
+      return;
+    }
+    // İlaç ve vital: tek soru, üç gerçekçi seçenek
+    let q, opts;
+    if (kind === 'med') {
+      const kg = [20, 30, 40, 60, 70][Math.floor(Math.random() * 5)];
+      const per = kg < 45 ? 15 : 10, dose = Math.min(1000, kg * per);
+      q = `Order: Parasetamol ${per} mg/kg, ağızdan (en fazla 1000 mg). ${name} ${kg} kg. Kaç mg verilmeli?`;
+      opts = [[`${dose} mg`, true], [`${Math.min(1000, dose * 2)} mg`, false], [`${Math.max(50, Math.round(dose / 2 / 50) * 50)} mg`, false]];
+    } else {
+      const fever = Math.random() < 0.5, hyper = Math.random() < 0.5;
+      const temp = fever ? (38.2 + Math.random() * 0.9).toFixed(1) : (36.5 + Math.random() * 0.6).toFixed(1);
+      const bp = hyper ? `${150 + Math.round(Math.random() * 15)}/${94 + Math.round(Math.random() * 6)}` : `${116 + Math.round(Math.random() * 10)}/${74 + Math.round(Math.random() * 6)}`;
+      q = `${name}: vücut ısısı ${temp} °C, tansiyon ${bp} mmHg. Ölçümü nasıl yorumlarsınız?`;
+      const right = `${fever ? 'Ateş var' : 'Ateş yok'}, tansiyon ${hyper ? 'yüksek' : 'normal aralıkta'}; ${fever || hyper ? 'hekime bildirilir ve takip sıklaştırılır.' : 'rutin takip sürer.'}`;
+      const w1 = `${fever ? 'Ateş yok' : 'Ateş var'}, tansiyon ${hyper ? 'yüksek' : 'normal aralıkta'}; ${!fever || hyper ? 'hekime bildirilir.' : 'rutin takip sürer.'}`;
+      const w2 = `${fever ? 'Ateş var' : 'Ateş yok'}, tansiyon ${hyper ? 'normal aralıkta' : 'yüksek'}; ${fever || !hyper ? 'hekime bildirilir.' : 'rutin takip sürer.'}`;
+      opts = [[right, true], [w1, false], [w2, false]];
+    }
+    frame(0, kind === 'med' ? 'Doğru dozu seçin' : 'Vital bulguları yorumlayın', q, () => onDone(0));
+    const t0 = performance.now();
+    opts.sort(() => Math.random() - 0.5).forEach(([txt, ok]) => {
+      const b = el('button', { type: 'button', className: 'opt-btn' }, txt);
+      b.addEventListener('click', () => {
+        const secs = (performance.now() - t0) / 1000;
+        const s = ok ? Math.max(60, 100 - Math.round(Math.max(0, secs - 3) * 8)) : 20;
+        result(s, [ok ? 'Doğru! Bakım güvenle tamamlandı.' : 'Hatalı seçim; sorumlu hemşire düzeltti.'], onDone);
+      });
+      cur.card.appendChild(b);
+    });
+  }
+
   VH.minigames = {
+    wardCare,
     enabled: !/[?&]nomini\b/.test(location.search),
     flow, lab, defib, pharmacy,
     get active() { return !!cur; },
